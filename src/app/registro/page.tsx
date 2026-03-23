@@ -97,25 +97,9 @@ export default function RegistroPage() {
       return
     }
 
-    // Crear perfil
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .insert({
-        id: authData.user.id,
-        username: usernameClean,
-        email: email.trim().toLowerCase(),
-        ip_registro: ip,
-        role: 'player',
-      })
-
-    if (profileError) {
-      setError('Error creando el perfil. Intenta de nuevo.')
-      setLoading(false)
-      return
-    }
-
-  setExito(true)
-setLoading(false)
+    // El trigger de DB crea el perfil automáticamente
+    setExito(true)
+    setLoading(false)
   }
 
   if (exito) {

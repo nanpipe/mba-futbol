@@ -79,6 +79,12 @@ export default function RegistroPage() {
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
       password,
+      options: {
+        data: {
+          username: usernameClean,
+          ip_registro: ip,
+        }
+      }
     })
 
     if (authError || !authData.user) {
@@ -108,8 +114,8 @@ export default function RegistroPage() {
       return
     }
 
-    setExito(true)
-    setLoading(false)
+  setExito(true)
+setLoading(false)
   }
 
   if (exito) {

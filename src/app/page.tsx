@@ -111,8 +111,8 @@ export default function HomePage() {
       .order('estado', { ascending: true })
       .order('posicion_espera', { ascending: true, nullsFirst: false })
 
-    setInscripciones((ins as Inscripcion[]) ?? [])
-    setMiInscripcion((ins as Inscripcion[])?.find(i => i.player_id === u.id) ?? null)
+    setInscripciones((ins as unknown as Inscripcion[]) ?? [])
+    setMiInscripcion((ins as unknown as Inscripcion[])?.find(i => i.player_id === u.id) ?? null)
     setLoading(false)
   }, [supabase, calcularVentana])
 

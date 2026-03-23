@@ -71,7 +71,7 @@ export default function AdminPage() {
       .eq('partido_id', partidoId)
       .order('estado', { ascending: true })
       .order('posicion_espera', { ascending: true, nullsFirst: false })
-    setInscripciones((data as Inscripcion[]) ?? [])
+    setInscripciones((data as unknown as Inscripcion[]) ?? [])
   }, [supabase])
 
   useEffect(() => {

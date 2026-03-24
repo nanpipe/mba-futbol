@@ -36,23 +36,27 @@ export async function POST(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    // Eliminar de todos los partidos futuros y promover espera
-    const { data: inscripciones } = await admin
-      .from('inscripciones')
-      .select('id, partido_id, estado')
-      .eq('player_id', player_id)
-      .gte('created_at', new Date().toISOString().split('T')[0])
+   // Eliminar de partidos futuros
+  const hoy = new Date().toISOString().split('T')[0]
+  const { data: inscripciones } = await admin
+    .from('inscripciones')
+    .select('id, partido_id, estado, partidos(fecha)')
+    .eq('player_id', player_id)
 
-    for (const ins of (inscripciones ?? [])) {
+  for (const ins of (inscripciones ?? [])) {
+    const fecha = (ins as unknown as { partidos: { fecha: string } }).partidos?.fecha ?? ''
+    if (fecha >= hoy) {
       await admin.from('inscripciones').delete().eq('id', ins.id)
       if (ins.estado === 'confirmado') {
         await admin.rpc('promover_espera', { p_partido_id: ins.partido_id })
-        await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/notify`, { method: 'POST' })
+        fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/notify`, { method: 'POST' })
+          .catch(err => console.error('Notify error:', err))
       }
     }
-
-    return NextResponse.json({ ok: true, mensaje: 'Usuario baneado y removido de partidos futuros' })
   }
+
+  return NextResponse.json({ ok: true, mensaje: 'Usuario suspendido y removido de partidos futuros.' })
+}
 
   // Liberar ban (pagó multa)
   if (accion === 'liberar') {

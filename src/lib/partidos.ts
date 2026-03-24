@@ -15,24 +15,31 @@ export function getVentanaActual(): VentanaInscripcion {
   const diaSemana = ahora.getDay()
   const hora = ahora.getHours() + ahora.getMinutes() / 60
 
-  if (diaSemana === 0 && hora >= 10) {
-    return { abierta: true, partidoFecha: nextDay(ahora, 2), partidoDia: 'martes', abreEn: null }
-  }
-  if (diaSemana === 1) {
-    return { abierta: true, partidoFecha: nextDay(ahora, 2), partidoDia: 'martes', abreEn: null }
-  }
-  if (diaSemana === 4 && hora >= 10) {
-    return { abierta: true, partidoFecha: addDays(ahora, 1), partidoDia: 'viernes', abreEn: null }
+  if ((diaSemana === 0 && hora >= 10) || diaSemana === 1) {
+    // Domingo >= 10am o lunes → partido del martes ESTA semana
+    const martes = new Date(ahora)
+    const diasHasta = diaSemana === 0 ? 2 : 1
+    martes.setDate(ahora.getDate() + diasHasta)
+    return { abierta: true, partidoFecha: martes, partidoDia: 'martes', abreEn: null }
   }
 
+  if (diaSemana === 4 && hora >= 10) {
+    // Jueves >= 10am → partido del viernes ESTA semana
+    const viernes = new Date(ahora)
+    viernes.setDate(ahora.getDate() + 1)
+    return { abierta: true, partidoFecha: viernes, partidoDia: 'viernes', abreEn: null }
+  }
+
+  // Calcular cuándo abre la próxima ventana
   let abreEn: Date
   if ((diaSemana === 0 || diaSemana === 4) && hora < 10) {
-    const hoy = new Date(ahora)
-    hoy.setHours(10, 0, 0, 0)
-    abreEn = fromZonedTime(hoy, TZ)
+    abreEn = new Date(ahora)
+    abreEn.setHours(10, 0, 0, 0)
+    abreEn = fromZonedTime(abreEn, TZ)
   } else {
     const diasHastaDomingo = (7 - diaSemana) % 7 || 7
-    const proximoDomingo = addDays(ahora, diasHastaDomingo)
+    const proximoDomingo = new Date(ahora)
+    proximoDomingo.setDate(ahora.getDate() + diasHastaDomingo)
     proximoDomingo.setHours(10, 0, 0, 0)
     abreEn = fromZonedTime(proximoDomingo, TZ)
   }

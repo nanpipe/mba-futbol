@@ -89,13 +89,17 @@ export default function HomePage() {
       return
     }
 
-    const fechaStr = targetFecha.toISOString().split('T')[0]
+     // Buscar el próximo partido para el día objetivo 
     const { data: partido } = await supabase
       .from('partidos')
       .select('id, fecha, dia_semana')
-      .eq('fecha', fechaStr)
+      .eq('dia_semana', targetDia)
+      .gte('fecha', new Date().toISOString().split('T')[0])
+      .order('fecha', { ascending: true })
+      .limit(1)
       .single()
 
+      // Si no hay partido, la ventana está abierta pero sin partido asociado
     if (!partido) {
       setVentana({ abierta: true, partido: null, abreEn: null, msHastaAbre: 0 })
       setLoading(false)

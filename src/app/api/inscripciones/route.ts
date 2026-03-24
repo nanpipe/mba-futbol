@@ -120,11 +120,12 @@ export async function DELETE(req: NextRequest) {
     .eq('id', inscripcion.id)
 
   // Si era confirmado, promover al primero en espera
-  if (inscripcion.estado === 'confirmado') {
-    await admin.rpc('promover_espera', { p_partido_id: partido_id })
-    // Disparar envío de email
-    await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/notify`, { method: 'POST' })
-  }
+ if (inscripcion.estado === 'confirmado') {
+  await admin.rpc('promover_espera', { p_partido_id: partido_id })
+  // Email en background — no bloquea ni falla la cancelación
+  fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/notify`, { method: 'POST' })
+    .catch(err => console.error('Notify error:', err))
+}
 
-  return NextResponse.json({ ok: true })
+return NextResponse.json({ ok: true })
 }

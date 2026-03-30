@@ -47,6 +47,17 @@ export default function AdminPage() {
   const [banRazon, setBanRazon] = useState('')
   const [banFecha, setBanFecha] = useState('')
 
+  // Modal crear partido
+  const [crearModal, setCrearModal] = useState(false)
+  const [nuevaFecha, setNuevaFecha] = useState('')
+  const [nuevaHora, setNuevaHora] = useState('19:00')
+  const [nuevosCupos, setNuevosCupos] = useState('14')
+
+  // Modal editar jugador
+  const [editModal, setEditModal] = useState<Player | null>(null)
+  const [editUsername, setEditUsername] = useState('')
+  const [editEmail, setEditEmail] = useState('')
+
   const cargarDatos = useCallback(async () => {
     const { data: ps } = await supabase
       .from('profiles')
@@ -118,6 +129,29 @@ export default function AdminPage() {
     setBanFecha('')
   }
 
+  const crearPartido = async () => {
+    if (!nuevaFecha) return
+    await accionAdmin('crear_partido', {
+      fecha: nuevaFecha,
+      hora: nuevaHora + ':00',
+      cupos_total: nuevosCupos,
+    })
+    setCrearModal(false)
+    setNuevaFecha('')
+    setNuevaHora('19:00')
+    setNuevosCupos('14')
+  }
+
+  const confirmarEdit = async () => {
+    if (!editModal) return
+    await accionAdmin('editar_jugador', {
+      player_id: editModal.id,
+      username: editUsername,
+      email: editEmail,
+    })
+    setEditModal(null)
+  }
+
   if (authed === null || loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
@@ -177,8 +211,17 @@ export default function AdminPage() {
 
               {/* Lista de partidos */}
               <div>
-                <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 16 }}>
-                  PRÓXIMOS PARTIDOS
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
+                    PRÓXIMOS PARTIDOS
+                  </div>
+                  <button
+                    onClick={() => setCrearModal(true)}
+                    className="btn btn-ghost"
+                    style={{ fontSize: 11, padding: '6px 12px', color: 'var(--green)', borderColor: '#16a34a' }}
+                  >
+                    + Nuevo
+                  </button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {partidos.map(p => {
@@ -290,13 +333,22 @@ export default function AdminPage() {
                           {p.fecha_liberacion && ` · hasta ${new Date(p.fecha_liberacion).toLocaleDateString('es-CO')}`}
                         </div>
                       </div>
-                      <button
-                        onClick={() => accionAdmin('liberar', { player_id: p.id })}
-                        className="btn btn-ghost"
-                        style={{ fontSize: 12, padding: '8px 16px', color: 'var(--green)', borderColor: '#16a34a' }}
-                      >
-                        Liberar
-                      </button>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={() => { setEditModal(p); setEditUsername(p.username); setEditEmail(p.email) }}
+                          className="btn btn-ghost"
+                          style={{ fontSize: 11, padding: '8px 14px' }}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => accionAdmin('liberar', { player_id: p.id })}
+                          className="btn btn-ghost"
+                          style={{ fontSize: 12, padding: '8px 16px', color: 'var(--green)', borderColor: '#16a34a' }}
+                        >
+                          Liberar
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -318,13 +370,22 @@ export default function AdminPage() {
                       <div style={{ fontSize: 15, marginBottom: 2 }}>{p.username}</div>
                       <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>{p.email}</div>
                     </div>
-                    <button
-                      onClick={() => setBanModal(p)}
-                      className="btn btn-danger"
-                      style={{ fontSize: 11, padding: '8px 14px' }}
-                    >
-                      Suspender
-                    </button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={() => { setEditModal(p); setEditUsername(p.username); setEditEmail(p.email) }}
+                        className="btn btn-ghost"
+                        style={{ fontSize: 11, padding: '8px 14px' }}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => setBanModal(p)}
+                        className="btn btn-danger"
+                        style={{ fontSize: 11, padding: '8px 14px' }}
+                      >
+                        Suspender
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -332,6 +393,71 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+
+      {/* Modal Crear Partido */}
+      {crearModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 20, zIndex: 100
+        }}>
+          <div className="card fade-in" style={{ width: '100%', maxWidth: 400 }}>
+            <h3 className="display" style={{ fontSize: 24, marginBottom: 8 }}>Nuevo partido</h3>
+            <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 24 }}>
+              El día de la semana se detecta automáticamente de la fecha.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>FECHA</label>
+                <input type="date" value={nuevaFecha} onChange={e => setNuevaFecha(e.target.value)} />
+              </div>
+              <div>
+                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>HORA</label>
+                <input type="time" value={nuevaHora} onChange={e => setNuevaHora(e.target.value)} />
+              </div>
+              <div>
+                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>CUPOS</label>
+                <input type="number" min="1" max="30" value={nuevosCupos} onChange={e => setNuevosCupos(e.target.value)} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+              <button onClick={crearPartido} disabled={!nuevaFecha} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
+                Crear partido
+              </button>
+              <button onClick={() => setCrearModal(false)} className="btn btn-ghost">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Jugador */}
+      {editModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 20, zIndex: 100
+        }}>
+          <div className="card fade-in" style={{ width: '100%', maxWidth: 420 }}>
+            <h3 className="display" style={{ fontSize: 24, marginBottom: 24 }}>Editar jugador</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>NOMBRE DE USUARIO</label>
+                <input type="text" value={editUsername} onChange={e => setEditUsername(e.target.value)} placeholder="username" />
+              </div>
+              <div>
+                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>EMAIL</label>
+                <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="email@ejemplo.com" />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+              <button onClick={confirmarEdit} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
+                Guardar cambios
+              </button>
+              <button onClick={() => setEditModal(null)} className="btn btn-ghost">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Ban */}
       {banModal && (

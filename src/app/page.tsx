@@ -37,6 +37,7 @@ export default function HomePage() {
   const [inscribiendose, setInscribiendose] = useState(false)
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [countdown, setCountdown] = useState('')
+  const [ultimoPartido, setUltimoPartido] = useState<{ partido: Partido; inscripciones: Inscripcion[] } | null>(null)
 
   const calcularVentana = useCallback(() => {
     const ahora = new Date()
@@ -84,6 +85,24 @@ export default function HomePage() {
     const { abierta, targetDia, targetFecha, abreMs } = calcularVentana()
 
     if (!abierta || !targetFecha || !targetDia) {
+      // Fetch last played match to show its player list
+      const { data: ultimo } = await supabase
+        .from('partidos')
+        .select('id, fecha, dia_semana')
+        .lt('fecha', new Date().toISOString().split('T')[0])
+        .order('fecha', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (ultimo) {
+        const { data: ins } = await supabase
+          .from('inscripciones')
+          .select('id, player_id, estado, posicion_espera, profiles(username)')
+          .eq('partido_id', ultimo.id)
+          .eq('estado', 'confirmado')
+        setUltimoPartido({ partido: ultimo, inscripciones: (ins as unknown as Inscripcion[]) ?? [] })
+      }
+
       setVentana({ abierta: false, partido: null, abreEn: null, msHastaAbre: abreMs ?? 0 })
       setLoading(false)
       return
@@ -241,20 +260,48 @@ export default function HomePage() {
 
         {/* Estado ventana */}
         {!ventana?.abierta ? (
-          <div className="card fade-in" style={{ textAlign: 'center', padding: '48px 24px' }}>
-            <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 16 }}>
-              INSCRIPCIONES CERRADAS
+          <>
+            <div className="card fade-in" style={{ textAlign: 'center', padding: '48px 24px' }}>
+              <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 16 }}>
+                INSCRIPCIONES CERRADAS
+              </div>
+              <p style={{ color: 'var(--text-muted)', fontSize: 15, lineHeight: 1.6, marginBottom: 8 }}>
+                Las inscripciones abren los <strong style={{ color: 'var(--text)' }}>domingos a las 10:00 am</strong> para el martes<br />
+                y los <strong style={{ color: 'var(--text)' }}>jueves a las 10:00 am</strong> para el viernes.
+              </p>
+              {countdown && (
+                <div className="display" style={{ fontSize: 36, color: 'var(--green)', marginTop: 24 }}>
+                  {countdown}
+                </div>
+              )}
             </div>
-            <p style={{ color: 'var(--text-muted)', fontSize: 15, lineHeight: 1.6, marginBottom: 8 }}>
-              Las inscripciones abren los <strong style={{ color: 'var(--text)' }}>domingos a las 10:00 am</strong> para el martes<br />
-              y los <strong style={{ color: 'var(--text)' }}>jueves a las 10:00 am</strong> para el viernes.
-            </p>
-            {countdown && (
-              <div className="display" style={{ fontSize: 36, color: 'var(--green)', marginTop: 24 }}>
-                {countdown}
+
+            {ultimoPartido && ultimoPartido.inscripciones.length > 0 && (
+              <div style={{ marginTop: 40 }} className="fade-in">
+                <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 4 }}>
+                  ÚLTIMO PARTIDO — {ultimoPartido.partido.dia_semana.toUpperCase()}
+                </div>
+                <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 16 }}>
+                  {new Date(ultimoPartido.partido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })} · 7:00 PM
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {ultimoPartido.inscripciones.map((ins, idx) => (
+                    <div key={ins.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 3,
+                      border: ins.player_id === user?.id ? '1px solid #16a34a' : '1px solid transparent'
+                    }}>
+                      <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', width: 20 }}>{idx + 1}</span>
+                      <span style={{ fontSize: 15, flex: 1 }}>{ins.profiles.username}</span>
+                      {ins.player_id === user?.id && (
+                        <span className="mono" style={{ fontSize: 10, color: 'var(--green)', letterSpacing: '0.1em' }}>TÚ</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
-          </div>
+          </>
         ) : (
           <div className="fade-in">
             {/* Partido info */}

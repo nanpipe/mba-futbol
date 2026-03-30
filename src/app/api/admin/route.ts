@@ -92,5 +92,50 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
+  // Crear partido
+  if (accion === 'crear_partido') {
+    const { fecha, hora, cupos_total } = body
+    if (!fecha) return NextResponse.json({ error: 'Falta fecha' }, { status: 400 })
+
+    const date = new Date(fecha + 'T12:00:00')
+    const dias = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+    const dia_semana = dias[date.getDay()]
+
+    const { error } = await admin
+      .from('partidos')
+      .insert({
+        fecha,
+        dia_semana,
+        hora: hora || '19:00:00',
+        cupos_total: parseInt(cupos_total) || 14,
+        inscripcion_abierta: false,
+      })
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true, mensaje: `Partido del ${dia_semana} ${fecha} creado.` })
+  }
+
+  // Editar jugador
+  if (accion === 'editar_jugador') {
+    const { player_id, username, email } = body
+    if (!player_id) return NextResponse.json({ error: 'Falta player_id' }, { status: 400 })
+
+    const updates: Record<string, string> = {}
+    if (username?.trim()) updates.username = username.trim()
+    if (email?.trim()) updates.email = email.trim()
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 })
+    }
+
+    const { error } = await admin
+      .from('profiles')
+      .update(updates)
+      .eq('id', player_id)
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true, mensaje: 'Jugador actualizado.' })
+  }
+
   return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 })
 }

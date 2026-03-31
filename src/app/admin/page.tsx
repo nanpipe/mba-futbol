@@ -419,7 +419,7 @@ export default function AdminPage() {
 
       {/* TAB: NOTIFICACIONES */}
         {tab === 'notifs' && (
-          <div className="fade-in" style={{ maxWidth: 480 }}>
+          <div className="fade-in" style={{ maxWidth: 480, margin: '0 auto' }}>
             <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 24 }}>
               ENVIAR NOTIFICACIÓN DE PRUEBA
             </div>

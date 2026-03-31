@@ -3,8 +3,8 @@ self.addEventListener('push', event => {
   event.waitUntil(
     self.registration.showNotification(data.title ?? 'MBA FC', {
       body: data.body ?? '',
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
       data: { url: data.url ?? '/' },
       vibrate: [200, 100, 200],
     })

@@ -415,11 +415,11 @@ export default function AdminPage() {
             </div>
           </div>
         )}
-      </div>
 
-      {/* TAB: NOTIFICACIONES */}
+        {/* TAB: NOTIFICACIONES */}
         {tab === 'notifs' && (
-          <div className="fade-in" style={{ maxWidth: 480, margin: '0 auto' }}>
+          <div className="fade-in" style={{ display: 'flex', justifyContent: 'center' }}>
+            <div style={{ width: '100%', maxWidth: 480 }}>
             <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 24 }}>
               ENVIAR NOTIFICACIÓN DE PRUEBA
             </div>
@@ -469,8 +469,10 @@ export default function AdminPage() {
                 ))}
               </div>
             </div>
+            </div>
           </div>
         )}
+      </div>
 
       {/* Modal Crear Partido */}
       {crearModal && (

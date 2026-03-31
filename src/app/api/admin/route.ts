@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
 
   // Crear partido
   if (accion === 'crear_partido') {
-    const { fecha, hora, cupos_total } = body
+    const { fecha, hora, cupos_total, hora_apertura, dias_antes_apertura } = body
     if (!fecha) return NextResponse.json({ error: 'Falta fecha' }, { status: 400 })
 
     const date = new Date(fecha + 'T12:00:00')
@@ -108,6 +108,8 @@ export async function POST(req: NextRequest) {
         dia_semana,
         hora: hora || '19:00:00',
         cupos_total: parseInt(cupos_total) || 14,
+        hora_apertura: hora_apertura || '10:00:00',
+        dias_antes_apertura: parseInt(dias_antes_apertura) || 2,
         inscripcion_abierta: false,
       })
 

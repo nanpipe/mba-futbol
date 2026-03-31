@@ -1,14 +1,18 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import Link from 'next/link'
+import { calcularVentanaPartido } from '@/lib/partidos'
 
 interface Partido {
   id: string
   fecha: string
   dia_semana: string
+  hora?: string
+  hora_apertura?: string
+  dias_antes_apertura?: number
 }
 
 interface Inscripcion {
@@ -38,6 +42,7 @@ export default function HomePage() {
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [countdown, setCountdown] = useState('')
   const [ultimoPartido, setUltimoPartido] = useState<{ partido: Partido; inscripciones: Inscripcion[] } | null>(null)
+  const abreEnRef = useRef<Date | null>(null)
   const [pushPermission, setPushPermission] = useState<NotificationPermission | null>(null)
   const [installPrompt, setInstallPrompt] = useState<Event & { prompt: () => void } | null>(null)
   const [isIos, setIsIos] = useState(false)
@@ -77,61 +82,29 @@ export default function HomePage() {
     return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
   }
 
-  const calcularVentana = useCallback(() => {
-    const ahora = new Date()
-    // Hora Colombia (UTC-5)
-    const col = new Date(ahora.toLocaleString('en-US', { timeZone: 'America/Bogota' }))
-    const dia = col.getDay()
-    const hora = col.getHours() + col.getMinutes() / 60
-
-    let abierta = false
-    let targetDia: 'martes' | 'viernes' | null = null
-    let targetFecha: Date | null = null
-    let abreMs: number | null = null
-
-    if ((dia === 0 && hora >= 10) || dia === 1) {
-      abierta = true; targetDia = 'martes'
-      const diff = dia === 0 ? 2 : 1
-      targetFecha = new Date(col)
-      targetFecha.setDate(col.getDate() + diff)
-    } else if (dia === 4 && hora >= 10) {
-      abierta = true; targetDia = 'viernes'
-      targetFecha = new Date(col)
-      targetFecha.setDate(col.getDate() + 1)
-    } else {
-      let diasHasta: number
-      if (dia === 0 && hora < 10) {
-        diasHasta = 0
-      } else if (dia === 4 && hora < 10) {
-        diasHasta = 0
-      } else {
-        diasHasta = (7 - dia) % 7 || 7
-      }
-      const abre = new Date(col)
-      abre.setDate(col.getDate() + diasHasta)
-      abre.setHours(10, 0, 0, 0)
-      abreMs = abre.getTime() - ahora.getTime()
-    }
-
-    return { abierta, targetDia, targetFecha, abreMs }
-  }, [])
-
   const cargarDatos = useCallback(async (u: User) => {
     const { data: prof } = await supabase.from('profiles').select('username, role, baneado').eq('id', u.id).single()
     setProfile(prof)
 
-    const { abierta, targetDia, targetFecha, abreMs } = calcularVentana()
+    const hoy = new Date().toISOString().split('T')[0]
 
-    if (!abierta || !targetFecha || !targetDia) {
-      // Fetch last played match to show its player list
+    // Fetch next upcoming partido
+    const { data: partido } = await supabase
+      .from('partidos')
+      .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura')
+      .gte('fecha', hoy)
+      .order('fecha', { ascending: true })
+      .limit(1)
+      .single()
+
+    const cargarUltimo = async () => {
       const { data: ultimo } = await supabase
         .from('partidos')
         .select('id, fecha, dia_semana')
-        .lt('fecha', new Date().toISOString().split('T')[0])
+        .lt('fecha', hoy)
         .order('fecha', { ascending: false })
         .limit(1)
         .single()
-
       if (ultimo) {
         const { data: ins } = await supabase
           .from('inscripciones')
@@ -140,29 +113,35 @@ export default function HomePage() {
           .eq('estado', 'confirmado')
         setUltimoPartido({ partido: ultimo, inscripciones: (ins as unknown as Inscripcion[]) ?? [] })
       }
-
-      setVentana({ abierta: false, partido: null, abreEn: null, msHastaAbre: abreMs ?? 0 })
-      setLoading(false)
-      return
     }
 
-     // Buscar el próximo partido para el día objetivo 
-    const { data: partido } = await supabase
-      .from('partidos')
-      .select('id, fecha, dia_semana')
-      .eq('dia_semana', targetDia)
-      .gte('fecha', new Date().toISOString().split('T')[0])
-      .order('fecha', { ascending: true })
-      .limit(1)
-      .single()
-
-      // Si no hay partido, la ventana está abierta pero sin partido asociado
     if (!partido) {
-      setVentana({ abierta: true, partido: null, abreEn: null, msHastaAbre: 0 })
+      await cargarUltimo()
+      setVentana({ abierta: false, partido: null, abreEn: null, msHastaAbre: 0 })
       setLoading(false)
       return
     }
 
+    const { abierta, abreEn, cierra } = calcularVentanaPartido(partido)
+    const now = new Date()
+
+    // Match already happened
+    if (now >= cierra) {
+      await cargarUltimo()
+      setVentana({ abierta: false, partido: null, abreEn: null, msHastaAbre: 0 })
+      setLoading(false)
+      return
+    }
+
+    // Window not yet open — show countdown
+    if (!abierta) {
+      abreEnRef.current = abreEn
+      setVentana({ abierta: false, partido: null, abreEn: null, msHastaAbre: abreEn.getTime() - now.getTime() })
+      setLoading(false)
+      return
+    }
+
+    // Window is open
     setVentana({ abierta: true, partido, abreEn: null, msHastaAbre: 0 })
 
     const { data: ins } = await supabase
@@ -175,7 +154,7 @@ export default function HomePage() {
     setInscripciones((ins as unknown as Inscripcion[]) ?? [])
     setMiInscripcion((ins as unknown as Inscripcion[])?.find(i => i.player_id === u.id) ?? null)
     setLoading(false)
-  }, [supabase, calcularVentana])
+  }, [supabase])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user: u } }) => {
@@ -187,19 +166,17 @@ export default function HomePage() {
 
   // Countdown timer
   useEffect(() => {
-    if (!ventana?.msHastaAbre) return
+    if (!ventana || ventana.abierta || !abreEnRef.current) return
     const interval = setInterval(() => {
-      const ms = ventana.msHastaAbre - (Date.now() - Date.now())
-      // Recalcular
-      const { abreMs } = calcularVentana()
-      if (!abreMs || abreMs <= 0) { clearInterval(interval); return }
-      const h = Math.floor(abreMs / 3600000)
-      const m = Math.floor((abreMs % 3600000) / 60000)
-      const s = Math.floor((abreMs % 60000) / 1000)
+      const ms = (abreEnRef.current?.getTime() ?? 0) - Date.now()
+      if (ms <= 0) { clearInterval(interval); return }
+      const h = Math.floor(ms / 3600000)
+      const m = Math.floor((ms % 3600000) / 60000)
+      const s = Math.floor((ms % 60000) / 1000)
       setCountdown(`${h}h ${m}m ${s}s`)
     }, 1000)
     return () => clearInterval(interval)
-  }, [ventana, calcularVentana])
+  }, [ventana])
 
   const inscribirse = async () => {
     if (!ventana?.partido || !user) return

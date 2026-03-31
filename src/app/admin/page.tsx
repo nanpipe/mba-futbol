@@ -52,6 +52,8 @@ export default function AdminPage() {
   const [nuevaFecha, setNuevaFecha] = useState('')
   const [nuevaHora, setNuevaHora] = useState('19:00')
   const [nuevosCupos, setNuevosCupos] = useState('14')
+  const [nuevaHoraApertura, setNuevaHoraApertura] = useState('10:00')
+  const [nuevosDiasAntes, setNuevosDiasAntes] = useState('2')
 
   // Modal editar jugador
   const [editModal, setEditModal] = useState<Player | null>(null)
@@ -141,11 +143,15 @@ export default function AdminPage() {
       fecha: nuevaFecha,
       hora: nuevaHora + ':00',
       cupos_total: nuevosCupos,
+      hora_apertura: nuevaHoraApertura + ':00',
+      dias_antes_apertura: nuevosDiasAntes,
     })
     setCrearModal(false)
     setNuevaFecha('')
     setNuevaHora('19:00')
     setNuevosCupos('14')
+    setNuevaHoraApertura('10:00')
+    setNuevosDiasAntes('2')
   }
 
   const confirmarEdit = async () => {
@@ -160,9 +166,13 @@ export default function AdminPage() {
 
   const enviarPushTest = async () => {
     setPushSending(true)
+    const { data: { session } } = await supabase.auth.getSession()
     const res = await fetch('/api/push/test', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token ?? ''}`,
+      },
       body: JSON.stringify({ title: pushTitle, body: pushBody, player_id: pushTarget || undefined }),
     })
     const data = await res.json()
@@ -411,11 +421,11 @@ export default function AdminPage() {
             </div>
           </div>
         )}
-      </div>
 
-      {/* TAB: NOTIFICACIONES */}
+        {/* TAB: NOTIFICACIONES */}
         {tab === 'notifs' && (
-          <div className="fade-in" style={{ maxWidth: 480 }}>
+          <div className="fade-in" style={{ display: 'flex', justifyContent: 'center' }}>
+            <div style={{ width: '100%', maxWidth: 480 }}>
             <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 24 }}>
               ENVIAR NOTIFICACIÓN DE PRUEBA
             </div>
@@ -465,8 +475,10 @@ export default function AdminPage() {
                 ))}
               </div>
             </div>
+            </div>
           </div>
         )}
+      </div>
 
       {/* Modal Crear Partido */}
       {crearModal && (
@@ -486,8 +498,20 @@ export default function AdminPage() {
                 <input type="date" value={nuevaFecha} onChange={e => setNuevaFecha(e.target.value)} />
               </div>
               <div>
-                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>HORA</label>
+                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>HORA DEL PARTIDO</label>
                 <input type="time" value={nuevaHora} onChange={e => setNuevaHora(e.target.value)} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>ABRIR INSCRIPCIONES</label>
+                  <input type="time" value={nuevaHoraApertura} onChange={e => setNuevaHoraApertura(e.target.value)} />
+                  <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>hora de apertura</div>
+                </div>
+                <div>
+                  <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>DÍAS ANTES</label>
+                  <input type="number" min="0" max="7" value={nuevosDiasAntes} onChange={e => setNuevosDiasAntes(e.target.value)} />
+                  <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>días previos al partido</div>
+                </div>
               </div>
               <div>
                 <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>CUPOS</label>

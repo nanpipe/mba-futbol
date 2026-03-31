@@ -311,6 +311,17 @@ end;
 $$;
 
 -- ============================================
+-- MIGRACIÓN: ventana de inscripción configurable por partido
+-- Ejecutar en Supabase SQL Editor
+-- ============================================
+-- alter table public.partidos
+--   add column if not exists hora_apertura time not null default '10:00:00',
+--   add column if not exists dias_antes_apertura int not null default 2;
+--
+-- También remover el constraint de dia_semana si se quieren permitir otros días:
+-- alter table public.partidos drop constraint if exists partidos_dia_semana_check;
+
+-- ============================================
 -- TABLA: push_subscriptions
 -- Suscripciones de push por navegador/dispositivo
 -- ============================================

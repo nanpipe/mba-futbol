@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getVentanaActual } from '@/lib/partidos'
+import { calcularVentanaPartido } from '@/lib/partidos'
 
 // POST /api/inscripciones — inscribirse a un partido
 export async function POST(req: NextRequest) {
@@ -29,23 +29,22 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Verificar ventana de inscripción
-  const ventana = getVentanaActual()
-  if (!ventana.abierta || !ventana.partidoFecha) {
-    return NextResponse.json({ error: 'Las inscripciones no están abiertas ahora.' }, { status: 400 })
-  }
-
   const { partido_id } = await req.json()
   if (!partido_id) return NextResponse.json({ error: 'Falta partido_id' }, { status: 400 })
 
-  // Verificar que el partido existe y corresponde a la ventana abierta
   const { data: partido } = await admin
     .from('partidos')
-    .select('id, cupos_total, fecha')
+    .select('id, cupos_total, fecha, hora, hora_apertura, dias_antes_apertura')
     .eq('id', partido_id)
     .single()
 
   if (!partido) return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
+
+  // Verificar ventana de inscripción usando los campos del partido
+  const ventana = calcularVentanaPartido(partido)
+  if (!ventana.abierta) {
+    return NextResponse.json({ error: 'Las inscripciones no están abiertas para este partido.' }, { status: 400 })
+  }
 
   // Verificar que no esté ya inscrito
   const { data: yaInscrito } = await admin

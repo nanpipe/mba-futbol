@@ -38,6 +38,35 @@ export default function HomePage() {
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [countdown, setCountdown] = useState('')
   const [ultimoPartido, setUltimoPartido] = useState<{ partido: Partido; inscripciones: Inscripcion[] } | null>(null)
+  const [pushPermission, setPushPermission] = useState<NotificationPermission | null>(null)
+
+  useEffect(() => {
+    if ('Notification' in window) setPushPermission(Notification.permission)
+  }, [])
+
+  const activarPush = async () => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
+    const permission = await Notification.requestPermission()
+    setPushPermission(permission)
+    if (permission !== 'granted') return
+    const reg = await navigator.serviceWorker.ready
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_PUSHER_APP_KEY!),
+    })
+    await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sub),
+    })
+  }
+
+  function urlBase64ToUint8Array(base64String: string) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+    const raw = atob(base64)
+    return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
+  }
 
   const calcularVentana = useCallback(() => {
     const ahora = new Date()
@@ -245,6 +274,11 @@ export default function HomePage() {
               <Link href="/admin" className="mono" style={{ fontSize: 12, color: 'var(--amber)', letterSpacing: '0.08em', textDecoration: 'none' }}>
                 ADMIN ↗
               </Link>
+            )}
+            {pushPermission !== 'granted' && pushPermission !== null && 'PushManager' in window && (
+              <button onClick={activarPush} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 11, color: 'var(--amber)', borderColor: '#92400e' }}>
+                🔔 Notificaciones
+              </button>
             )}
             <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{profile?.username}</span>
             <button onClick={cerrarSesion} className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 11 }}>Salir</button>

@@ -39,9 +39,18 @@ export default function HomePage() {
   const [countdown, setCountdown] = useState('')
   const [ultimoPartido, setUltimoPartido] = useState<{ partido: Partido; inscripciones: Inscripcion[] } | null>(null)
   const [pushPermission, setPushPermission] = useState<NotificationPermission | null>(null)
+  const [installPrompt, setInstallPrompt] = useState<Event & { prompt: () => void } | null>(null)
+  const [isIos, setIsIos] = useState(false)
+  const [isStandalone, setIsStandalone] = useState(false)
 
   useEffect(() => {
     if ('Notification' in window) setPushPermission(Notification.permission)
+    setIsIos(/iphone|ipad|ipod/i.test(navigator.userAgent))
+    setIsStandalone(window.matchMedia('(display-mode: standalone)').matches)
+
+    const handler = (e: Event) => { e.preventDefault(); setInstallPrompt(e as Event & { prompt: () => void }) }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
   }, [])
 
   const activarPush = async () => {
@@ -275,6 +284,11 @@ export default function HomePage() {
                 ADMIN ↗
               </Link>
             )}
+            {installPrompt && !isStandalone && (
+              <button onClick={() => { installPrompt.prompt(); setInstallPrompt(null) }} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 11, color: 'var(--green)', borderColor: '#16a34a' }}>
+                📲 Instalar app
+              </button>
+            )}
             {pushPermission !== 'granted' && pushPermission !== null && 'PushManager' in window && (
               <button onClick={activarPush} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 11, color: 'var(--amber)', borderColor: '#92400e' }}>
                 🔔 Notificaciones
@@ -285,6 +299,12 @@ export default function HomePage() {
           </div>
         </div>
       </nav>
+
+      {isIos && !isStandalone && (
+        <div className="mono" style={{ background: '#0f1f0f', borderBottom: '1px solid #1a3a1a', padding: '10px 0', textAlign: 'center', fontSize: 11, color: 'var(--green)', letterSpacing: '0.05em' }}>
+          Para instalar: toca <strong>Compartir</strong> → <strong>Agregar a pantalla de inicio</strong>
+        </div>
+      )}
 
       <div className="container" style={{ paddingTop: 48 }}>
         {/* Header */}

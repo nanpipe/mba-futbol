@@ -33,7 +33,7 @@ interface Partido {
 
 export default function AdminPage() {
   const supabase = createClient()
-  const [tab, setTab] = useState<'partidos' | 'jugadores'>('partidos')
+  const [tab, setTab] = useState<'partidos' | 'jugadores' | 'notifs'>('partidos')
   const [authed, setAuthed] = useState<boolean | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
   const [partidos, setPartidos] = useState<Partido[]>([])
@@ -57,6 +57,12 @@ export default function AdminPage() {
   const [editModal, setEditModal] = useState<Player | null>(null)
   const [editUsername, setEditUsername] = useState('')
   const [editEmail, setEditEmail] = useState('')
+
+  // Test push
+  const [pushTitle, setPushTitle] = useState('MBA FC')
+  const [pushBody, setPushBody] = useState('¡Hay cupo en el partido! Entra a inscribirte ⚽')
+  const [pushTarget, setPushTarget] = useState('')
+  const [pushSending, setPushSending] = useState(false)
 
   const cargarDatos = useCallback(async () => {
     const { data: ps } = await supabase
@@ -152,6 +158,19 @@ export default function AdminPage() {
     setEditModal(null)
   }
 
+  const enviarPushTest = async () => {
+    setPushSending(true)
+    const res = await fetch('/api/push/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: pushTitle, body: pushBody, player_id: pushTarget || undefined }),
+    })
+    const data = await res.json()
+    setMensaje(res.ok ? data.mensaje : `Error: ${data.error}`)
+    setTimeout(() => setMensaje(''), 5000)
+    setPushSending(false)
+  }
+
   if (authed === null || loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
@@ -191,7 +210,7 @@ export default function AdminPage() {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 0, marginBottom: 40, borderBottom: '1px solid var(--border)' }}>
-          {(['partidos', 'jugadores'] as const).map(t => (
+          {(['partidos', 'jugadores', 'notifs'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)} className="mono" style={{
               padding: '12px 24px', background: 'none', border: 'none', cursor: 'pointer',
               fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase',
@@ -393,6 +412,61 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+
+      {/* TAB: NOTIFICACIONES */}
+        {tab === 'notifs' && (
+          <div className="fade-in" style={{ maxWidth: 480 }}>
+            <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 24 }}>
+              ENVIAR NOTIFICACIÓN DE PRUEBA
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>TÍTULO</label>
+                <input type="text" value={pushTitle} onChange={e => setPushTitle(e.target.value)} />
+              </div>
+              <div>
+                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>MENSAJE</label>
+                <input type="text" value={pushBody} onChange={e => setPushBody(e.target.value)} />
+              </div>
+              <div>
+                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>DESTINATARIO</label>
+                <select value={pushTarget} onChange={e => setPushTarget(e.target.value)} style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, padding: '10px 12px', color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: 13 }}>
+                  <option value="">Todos los jugadores</option>
+                  {players.map(p => (
+                    <option key={p.id} value={p.id}>{p.username}</option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                onClick={enviarPushTest}
+                disabled={pushSending}
+                className="btn btn-primary"
+                style={{ padding: '14px', fontSize: 13 }}
+              >
+                {pushSending ? 'Enviando...' : 'Enviar notificación'}
+              </button>
+            </div>
+
+            <div className="card" style={{ marginTop: 32, borderColor: '#1a2a1a' }}>
+              <div className="mono" style={{ fontSize: 11, letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: 12 }}>CHECKLIST</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[
+                  'El jugador tiene que haber tocado "🔔 Notificaciones" y aceptado el permiso',
+                  'En iOS, la app debe estar agregada al Home Screen primero',
+                  'La tabla push_subscriptions debe existir en Supabase',
+                  'NEXT_PUBLIC_PUSHER_APP_KEY y PUSHER_APP_SECRET deben estar configurados',
+                ].map((item, i) => (
+                  <div key={i} className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 8 }}>
+                    <span style={{ color: 'var(--green)' }}>·</span>
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
       {/* Modal Crear Partido */}
       {crearModal && (

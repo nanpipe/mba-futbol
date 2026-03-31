@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPush } from '@/lib/push'
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
   const admin = createAdminClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // Verify via JWT token (reliable across cookies/environments)
+  const token = req.headers.get('Authorization')?.replace('Bearer ', '')
+  if (!token) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+  const { data: { user } } = await admin.auth.getUser(token)
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-  const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+
+  const { data: prof } = await admin.from('profiles').select('role').eq('id', user.id).single()
   if (prof?.role !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const { title, body, player_id } = await req.json()

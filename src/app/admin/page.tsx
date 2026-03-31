@@ -160,9 +160,13 @@ export default function AdminPage() {
 
   const enviarPushTest = async () => {
     setPushSending(true)
+    const { data: { session } } = await supabase.auth.getSession()
     const res = await fetch('/api/push/test', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token ?? ''}`,
+      },
       body: JSON.stringify({ title: pushTitle, body: pushBody, player_id: pushTarget || undefined }),
     })
     const data = await res.json()

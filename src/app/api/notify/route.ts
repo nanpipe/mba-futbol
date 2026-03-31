@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPromovido } from '@/lib/email'
+import { sendPush } from '@/lib/push'
 
 // POST /api/notify — procesa notificaciones pendientes en la cola
 export async function POST() {
@@ -27,12 +28,34 @@ export async function POST() {
         day: 'numeric', month: 'long', timeZone: 'America/Bogota'
       })
 
+      // Email
       await sendPromovido({
         email: notif.email,
         username: notif.username,
         fechaPartido: fechaFormateada,
         diaSemana,
       })
+
+      // Push — enviar a todas las suscripciones del jugador
+      const { data: subs } = await admin
+        .from('push_subscriptions')
+        .select('endpoint, p256dh, auth')
+        .eq('player_id', notif.player_id)
+
+      for (const sub of subs ?? []) {
+        try {
+          await sendPush(sub, {
+            title: '¡Entraste al partido!',
+            body: `Tienes cupo confirmado para el ${diaSemana} ${fechaFormateada}. ¡Nos vemos en la cancha! ⚽`,
+            url: '/',
+          })
+        } catch (pushErr: unknown) {
+          // Subscription expirada — eliminar
+          if ((pushErr as { statusCode?: number }).statusCode === 410) {
+            await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+          }
+        }
+      }
 
       await admin
         .from('notificaciones_pendientes')

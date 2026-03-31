@@ -38,6 +38,44 @@ export default function HomePage() {
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [countdown, setCountdown] = useState('')
   const [ultimoPartido, setUltimoPartido] = useState<{ partido: Partido; inscripciones: Inscripcion[] } | null>(null)
+  const [pushPermission, setPushPermission] = useState<NotificationPermission | null>(null)
+  const [installPrompt, setInstallPrompt] = useState<Event & { prompt: () => void } | null>(null)
+  const [isIos, setIsIos] = useState(false)
+  const [isStandalone, setIsStandalone] = useState(false)
+
+  useEffect(() => {
+    if ('Notification' in window) setPushPermission(Notification.permission)
+    setIsIos(/iphone|ipad|ipod/i.test(navigator.userAgent))
+    setIsStandalone(window.matchMedia('(display-mode: standalone)').matches)
+
+    const handler = (e: Event) => { e.preventDefault(); setInstallPrompt(e as Event & { prompt: () => void }) }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  const activarPush = async () => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
+    const permission = await Notification.requestPermission()
+    setPushPermission(permission)
+    if (permission !== 'granted') return
+    const reg = await navigator.serviceWorker.ready
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_PUSHER_APP_KEY!),
+    })
+    await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sub),
+    })
+  }
+
+  function urlBase64ToUint8Array(base64String: string) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+    const raw = atob(base64)
+    return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
+  }
 
   const calcularVentana = useCallback(() => {
     const ahora = new Date()
@@ -246,11 +284,27 @@ export default function HomePage() {
                 ADMIN ↗
               </Link>
             )}
+            {installPrompt && !isStandalone && (
+              <button onClick={() => { installPrompt.prompt(); setInstallPrompt(null) }} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 11, color: 'var(--green)', borderColor: '#16a34a' }}>
+                📲 Instalar app
+              </button>
+            )}
+            {pushPermission !== 'granted' && pushPermission !== null && 'PushManager' in window && (
+              <button onClick={activarPush} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 11, color: 'var(--amber)', borderColor: '#92400e' }}>
+                🔔 Notificaciones
+              </button>
+            )}
             <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{profile?.username}</span>
             <button onClick={cerrarSesion} className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 11 }}>Salir</button>
           </div>
         </div>
       </nav>
+
+      {isIos && !isStandalone && (
+        <div className="mono" style={{ background: '#0f1f0f', borderBottom: '1px solid #1a3a1a', padding: '10px 0', textAlign: 'center', fontSize: 11, color: 'var(--green)', letterSpacing: '0.05em' }}>
+          Para instalar: toca <strong>Compartir</strong> → <strong>Agregar a pantalla de inicio</strong>
+        </div>
+      )}
 
       <div className="container" style={{ paddingTop: 48 }}>
         {/* Header */}

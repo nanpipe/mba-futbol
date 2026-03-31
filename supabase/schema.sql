@@ -311,6 +311,26 @@ end;
 $$;
 
 -- ============================================
+-- TABLA: push_subscriptions
+-- Suscripciones de push por navegador/dispositivo
+-- ============================================
+create table public.push_subscriptions (
+  id uuid primary key default uuid_generate_v4(),
+  player_id uuid references public.profiles(id) on delete cascade not null,
+  endpoint text not null,
+  p256dh text not null,
+  auth text not null,
+  created_at timestamptz not null default now(),
+  unique(player_id, endpoint)
+);
+
+alter table public.push_subscriptions enable row level security;
+
+create policy "Jugador gestiona sus propias suscripciones"
+  on public.push_subscriptions for all
+  using (auth.uid() = player_id);
+
+-- ============================================
 -- DATOS INICIALES
 -- ============================================
 

@@ -139,5 +139,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, mensaje: 'Jugador actualizado.' })
   }
 
+  // Cambiar contraseña de un jugador
+  if (accion === 'cambiar_password') {
+    const { player_id, password } = body
+    if (!player_id || !password || password.length < 6) {
+      return NextResponse.json({ error: 'Contraseña muy corta (mínimo 6 caracteres)' }, { status: 400 })
+    }
+    const { error } = await admin.auth.admin.updateUserById(player_id, { password })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true, mensaje: 'Contraseña actualizada.' })
+  }
+
   return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 })
 }

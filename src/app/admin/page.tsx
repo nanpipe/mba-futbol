@@ -59,6 +59,7 @@ export default function AdminPage() {
   const [editModal, setEditModal] = useState<Player | null>(null)
   const [editUsername, setEditUsername] = useState('')
   const [editEmail, setEditEmail] = useState('')
+  const [editPassword, setEditPassword] = useState('')
 
   // Test push
   const [pushTitle, setPushTitle] = useState('MBA FC')
@@ -161,7 +162,14 @@ export default function AdminPage() {
       username: editUsername,
       email: editEmail,
     })
+    if (editPassword.trim().length >= 6) {
+      await accionAdmin('cambiar_password', {
+        player_id: editModal.id,
+        password: editPassword.trim(),
+      })
+    }
     setEditModal(null)
+    setEditPassword('')
   }
 
   const enviarPushTest = async () => {
@@ -364,7 +372,7 @@ export default function AdminPage() {
                       </div>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button
-                          onClick={() => { setEditModal(p); setEditUsername(p.username); setEditEmail(p.email) }}
+                          onClick={() => { setEditModal(p); setEditUsername(p.username); setEditEmail(p.email); setEditPassword('') }}
                           className="btn btn-ghost"
                           style={{ fontSize: 11, padding: '8px 14px' }}
                         >
@@ -401,7 +409,7 @@ export default function AdminPage() {
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button
-                        onClick={() => { setEditModal(p); setEditUsername(p.username); setEditEmail(p.email) }}
+                        onClick={() => { setEditModal(p); setEditUsername(p.username); setEditEmail(p.email); setEditPassword('') }}
                         className="btn btn-ghost"
                         style={{ fontSize: 11, padding: '8px 14px' }}
                       >
@@ -546,12 +554,17 @@ export default function AdminPage() {
                 <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>EMAIL</label>
                 <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="email@ejemplo.com" />
               </div>
+              <div>
+                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>NUEVA CONTRASEÑA</label>
+                <input type="password" value={editPassword} onChange={e => setEditPassword(e.target.value)} placeholder="Dejar vacío para no cambiar" autoComplete="new-password" />
+                <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>Mínimo 6 caracteres. Vacío = sin cambio.</div>
+              </div>
             </div>
             <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
               <button onClick={confirmarEdit} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
                 Guardar cambios
               </button>
-              <button onClick={() => setEditModal(null)} className="btn btn-ghost">Cancelar</button>
+              <button onClick={() => { setEditModal(null); setEditPassword('') }} className="btn btn-ghost">Cancelar</button>
             </div>
           </div>
         </div>

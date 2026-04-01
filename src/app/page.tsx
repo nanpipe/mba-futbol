@@ -261,6 +261,20 @@ export default function HomePage() {
                 ADMIN ↗
               </Link>
             )}
+            {isStandalone && (
+              <button
+                onClick={() => window.location.reload()}
+                title="Recargar"
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: 'var(--text-muted)', fontSize: 20, lineHeight: 1,
+                  padding: '4px 6px', borderRadius: 3,
+                  display: 'flex', alignItems: 'center'
+                }}
+              >
+                ↻
+              </button>
+            )}
             {installPrompt && !isStandalone && (
               <button onClick={() => { installPrompt.prompt(); setInstallPrompt(null) }} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 11, color: 'var(--green)', borderColor: '#16a34a' }}>
                 📲 Instalar app

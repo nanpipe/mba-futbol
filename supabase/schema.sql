@@ -342,6 +342,14 @@ create policy "Jugador gestiona sus propias suscripciones"
   using (auth.uid() = player_id);
 
 -- ============================================
+-- MIGRACIÓN: columnas de control de notificaciones en partidos
+-- Ejecutar en Supabase SQL Editor
+-- ============================================
+-- alter table public.partidos
+--   add column if not exists notif_apertura_sent boolean not null default false,
+--   add column if not exists notif_recordatorio_sent boolean not null default false;
+
+-- ============================================
 -- DATOS INICIALES
 -- ============================================
 

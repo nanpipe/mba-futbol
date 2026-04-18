@@ -5,7 +5,8 @@ import { calcularVentanaPartido } from '@/lib/partidos'
 
 function verifyCron(req: NextRequest) {
   const secret = process.env.CRON_SECRET
-  if (!secret) return true // dev: no secret needed
+  // In production, CRON_SECRET is required — fail closed
+  if (!secret) return process.env.NODE_ENV !== 'production'
   return req.headers.get('Authorization') === `Bearer ${secret}`
 }
 

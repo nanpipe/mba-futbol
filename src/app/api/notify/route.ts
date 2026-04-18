@@ -1,10 +1,15 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPromovido } from '@/lib/email'
 import { sendPush } from '@/lib/push'
+import { verifyInternalSecret } from '@/lib/validation'
 
 // POST /api/notify — procesa notificaciones pendientes en la cola
-export async function POST() {
+// Only callable internally (server-to-server) via X-Internal-Secret header
+export async function POST(req: NextRequest) {
+  if (!verifyInternalSecret(req)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
   const admin = createAdminClient()
 
   const { data: pendientes } = await admin

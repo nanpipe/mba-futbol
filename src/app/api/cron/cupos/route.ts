@@ -5,7 +5,8 @@ import { calcularVentanaPartido } from '@/lib/partidos'
 
 function verifyCron(req: NextRequest) {
   const secret = process.env.CRON_SECRET
-  if (!secret) return true
+  // In production, CRON_SECRET is required — fail closed
+  if (!secret) return process.env.NODE_ENV !== 'production'
   return req.headers.get('Authorization') === `Bearer ${secret}`
 }
 
@@ -50,15 +51,14 @@ export async function GET(req: NextRequest) {
     const inscritosIds = (inscritos ?? []).map((i: { player_id: string }) => i.player_id)
 
     // Get push subscriptions for players NOT on the list
-    let query = admin
+    // Use parameterized .not().in() to avoid string concatenation
+    const subsQuery = admin
       .from('push_subscriptions')
       .select('endpoint, p256dh, auth')
 
-    if (inscritosIds.length > 0) {
-      query = (query as typeof query).not('player_id', 'in', `(${inscritosIds.map((id: string) => `"${id}"`).join(',')})`)
-    }
-
-    const { data: subs } = await query
+    const { data: subs } = inscritosIds.length > 0
+      ? await subsQuery.not('player_id', 'in', `(${inscritosIds.join(',')})`)
+      : await subsQuery
 
     for (const sub of subs ?? []) {
       try {

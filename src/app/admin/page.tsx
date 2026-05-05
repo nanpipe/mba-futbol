@@ -9,10 +9,20 @@ interface Player {
   username: string
   email: string
   baneado: boolean
+  uniform: boolean
   fecha_liberacion: string | null
   razon_ban: string | null
   ip_registro: string | null
   created_at: string
+}
+
+interface Invitado {
+  id: string
+  nombre: string
+  estado: 'espera' | 'confirmado'
+  posicion_espera: number | null
+  player_id: string
+  profiles: { username: string }
 }
 
 interface Inscripcion {
@@ -38,6 +48,7 @@ export default function AdminPage() {
   const [players, setPlayers] = useState<Player[]>([])
   const [partidos, setPartidos] = useState<Partido[]>([])
   const [inscripciones, setInscripciones] = useState<Inscripcion[]>([])
+  const [invitados, setInvitados] = useState<Invitado[]>([])
   const [selectedPartido, setSelectedPartido] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [mensaje, setMensaje] = useState('')
@@ -70,7 +81,7 @@ export default function AdminPage() {
   const cargarDatos = useCallback(async () => {
     const { data: ps } = await supabase
       .from('profiles')
-      .select('id, username, email, baneado, fecha_liberacion, razon_ban, ip_registro, created_at')
+      .select('id, username, email, baneado, uniform, fecha_liberacion, razon_ban, ip_registro, created_at')
       .neq('role', 'admin')
       .order('created_at', { ascending: false })
     setPlayers(ps ?? [])
@@ -92,6 +103,14 @@ export default function AdminPage() {
       .order('estado', { ascending: true })
       .order('posicion_espera', { ascending: true, nullsFirst: false })
     setInscripciones((data as unknown as Inscripcion[]) ?? [])
+
+    const { data: inv } = await supabase
+      .from('invitados')
+      .select('id, nombre, estado, posicion_espera, player_id, profiles(username)')
+      .eq('partido_id', partidoId)
+      .order('estado', { ascending: true })
+      .order('posicion_espera', { ascending: true, nullsFirst: false })
+    setInvitados((inv as unknown as Invitado[]) ?? [])
   }, [supabase])
 
   useEffect(() => {
@@ -307,6 +326,7 @@ export default function AdminPage() {
                         <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>Sin inscripciones aún.</p>
                       </div>
                     ) : (
+                      <>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         {inscripciones.map(ins => (
                           <div key={ins.id} style={{
@@ -330,6 +350,35 @@ export default function AdminPage() {
                           </div>
                         ))}
                       </div>
+
+                      {invitados.length > 0 && (
+                        <div style={{ marginTop: 20 }}>
+                          <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 8 }}>
+                            INVITADOS — {invitados.length}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {invitados.map(inv => (
+                              <div key={inv.id} style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                padding: '10px 14px', background: 'var(--bg-card)',
+                                border: '1px solid #1a2a3a', borderRadius: 3
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                  <span className={`badge ${inv.estado === 'confirmado' ? 'badge-green' : 'badge-amber'}`}>
+                                    {inv.estado === 'confirmado' ? '✓' : `#${inv.posicion_espera}`}
+                                  </span>
+                                  <div>
+                                    <div style={{ fontSize: 14 }}>{inv.nombre}</div>
+                                    <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>inv. de {inv.profiles.username}</div>
+                                  </div>
+                                </div>
+                                <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.08em' }}>INVITADO</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      </>
                     )}
                   </>
                 ) : (
@@ -404,10 +453,26 @@ export default function AdminPage() {
                     border: '1px solid var(--border)', borderRadius: 3
                   }}>
                     <div>
-                      <div style={{ fontSize: 15, marginBottom: 2 }}>{p.username}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                        <span style={{ fontSize: 15 }}>{p.username}</span>
+                        {p.uniform && <span className="mono" style={{ fontSize: 9, color: 'var(--green)', letterSpacing: '0.1em', background: '#0f2d1a', padding: '2px 6px', borderRadius: 2 }}>UNIFORME</span>}
+                      </div>
                       <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>{p.email}</div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button
+                        onClick={() => accionAdmin('toggle_uniform', { player_id: p.id })}
+                        title={p.uniform ? 'Tiene uniforme — clic para quitar' : 'Sin uniforme — clic para asignar'}
+                        className="mono"
+                        style={{
+                          fontSize: 11, padding: '6px 10px', borderRadius: 3, cursor: 'pointer',
+                          background: p.uniform ? '#0f2d1a' : 'var(--bg-card)',
+                          color: p.uniform ? 'var(--green)' : 'var(--text-dim)',
+                          border: `1px solid ${p.uniform ? '#16a34a' : 'var(--border)'}`,
+                        }}
+                      >
+                        👕
+                      </button>
                       <button
                         onClick={() => { setEditModal(p); setEditUsername(p.username); setEditEmail(p.email); setEditPassword('') }}
                         className="btn btn-ghost"

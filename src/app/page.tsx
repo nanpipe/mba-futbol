@@ -23,6 +23,13 @@ interface Inscripcion {
   profiles: { username: string }
 }
 
+interface Invitado {
+  id: string
+  nombre: string
+  estado: 'espera' | 'confirmado'
+  posicion_espera: number | null
+}
+
 interface VentanaInfo {
   abierta: boolean
   partido: Partido | null
@@ -40,6 +47,9 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
   const [inscribiendose, setInscribiendose] = useState(false)
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
+  const [misInvitados, setMisInvitados] = useState<Invitado[]>([])
+  const [nuevoInvitado, setNuevoInvitado] = useState('')
+  const [agregandoInvitado, setAgregandoInvitado] = useState(false)
   const [countdown, setCountdown] = useState('')
   const [ultimoPartido, setUltimoPartido] = useState<{ partido: Partido; inscripciones: Inscripcion[] } | null>(null)
   const abreEnRef = useRef<Date | null>(null)
@@ -153,6 +163,16 @@ export default function HomePage() {
 
     setInscripciones((ins as unknown as Inscripcion[]) ?? [])
     setMiInscripcion((ins as unknown as Inscripcion[])?.find(i => i.player_id === u.id) ?? null)
+
+    // Load player's own invitees for this match
+    const { data: invs } = await supabase
+      .from('invitados')
+      .select('id, nombre, estado, posicion_espera')
+      .eq('partido_id', partido.id)
+      .eq('player_id', u.id)
+      .order('posicion_espera', { ascending: true })
+    setMisInvitados((invs as Invitado[]) ?? [])
+
     setLoading(false)
   }, [supabase])
 
@@ -216,6 +236,33 @@ export default function HomePage() {
       setMensaje({ tipo: 'ok', texto: 'Cupo liberado.' })
       cargarDatos(user)
     }
+  }
+
+  const agregarInvitado = async () => {
+    if (!ventana?.partido || !nuevoInvitado.trim()) return
+    setAgregandoInvitado(true)
+    const res = await fetch('/api/invitados', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ partido_id: ventana.partido.id, nombre: nuevoInvitado.trim() }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      setNuevoInvitado('')
+      if (user) cargarDatos(user)
+    } else {
+      setMensaje({ tipo: 'error', texto: data.error })
+    }
+    setAgregandoInvitado(false)
+  }
+
+  const eliminarInvitado = async (invitado_id: string) => {
+    await fetch('/api/invitados', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invitado_id }),
+    })
+    if (user) cargarDatos(user)
   }
 
   const cerrarSesion = async () => {
@@ -434,6 +481,65 @@ export default function HomePage() {
               <button onClick={inscribirse} disabled={inscribiendose} className="btn btn-primary" style={{ width: '100%', padding: '16px', fontSize: 14 }}>
                 {inscribiendose ? 'Inscribiendo...' : cuposLibres > 0 ? 'Inscribirse al partido' : 'Entrar a lista de espera'}
               </button>
+            )}
+
+            {/* Mis invitados */}
+            {miInscripcion && (
+              <div style={{ marginTop: 32 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
+                    MIS INVITADOS ({misInvitados.length}/3)
+                  </div>
+                </div>
+
+                {misInvitados.map(inv => (
+                  <div key={inv.id} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '10px 14px', background: 'var(--bg-card)', borderRadius: 3,
+                    border: '1px solid #1a2a3a', marginBottom: 4
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span className={`badge ${inv.estado === 'confirmado' ? 'badge-green' : 'badge-amber'}`}>
+                        {inv.estado === 'confirmado' ? '✓' : `ESPERA #${inv.posicion_espera}`}
+                      </span>
+                      <span style={{ fontSize: 14 }}>{inv.nombre}</span>
+                    </div>
+                    <button
+                      onClick={() => eliminarInvitado(inv.id)}
+                      className="mono"
+                      style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+
+                {misInvitados.length < 3 && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                    <input
+                      type="text"
+                      value={nuevoInvitado}
+                      onChange={e => setNuevoInvitado(e.target.value)}
+                      placeholder="Nombre del invitado"
+                      maxLength={80}
+                      onKeyDown={e => e.key === 'Enter' && agregarInvitado()}
+                      style={{ flex: 1 }}
+                    />
+                    <button
+                      onClick={agregarInvitado}
+                      disabled={agregandoInvitado || !nuevoInvitado.trim()}
+                      className="btn btn-ghost"
+                      style={{ fontSize: 12, padding: '8px 14px', whiteSpace: 'nowrap' }}
+                    >
+                      {agregandoInvitado ? '...' : '+ Agregar'}
+                    </button>
+                  </div>
+                )}
+
+                <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 8, lineHeight: 1.6 }}>
+                  Los invitados están en lista de espera. Si quedan cupos a las 2:00 PM del día del partido, entran automáticamente.
+                </div>
+              </div>
             )}
 
             {/* Lista de jugadores */}

@@ -203,8 +203,8 @@ export default function AdminPage() {
       body: JSON.stringify({ title: pushTitle, body: pushBody, player_id: pushTarget || undefined }),
     })
     const data = await res.json()
-    setMensaje(res.ok ? data.mensaje : `Error: ${data.error}`)
-    setTimeout(() => setMensaje(''), 5000)
+    setMensaje(data.mensaje ?? data.error ?? 'Error desconocido')
+    setTimeout(() => setMensaje(''), 8000)
     setPushSending(false)
   }
 

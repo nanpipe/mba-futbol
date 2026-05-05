@@ -167,5 +167,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, mensaje: 'Contraseña actualizada.' })
   }
 
+  // ── Toggle uniforme ────────────────────────────────────────────────────────
+  if (accion === 'toggle_uniform') {
+    const { player_id } = body
+    if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
+
+    const { data: current } = await admin.from('profiles').select('uniform').eq('id', player_id as string).single()
+    const nuevoValor = !(current?.uniform ?? false)
+
+    const { error } = await admin.from('profiles').update({ uniform: nuevoValor }).eq('id', player_id as string)
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    return NextResponse.json({ ok: true, uniform: nuevoValor, mensaje: nuevoValor ? 'Uniforme activado.' : 'Uniforme desactivado.' })
+  }
+
   return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 })
 }

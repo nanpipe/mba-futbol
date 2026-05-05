@@ -342,6 +342,41 @@ create policy "Jugador gestiona sus propias suscripciones"
   using (auth.uid() = player_id);
 
 -- ============================================
+-- MIGRACIÓN: uniform flag en profiles + invitados table + helper function
+-- Ejecutar en Supabase SQL Editor
+-- ============================================
+-- 1. Columna uniform en profiles
+-- alter table public.profiles
+--   add column if not exists uniform boolean not null default false;
+--
+-- 2. Tabla invitados
+-- create table public.invitados (
+--   id uuid primary key default uuid_generate_v4(),
+--   partido_id uuid references public.partidos(id) on delete cascade not null,
+--   player_id uuid references public.profiles(id) on delete cascade not null,
+--   nombre varchar(80) not null,
+--   estado text not null default 'espera' check (estado in ('espera', 'confirmado')),
+--   posicion_espera int,
+--   created_at timestamptz not null default now(),
+--   unique(partido_id, player_id, nombre)
+-- );
+-- alter table public.invitados enable row level security;
+-- create policy "Jugador gestiona sus propios invitados"
+--   on public.invitados for all using (auth.uid() = player_id);
+-- create policy "Admin lee todos los invitados"
+--   on public.invitados for select using (true);
+--
+-- 3. Función para incrementar posiciones de espera (uniform priority bump)
+-- create or replace function public.incrementar_posiciones_espera(p_partido_id uuid)
+-- returns void language plpgsql security definer as $$
+-- begin
+--   update public.inscripciones
+--   set posicion_espera = posicion_espera + 1
+--   where partido_id = p_partido_id and estado = 'espera';
+-- end;
+-- $$;
+
+-- ============================================
 -- MIGRACIÓN: columnas de control de notificaciones en partidos
 -- Ejecutar en Supabase SQL Editor
 -- ============================================

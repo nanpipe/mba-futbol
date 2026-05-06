@@ -40,7 +40,7 @@ interface VentanaInfo {
 export default function HomePage() {
   const supabase = createClient()
   const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<{ username: string; role: string; baneado: boolean } | null>(null)
+  const [profile, setProfile] = useState<{ username: string; role: string; baneado: boolean; avatar_url: string | null } | null>(null)
   const [ventana, setVentana] = useState<VentanaInfo | null>(null)
   const [inscripciones, setInscripciones] = useState<Inscripcion[]>([])
   const [miInscripcion, setMiInscripcion] = useState<Inscripcion | null>(null)
@@ -97,7 +97,7 @@ export default function HomePage() {
   }
 
   const cargarDatos = useCallback(async (u: User) => {
-    const { data: prof } = await supabase.from('profiles').select('username, role, baneado').eq('id', u.id).single()
+    const { data: prof } = await supabase.from('profiles').select('username, role, baneado, avatar_url').eq('id', u.id).single()
     setProfile(prof)
 
     const hoy = new Date().toISOString().split('T')[0]
@@ -392,7 +392,26 @@ export default function HomePage() {
                 🔔 Notificaciones
               </button>
             )}
-            <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{profile?.username}</span>
+            {/* Profile avatar + username → /perfil */}
+            <Link href="/perfil" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%',
+                background: profile?.avatar_url ? 'transparent' : '#0f2d1a',
+                border: '1px solid var(--border)',
+                overflow: 'hidden',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span className="display" style={{ fontSize: 12, color: 'var(--green)', lineHeight: 1 }}>
+                    {profile?.username?.[0]?.toUpperCase() ?? '?'}
+                  </span>
+                )}
+              </div>
+              <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{profile?.username}</span>
+            </Link>
             <button onClick={cerrarSesion} className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 11 }}>Salir</button>
           </div>
         </div>

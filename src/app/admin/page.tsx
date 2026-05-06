@@ -9,10 +9,21 @@ interface Player {
   username: string
   email: string
   baneado: boolean
+  aprobado: boolean
   uniform: boolean
   fecha_liberacion: string | null
   razon_ban: string | null
   ip_registro: string | null
+  created_at: string
+}
+
+interface ActivityLog {
+  id: string
+  user_id: string | null
+  username: string | null
+  accion: string
+  detalles: Record<string, unknown> | null
+  ip: string | null
   created_at: string
 }
 
@@ -43,7 +54,7 @@ interface Partido {
 
 export default function AdminPage() {
   const supabase = createClient()
-  const [tab, setTab] = useState<'partidos' | 'jugadores' | 'notifs'>('partidos')
+  const [tab, setTab] = useState<'partidos' | 'jugadores' | 'notifs' | 'log'>('partidos')
   const [authed, setAuthed] = useState<boolean | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
   const [partidos, setPartidos] = useState<Partido[]>([])
@@ -53,10 +64,9 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [mensaje, setMensaje] = useState('')
 
-  // Modal ban
-  const [banModal, setBanModal] = useState<Player | null>(null)
-  const [banRazon, setBanRazon] = useState('')
-  const [banFecha, setBanFecha] = useState('')
+  // Log tab
+  const [logs, setLogs] = useState<ActivityLog[]>([])
+  const [logsLoading, setLogsLoading] = useState(false)
 
   // Modal crear partido
   const [crearModal, setCrearModal] = useState(false)
@@ -66,11 +76,16 @@ export default function AdminPage() {
   const [nuevaHoraApertura, setNuevaHoraApertura] = useState('10:00')
   const [nuevosDiasAntes, setNuevosDiasAntes] = useState('2')
 
-  // Modal editar jugador
+  // Modal editar jugador (also handles suspend + delete)
   const [editModal, setEditModal] = useState<Player | null>(null)
   const [editUsername, setEditUsername] = useState('')
   const [editEmail, setEditEmail] = useState('')
   const [editPassword, setEditPassword] = useState('')
+  const [editSuspenderOpen, setEditSuspenderOpen] = useState(false)
+  const [editBanRazon, setEditBanRazon] = useState('')
+  const [editBanFecha, setEditBanFecha] = useState('')
+  const [editDeleteOpen, setEditDeleteOpen] = useState(false)
+  const [editDeleteConfirm, setEditDeleteConfirm] = useState('')
 
   // Test push
   const [pushTitle, setPushTitle] = useState('MBA FC')
@@ -81,7 +96,7 @@ export default function AdminPage() {
   const cargarDatos = useCallback(async () => {
     const { data: ps } = await supabase
       .from('profiles')
-      .select('id, username, email, baneado, uniform, fecha_liberacion, razon_ban, ip_registro, created_at')
+      .select('id, username, email, baneado, aprobado, uniform, fecha_liberacion, razon_ban, ip_registro, created_at')
       .neq('role', 'admin')
       .order('created_at', { ascending: false })
     setPlayers(ps ?? [])
@@ -113,6 +128,16 @@ export default function AdminPage() {
     setInvitados((inv as unknown as Invitado[]) ?? [])
   }, [supabase])
 
+  const cargarLogs = useCallback(async () => {
+    setLogsLoading(true)
+    const res = await fetch('/api/admin?accion=logs')
+    if (res.ok) {
+      const data = await res.json()
+      setLogs(data.logs ?? [])
+    }
+    setLogsLoading(false)
+  }, [])
+
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) { window.location.href = '/login'; return }
@@ -128,7 +153,16 @@ export default function AdminPage() {
     if (selectedPartido) cargarInscripciones(selectedPartido)
   }, [selectedPartido, cargarInscripciones])
 
-  const accionAdmin = async (accion: string, extra: Record<string, string>) => {
+  useEffect(() => {
+    if (tab === 'log') cargarLogs()
+  }, [tab, cargarLogs])
+
+  const flash = (msg: string) => {
+    setMensaje(msg)
+    setTimeout(() => setMensaje(''), 4000)
+  }
+
+  const accionAdmin = async (accion: string, extra: Record<string, string | boolean>) => {
     const res = await fetch('/api/admin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -136,25 +170,60 @@ export default function AdminPage() {
     })
     const data = await res.json()
     if (res.ok) {
-      setMensaje(data.mensaje ?? 'Hecho.')
+      flash(data.mensaje ?? 'Hecho.')
       await cargarDatos()
       if (selectedPartido) await cargarInscripciones(selectedPartido)
     } else {
-      setMensaje(`Error: ${data.error}`)
+      flash(`Error: ${data.error}`)
     }
-    setTimeout(() => setMensaje(''), 4000)
+    return res.ok
   }
 
-  const confirmarBan = async () => {
-    if (!banModal) return
-    await accionAdmin('banear', {
-      player_id: banModal.id,
-      razon: banRazon || 'Multa pendiente',
-      fecha_liberacion: banFecha || '',
+  const abrirEdit = (p: Player) => {
+    setEditModal(p)
+    setEditUsername(p.username)
+    setEditEmail(p.email)
+    setEditPassword('')
+    setEditSuspenderOpen(false)
+    setEditBanRazon('')
+    setEditBanFecha('')
+    setEditDeleteOpen(false)
+    setEditDeleteConfirm('')
+  }
+
+  const cerrarEdit = () => {
+    setEditModal(null)
+    setEditPassword('')
+    setEditSuspenderOpen(false)
+    setEditBanRazon('')
+    setEditBanFecha('')
+    setEditDeleteOpen(false)
+    setEditDeleteConfirm('')
+  }
+
+  const confirmarEdit = async () => {
+    if (!editModal) return
+    await accionAdmin('editar_jugador', { player_id: editModal.id, username: editUsername, email: editEmail })
+    if (editPassword.trim().length >= 6) {
+      await accionAdmin('cambiar_password', { player_id: editModal.id, password: editPassword.trim() })
+    }
+    cerrarEdit()
+  }
+
+  const confirmarSuspender = async () => {
+    if (!editModal) return
+    const ok = await accionAdmin('banear', {
+      player_id: editModal.id,
+      razon: editBanRazon || 'Multa pendiente',
+      fecha_liberacion: editBanFecha || '',
     })
-    setBanModal(null)
-    setBanRazon('')
-    setBanFecha('')
+    if (ok) cerrarEdit()
+  }
+
+  const confirmarEliminar = async () => {
+    if (!editModal || editDeleteConfirm !== editModal.username) return
+    const ok = await accionAdmin('eliminar_jugador', { player_id: editModal.id })
+    if (ok) cerrarEdit()
   }
 
   const crearPartido = async () => {
@@ -172,23 +241,6 @@ export default function AdminPage() {
     setNuevosCupos('14')
     setNuevaHoraApertura('10:00')
     setNuevosDiasAntes('2')
-  }
-
-  const confirmarEdit = async () => {
-    if (!editModal) return
-    await accionAdmin('editar_jugador', {
-      player_id: editModal.id,
-      username: editUsername,
-      email: editEmail,
-    })
-    if (editPassword.trim().length >= 6) {
-      await accionAdmin('cambiar_password', {
-        player_id: editModal.id,
-        password: editPassword.trim(),
-      })
-    }
-    setEditModal(null)
-    setEditPassword('')
   }
 
   const enviarPushTest = async () => {
@@ -216,8 +268,9 @@ export default function AdminPage() {
     )
   }
 
+  const pendientes = players.filter(p => !p.aprobado && !p.baneado)
   const baneados = players.filter(p => p.baneado)
-  const activos = players.filter(p => !p.baneado)
+  const activos = players.filter(p => p.aprobado && !p.baneado)
 
   return (
     <div style={{ minHeight: '100vh', paddingBottom: 80 }}>
@@ -246,16 +299,24 @@ export default function AdminPage() {
         )}
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 0, marginBottom: 40, borderBottom: '1px solid var(--border)' }}>
-          {(['partidos', 'jugadores', 'notifs'] as const).map(t => (
+        <div style={{ display: 'flex', gap: 0, marginBottom: 40, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
+          {(['partidos', 'jugadores', 'notifs', 'log'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)} className="mono" style={{
-              padding: '12px 24px', background: 'none', border: 'none', cursor: 'pointer',
-              fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase',
+              padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap',
               color: tab === t ? 'var(--text)' : 'var(--text-muted)',
               borderBottom: tab === t ? '2px solid var(--green)' : '2px solid transparent',
-              marginBottom: -1
+              marginBottom: -1,
+              position: 'relative',
             }}>
               {t}
+              {t === 'jugadores' && pendientes.length > 0 && (
+                <span style={{
+                  position: 'absolute', top: 8, right: 4,
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: 'var(--amber)',
+                }} />
+              )}
             </button>
           ))}
         </div>
@@ -397,6 +458,57 @@ export default function AdminPage() {
         {tab === 'jugadores' && (
           <div className="fade-in">
 
+            {/* PENDIENTES */}
+            {pendientes.length > 0 && (
+              <div style={{ marginBottom: 40 }}>
+                <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--amber)', marginBottom: 16 }}>
+                  PENDIENTES DE APROBACIÓN — {pendientes.length}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {pendientes.map(p => (
+                    <div key={p.id} style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '14px 16px', background: '#1a1500',
+                      border: '1px solid #3a3000', borderRadius: 3,
+                      flexWrap: 'wrap', gap: 12
+                    }}>
+                      <div>
+                        <div style={{ fontSize: 15, marginBottom: 2 }}>{p.username}</div>
+                        <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                          {p.email}
+                          {p.ip_registro && <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>· IP: {p.ip_registro}</span>}
+                        </div>
+                        <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>
+                          {new Date(p.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={() => accionAdmin('aprobar_jugador', { player_id: p.id })}
+                          className="btn btn-ghost"
+                          style={{ fontSize: 11, padding: '8px 16px', color: 'var(--green)', borderColor: '#16a34a' }}
+                        >
+                          Aprobar
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`¿Rechazar y eliminar la solicitud de ${p.username}?`)) {
+                              accionAdmin('rechazar_jugador', { player_id: p.id })
+                            }
+                          }}
+                          className="btn btn-ghost"
+                          style={{ fontSize: 11, padding: '8px 14px', color: 'var(--red)', borderColor: '#7f1d1d' }}
+                        >
+                          Rechazar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* SUSPENDIDOS */}
             {baneados.length > 0 && (
               <div style={{ marginBottom: 40 }}>
                 <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--red)', marginBottom: 16 }}>
@@ -407,7 +519,8 @@ export default function AdminPage() {
                     <div key={p.id} style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       padding: '14px 16px', background: '#1a0808',
-                      border: '1px solid #3a1a1a', borderRadius: 3
+                      border: '1px solid #3a1a1a', borderRadius: 3,
+                      flexWrap: 'wrap', gap: 12
                     }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
@@ -421,7 +534,7 @@ export default function AdminPage() {
                       </div>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button
-                          onClick={() => { setEditModal(p); setEditUsername(p.username); setEditEmail(p.email); setEditPassword('') }}
+                          onClick={() => abrirEdit(p)}
                           className="btn btn-ghost"
                           style={{ fontSize: 11, padding: '8px 14px' }}
                         >
@@ -441,6 +554,7 @@ export default function AdminPage() {
               </div>
             )}
 
+            {/* ACTIVOS */}
             <div>
               <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 16 }}>
                 JUGADORES ACTIVOS — {activos.length}
@@ -465,27 +579,21 @@ export default function AdminPage() {
                         title={p.uniform ? 'Tiene uniforme — clic para quitar' : 'Sin uniforme — clic para asignar'}
                         className="mono"
                         style={{
-                          fontSize: 11, padding: '6px 10px', borderRadius: 3, cursor: 'pointer',
+                          fontSize: 16, padding: '4px 8px', borderRadius: 3, cursor: 'pointer',
                           background: p.uniform ? '#0f2d1a' : 'var(--bg-card)',
                           color: p.uniform ? 'var(--green)' : 'var(--text-dim)',
                           border: `1px solid ${p.uniform ? '#16a34a' : 'var(--border)'}`,
+                          lineHeight: 1,
                         }}
                       >
                         👕
                       </button>
                       <button
-                        onClick={() => { setEditModal(p); setEditUsername(p.username); setEditEmail(p.email); setEditPassword('') }}
+                        onClick={() => abrirEdit(p)}
                         className="btn btn-ghost"
                         style={{ fontSize: 11, padding: '8px 14px' }}
                       >
                         Editar
-                      </button>
-                      <button
-                        onClick={() => setBanModal(p)}
-                        className="btn btn-danger"
-                        style={{ fontSize: 11, padding: '8px 14px' }}
-                      >
-                        Suspender
                       </button>
                     </div>
                   </div>
@@ -551,6 +659,65 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {/* TAB: LOG */}
+        {tab === 'log' && (
+          <div className="fade-in">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
+                ACTIVIDAD RECIENTE — {logs.length}
+              </div>
+              <button onClick={cargarLogs} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>
+                ↻ Refrescar
+              </button>
+            </div>
+            {logsLoading ? (
+              <div className="mono pulsing" style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: 48 }}>Cargando...</div>
+            ) : logs.length === 0 ? (
+              <div className="card" style={{ textAlign: 'center', padding: 48 }}>
+                <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>Sin actividad registrada aún.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {logs.map(log => (
+                  <div key={log.id} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 16,
+                    padding: '10px 14px', background: 'var(--bg-card)',
+                    border: '1px solid var(--border)', borderRadius: 3,
+                    flexWrap: 'wrap',
+                  }}>
+                    <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', whiteSpace: 'nowrap', minWidth: 110 }}>
+                      {new Date(log.created_at).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
+                      {' '}
+                      {new Date(log.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                    <div className="mono" style={{ fontSize: 11, color: 'var(--amber)', minWidth: 80 }}>
+                      {log.username ?? '—'}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span className="mono" style={{ fontSize: 12, color: 'var(--text)', letterSpacing: '0.05em' }}>
+                        {log.accion}
+                      </span>
+                      {log.detalles && Object.keys(log.detalles).length > 0 && (
+                        <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {Object.entries(log.detalles)
+                            .filter(([k]) => !['player_id'].includes(k))
+                            .map(([k, v]) => `${k}: ${v}`)
+                            .join(' · ')}
+                        </div>
+                      )}
+                    </div>
+                    {log.ip && (
+                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
+                        {log.ip}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Modal Crear Partido */}
@@ -601,16 +768,18 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Modal Editar Jugador */}
+      {/* Modal Editar Jugador (includes suspend + delete danger zone) */}
       {editModal && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 20, zIndex: 100
+          padding: 20, zIndex: 100, overflowY: 'auto'
         }}>
-          <div className="card fade-in" style={{ width: '100%', maxWidth: 420 }}>
-            <h3 className="display" style={{ fontSize: 24, marginBottom: 24 }}>Editar jugador</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="card fade-in" style={{ width: '100%', maxWidth: 420, margin: 'auto' }}>
+            <h3 className="display" style={{ fontSize: 22, marginBottom: 20 }}>Editar — {editModal.username}</h3>
+
+            {/* ── Edit fields ── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>NOMBRE DE USUARIO</label>
                 <input type="text" value={editUsername} onChange={e => setEditUsername(e.target.value)} placeholder="username" />
@@ -625,65 +794,87 @@ export default function AdminPage() {
                 <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>Mínimo 6 caracteres. Vacío = sin cambio.</div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+            <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
               <button onClick={confirmarEdit} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
                 Guardar cambios
               </button>
-              <button onClick={() => { setEditModal(null); setEditPassword('') }} className="btn btn-ghost">Cancelar</button>
+              <button onClick={cerrarEdit} className="btn btn-ghost">Cancelar</button>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Modal Ban */}
-      {banModal && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 20, zIndex: 100
-        }}>
-          <div className="card fade-in" style={{ width: '100%', maxWidth: 420 }}>
-            <h3 className="display" style={{ fontSize: 24, marginBottom: 8 }}>
-              Suspender a {banModal.username}
-            </h3>
-            <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 24 }}>
-              El jugador será removido de todos los partidos futuros y no podrá inscribirse.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div>
-                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>
-                  RAZÓN
-                </label>
-                <input
-                  type="text"
-                  value={banRazon}
-                  onChange={e => setBanRazon(e.target.value)}
-                  placeholder="Multa pendiente, no asistió..."
-                />
+            {/* ── Danger zone ── */}
+            <div style={{ marginTop: 28, borderTop: '1px solid #3a1a1a', paddingTop: 20 }}>
+              <div className="mono" style={{ fontSize: 10, letterSpacing: '0.15em', color: '#7f1d1d', marginBottom: 14 }}>
+                ZONA DE RIESGO
               </div>
-              <div>
-                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>
-                  FECHA DE LIBERACIÓN (opcional)
-                </label>
-                <input
-                  type="date"
-                  value={banFecha}
-                  onChange={e => setBanFecha(e.target.value)}
-                />
-                <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>
-                  Si no se especifica, el ban es indefinido hasta que lo liberes manualmente.
+
+              {/* SUSPENDER */}
+              {!editModal.baneado && (
+                <div style={{ marginBottom: 14 }}>
+                  <button
+                    onClick={() => { setEditSuspenderOpen(o => !o); setEditDeleteOpen(false) }}
+                    className="btn btn-danger"
+                    style={{ fontSize: 11, padding: '8px 16px', width: '100%', justifyContent: 'center' }}
+                  >
+                    {editSuspenderOpen ? '↑ Cancelar suspensión' : 'Suspender jugador'}
+                  </button>
+                  {editSuspenderOpen && (
+                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12, background: '#1a0808', border: '1px solid #3a1a1a', borderRadius: 3, padding: 14 }}>
+                      <div>
+                        <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>RAZÓN</label>
+                        <input type="text" value={editBanRazon} onChange={e => setEditBanRazon(e.target.value)} placeholder="Multa pendiente, no asistió..." />
+                      </div>
+                      <div>
+                        <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>FECHA DE LIBERACIÓN (opcional)</label>
+                        <input type="date" value={editBanFecha} onChange={e => setEditBanFecha(e.target.value)} />
+                        <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>Vacío = ban indefinido.</div>
+                      </div>
+                      <button onClick={confirmarSuspender} className="btn btn-danger" style={{ justifyContent: 'center', padding: '10px' }}>
+                        Confirmar suspensión
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </div>
-            </div>
+              )}
 
-            <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
-              <button onClick={confirmarBan} className="btn btn-danger" style={{ flex: 1, justifyContent: 'center' }}>
-                Confirmar suspensión
-              </button>
-              <button onClick={() => setBanModal(null)} className="btn btn-ghost">
-                Cancelar
-              </button>
+              {/* ELIMINAR */}
+              <div>
+                <button
+                  onClick={() => { setEditDeleteOpen(o => !o); setEditSuspenderOpen(false); setEditDeleteConfirm('') }}
+                  className="mono"
+                  style={{
+                    fontSize: 11, padding: '8px 16px', width: '100%', textAlign: 'center',
+                    background: 'none', border: '1px solid #7f1d1d', borderRadius: 3,
+                    color: '#7f1d1d', cursor: 'pointer', letterSpacing: '0.08em',
+                  }}
+                >
+                  {editDeleteOpen ? '↑ Cancelar' : 'Eliminar jugador permanentemente'}
+                </button>
+                {editDeleteOpen && (
+                  <div style={{ marginTop: 12, background: '#1a0808', border: '1px solid #7f1d1d', borderRadius: 3, padding: 14 }}>
+                    <p className="mono" style={{ fontSize: 12, color: 'var(--red)', marginBottom: 12, lineHeight: 1.5 }}>
+                      Esta acción es <strong>irreversible</strong>. Se eliminará la cuenta y todas sus inscripciones históricas.
+                    </p>
+                    <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>
+                      Escribe <strong style={{ color: 'var(--red)' }}>{editModal.username}</strong> para confirmar
+                    </label>
+                    <input
+                      type="text"
+                      value={editDeleteConfirm}
+                      onChange={e => setEditDeleteConfirm(e.target.value)}
+                      placeholder={editModal.username}
+                      style={{ marginBottom: 12 }}
+                    />
+                    <button
+                      onClick={confirmarEliminar}
+                      disabled={editDeleteConfirm !== editModal.username}
+                      className="btn btn-danger"
+                      style={{ width: '100%', justifyContent: 'center', padding: '10px', opacity: editDeleteConfirm !== editModal.username ? 0.4 : 1 }}
+                    >
+                      Eliminar permanentemente
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

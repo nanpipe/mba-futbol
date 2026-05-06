@@ -108,8 +108,9 @@ export async function GET(req: NextRequest) {
         const inscritosIds = (inscritos ?? []).map((i: { player_id: string }) => i.player_id)
 
         const subsQuery = admin.from('push_subscriptions').select('endpoint, p256dh, auth')
+        // Use array parameter (not string interpolation) to avoid injection
         const { data: subs } = inscritosIds.length > 0
-          ? await subsQuery.not('player_id', 'in', `(${inscritosIds.join(',')})`)
+          ? await subsQuery.not('player_id', 'in', inscritosIds)
           : await subsQuery
 
         results.cupos += await sendToMany(admin, subs ?? [], {

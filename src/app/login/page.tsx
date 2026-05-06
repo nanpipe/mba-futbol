@@ -17,18 +17,16 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    // Buscar email por username
+    // Buscar email + estado por username (single query)
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('email')
+      .select('email, aprobado')
       .eq('username', username.trim().toLowerCase())
       .single()
 
-    console.log('Profile encontrado:', profile)
-    console.log('Profile error:', profileError)
-    
     if (profileError || !profile) {
-      setError('Usuario no encontrado.')
+      // Generic error to avoid username enumeration
+      setError('Usuario o contraseña incorrectos.')
       setLoading(false)
       return
     }
@@ -39,7 +37,16 @@ export default function LoginPage() {
     })
 
     if (authError) {
-      setError('Contraseña incorrecta.')
+      // Generic error — don't reveal whether username or password was wrong
+      setError('Usuario o contraseña incorrectos.')
+      setLoading(false)
+      return
+    }
+
+    // Check approval after successful auth
+    if (!profile.aprobado) {
+      await supabase.auth.signOut()
+      setError('Tu cuenta está pendiente de aprobación por el administrador. Te avisaremos cuando esté lista.')
       setLoading(false)
       return
     }

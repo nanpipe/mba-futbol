@@ -45,6 +45,15 @@ interface Invitado {
   posicion_espera: number | null
 }
 
+interface InvitadoPublico {
+  id: string
+  nombre: string
+  estado: 'espera' | 'confirmado'
+  posicion_espera: number | null
+  player_id: string
+  profiles: { username: string }
+}
+
 interface VentanaInfo {
   abierta: boolean
   partido: Partido | null
@@ -63,6 +72,7 @@ export default function HomePage() {
   const [inscribiendose, setInscribiendose] = useState(false)
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [misInvitados, setMisInvitados] = useState<Invitado[]>([])
+  const [todosInvitados, setTodosInvitados] = useState<InvitadoPublico[]>([])
   const [nuevoInvitado, setNuevoInvitado] = useState('')
   const [agregandoInvitado, setAgregandoInvitado] = useState(false)
   const [countdown, setCountdown] = useState('')
@@ -197,14 +207,22 @@ export default function HomePage() {
       setMisEquipos(null)
     }
 
-    // Load player's own invitees for this match
-    const { data: invs } = await supabase
-      .from('invitados')
-      .select('id, nombre, estado, posicion_espera')
-      .eq('partido_id', partido.id)
-      .eq('player_id', u.id)
-      .order('posicion_espera', { ascending: true })
+    // Load player's own invitees + all invitees for public waiting list
+    const [{ data: invs }, { data: todosInvs }] = await Promise.all([
+      supabase
+        .from('invitados')
+        .select('id, nombre, estado, posicion_espera')
+        .eq('partido_id', partido.id)
+        .eq('player_id', u.id)
+        .order('posicion_espera', { ascending: true }),
+      supabase
+        .from('invitados')
+        .select('id, nombre, estado, posicion_espera, player_id, profiles(username)')
+        .eq('partido_id', partido.id)
+        .order('posicion_espera', { ascending: true, nullsFirst: false }),
+    ])
     setMisInvitados((invs as Invitado[]) ?? [])
+    setTodosInvitados((todosInvs as unknown as InvitadoPublico[]) ?? [])
 
     setLoading(false)
   }, [supabase])
@@ -752,6 +770,39 @@ export default function HomePage() {
                           {ins.player_id === user.id && (
                             <span className="mono" style={{ fontSize: 10, color: 'var(--amber)', letterSpacing: '0.1em' }}>TÚ</span>
                           )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* Invitados waiting list — visible to everyone */}
+                {todosInvitados.length > 0 && (
+                  <>
+                    <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', margin: '24px 0 12px' }}>
+                      LISTA DE ESPERA — INVITADOS ({todosInvitados.filter(i => i.estado === 'espera').length})
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {todosInvitados.map((inv) => (
+                        <div key={inv.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 12,
+                          padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 3,
+                          border: inv.estado === 'confirmado' ? '1px solid #16a34a' : '1px solid transparent',
+                          opacity: inv.estado === 'espera' ? 0.7 : 1,
+                        }}>
+                          <span className="mono" style={{
+                            fontSize: 11, width: 20,
+                            color: inv.estado === 'confirmado' ? 'var(--green)' : 'var(--amber)',
+                          }}>
+                            {inv.estado === 'confirmado' ? '✓' : `#${inv.posicion_espera}`}
+                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ fontSize: 15 }}>{inv.nombre}</span>
+                            <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 8 }}>
+                              inv. de {inv.profiles.username}
+                            </span>
+                          </div>
+                          <span className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.08em', flexShrink: 0 }}>INVITADO</span>
                         </div>
                       ))}
                     </div>

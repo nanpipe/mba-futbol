@@ -164,6 +164,7 @@ export default function AdminPage() {
   const [partidos, setPartidos] = useState<Partido[]>([])
   const [inscripciones, setInscripciones] = useState<Inscripcion[]>([])
   const [invitados, setInvitados] = useState<Invitado[]>([])
+  const [confirmandoInvitado, setConfirmandoInvitado] = useState<string | null>(null)
   const [selectedPartido, setSelectedPartido] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [mensaje, setMensaje] = useState('')
@@ -398,6 +399,25 @@ export default function AdminPage() {
       flash(`Error: ${data.error}`)
     }
     return res.ok
+  }
+
+  const confirmarInvitado = async (invitadoId: string) => {
+    setConfirmandoInvitado(invitadoId)
+    const res = await fetch('/api/invitados', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invitado_id: invitadoId }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      setInvitados(prev => prev.map(inv =>
+        inv.id === invitadoId ? { ...inv, estado: 'confirmado', posicion_espera: null } : inv
+      ))
+      flash(data.mensaje ?? 'Invitado confirmado.')
+    } else {
+      flash(`Error: ${data.error}`)
+    }
+    setConfirmandoInvitado(null)
   }
 
   const abrirEdit = (p: Player) => {
@@ -696,18 +716,30 @@ export default function AdminPage() {
                               <div key={inv.id} style={{
                                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                                 padding: '10px 14px', background: 'var(--bg-card)',
-                                border: '1px solid #1a2a3a', borderRadius: 3
+                                border: `1px solid ${inv.estado === 'confirmado' ? '#16a34a' : '#1a2a3a'}`, borderRadius: 3,
+                                gap: 10,
                               }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
                                   <span className={`badge ${inv.estado === 'confirmado' ? 'badge-green' : 'badge-amber'}`}>
                                     {inv.estado === 'confirmado' ? '✓' : `#${inv.posicion_espera}`}
                                   </span>
-                                  <div>
+                                  <div style={{ minWidth: 0 }}>
                                     <div style={{ fontSize: 14 }}>{inv.nombre}</div>
                                     <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>inv. de {inv.profiles.username}</div>
                                   </div>
                                 </div>
-                                <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.08em' }}>INVITADO</span>
+                                {inv.estado === 'espera' ? (
+                                  <button
+                                    onClick={() => confirmarInvitado(inv.id)}
+                                    disabled={confirmandoInvitado === inv.id}
+                                    className="btn btn-ghost"
+                                    style={{ fontSize: 11, padding: '6px 12px', color: 'var(--green)', borderColor: '#16a34a', flexShrink: 0 }}
+                                  >
+                                    {confirmandoInvitado === inv.id ? '...' : '✓ Confirmar'}
+                                  </button>
+                                ) : (
+                                  <span className="mono" style={{ fontSize: 10, color: 'var(--green)', letterSpacing: '0.08em', flexShrink: 0 }}>CONFIRMADO</span>
+                                )}
                               </div>
                             ))}
                           </div>

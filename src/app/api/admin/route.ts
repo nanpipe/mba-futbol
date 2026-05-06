@@ -3,16 +3,57 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { safeError, isUUID, isString, isEmail, isDate, isIntInRange } from '@/lib/validation'
 import { internalFetch } from '@/lib/internalFetch'
+import { logActivity } from '@/lib/activityLog'
 
 async function verificarAdmin(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const { data: profile } = await supabase.from('profiles').select('role, username').eq('id', user.id).single()
   if (profile?.role !== 'admin') return null
-  return user
+  return { ...user, username: (profile as { username?: string })?.username ?? 'admin' }
 }
 
-// POST /api/admin — acciones de admin
+function getIP(req: NextRequest) {
+  return (
+    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
+    req.headers.get('x-real-ip') ??
+    null
+  )
+}
+
+// ── GET /api/admin?accion=logs|pendientes ─────────────────────────────────────
+export async function GET(req: NextRequest) {
+  const supabase = await createClient()
+  const admin = createAdminClient()
+
+  const adminUser = await verificarAdmin(supabase)
+  if (!adminUser) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+
+  const accion = req.nextUrl.searchParams.get('accion')
+
+  if (accion === 'logs') {
+    const { data } = await admin
+      .from('activity_log')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(300)
+    return NextResponse.json({ ok: true, logs: data ?? [] })
+  }
+
+  if (accion === 'pendientes') {
+    const { data } = await admin
+      .from('profiles')
+      .select('id, username, email, created_at, ip_registro')
+      .eq('aprobado', false)
+      .neq('role', 'admin')
+      .order('created_at', { ascending: false })
+    return NextResponse.json({ ok: true, pendientes: data ?? [] })
+  }
+
+  return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 })
+}
+
+// ── POST /api/admin — acciones de admin ───────────────────────────────────────
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
@@ -27,6 +68,66 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Cuerpo de la solicitud inválido' }, { status: 400 })
   }
   const { accion } = body
+  const ip = getIP(req)
+
+  // ── Aprobar jugador pendiente ───────────────────────────────────────────────
+  if (accion === 'aprobar_jugador') {
+    const { player_id } = body
+    if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
+
+    const { data: info } = await admin.from('profiles').select('username').eq('id', player_id as string).single()
+    const { error } = await admin.from('profiles').update({ aprobado: true }).eq('id', player_id as string)
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'aprobar_jugador', detalles: { player_id, username: (info as { username?: string })?.username }, ip })
+    return NextResponse.json({ ok: true, mensaje: `Jugador ${(info as { username?: string })?.username ?? ''} aprobado.` })
+  }
+
+  // ── Rechazar jugador pendiente (elimina la cuenta) ─────────────────────────
+  if (accion === 'rechazar_jugador') {
+    const { player_id } = body
+    if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
+
+    const { data: info } = await admin.from('profiles').select('username').eq('id', player_id as string).single()
+    const { error } = await admin.auth.admin.deleteUser(player_id as string)
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'rechazar_jugador', detalles: { player_id, username: (info as { username?: string })?.username }, ip })
+    return NextResponse.json({ ok: true, mensaje: `Solicitud de ${(info as { username?: string })?.username ?? ''} rechazada.` })
+  }
+
+  // ── Eliminar jugador permanentemente ──────────────────────────────────────
+  if (accion === 'eliminar_jugador') {
+    const { player_id } = body
+    if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
+
+    const { data: info } = await admin.from('profiles').select('username, email').eq('id', player_id as string).single()
+    const infoTyped = info as { username?: string; email?: string } | null
+
+    // Remove from future matches
+    const hoy = new Date().toISOString().split('T')[0]
+    const { data: ins } = await admin
+      .from('inscripciones')
+      .select('id, partido_id, estado, partidos(fecha)')
+      .eq('player_id', player_id as string)
+
+    for (const i of (ins ?? [])) {
+      const fecha = (i as unknown as { partidos: { fecha: string } }).partidos?.fecha ?? ''
+      if (fecha >= hoy) {
+        await admin.from('inscripciones').delete().eq('id', i.id)
+        if (i.estado === 'confirmado') {
+          await admin.rpc('promover_espera', { p_partido_id: i.partido_id })
+        }
+      }
+    }
+
+    // Delete auth user — profile cascades via DB trigger / FK
+    const { error } = await admin.auth.admin.deleteUser(player_id as string)
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'eliminar_jugador', detalles: { player_id, username: infoTyped?.username, email: infoTyped?.email }, ip })
+    return NextResponse.json({ ok: true, mensaje: `Jugador ${infoTyped?.username ?? ''} eliminado permanentemente.` })
+  }
 
   // ── Banear usuario ─────────────────────────────────────────────────────────
   if (accion === 'banear') {
@@ -36,6 +137,7 @@ export async function POST(req: NextRequest) {
     const razonSafe = isString(razon, 0, 300) ? (razon as string).trim() : 'Multa pendiente'
     const fechaSafe = isDate(fecha_liberacion) ? (fecha_liberacion as string) : null
 
+    const { data: info } = await admin.from('profiles').select('username').eq('id', player_id as string).single()
     const { error } = await admin
       .from('profiles')
       .update({
@@ -65,6 +167,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'banear', detalles: { player_id, username: (info as { username?: string })?.username, razon: razonSafe, fecha_liberacion: fechaSafe }, ip })
     return NextResponse.json({ ok: true, mensaje: 'Usuario suspendido y removido de partidos futuros.' })
   }
 
@@ -73,12 +176,14 @@ export async function POST(req: NextRequest) {
     const { player_id } = body
     if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
 
+    const { data: info } = await admin.from('profiles').select('username').eq('id', player_id as string).single()
     const { error } = await admin
       .from('profiles')
       .update({ baneado: false, fecha_ban: null, fecha_liberacion: null, razon_ban: null })
       .eq('id', player_id)
 
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'liberar_ban', detalles: { player_id, username: (info as { username?: string })?.username }, ip })
     return NextResponse.json({ ok: true })
   }
 
@@ -91,7 +196,7 @@ export async function POST(req: NextRequest) {
 
     const { data: ins } = await admin
       .from('inscripciones')
-      .select('id, estado')
+      .select('id, estado, profiles(username), partidos(fecha)')
       .eq('player_id', player_id)
       .eq('partido_id', partido_id)
       .single()
@@ -105,6 +210,9 @@ export async function POST(req: NextRequest) {
       await internalFetch('/api/notify', { method: 'POST' })
     }
 
+    const username = (ins as unknown as { profiles: { username: string } }).profiles?.username
+    const fecha = (ins as unknown as { partidos: { fecha: string } }).partidos?.fecha
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'remover_partido', detalles: { player_id, partido_id, username, fecha }, ip })
     return NextResponse.json({ ok: true })
   }
 
@@ -133,6 +241,7 @@ export async function POST(req: NextRequest) {
       })
 
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'crear_partido', detalles: { fecha, dia_semana, hora, cupos_total }, ip })
     return NextResponse.json({ ok: true, mensaje: `Partido del ${dia_semana} ${fecha} creado.` })
   }
 
@@ -151,6 +260,7 @@ export async function POST(req: NextRequest) {
 
     const { error } = await admin.from('profiles').update(updates).eq('id', player_id as string)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'editar_jugador', detalles: { player_id, ...updates }, ip })
     return NextResponse.json({ ok: true, mensaje: 'Jugador actualizado.' })
   }
 
@@ -164,6 +274,7 @@ export async function POST(req: NextRequest) {
 
     const { error } = await admin.auth.admin.updateUserById(player_id as string, { password: (password as string) })
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'cambiar_password', detalles: { player_id }, ip })
     return NextResponse.json({ ok: true, mensaje: 'Contraseña actualizada.' })
   }
 
@@ -172,11 +283,12 @@ export async function POST(req: NextRequest) {
     const { player_id } = body
     if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
 
-    const { data: current } = await admin.from('profiles').select('uniform').eq('id', player_id as string).single()
-    const nuevoValor = !(current?.uniform ?? false)
+    const { data: current } = await admin.from('profiles').select('uniform, username').eq('id', player_id as string).single()
+    const nuevoValor = !((current as { uniform?: boolean })?.uniform ?? false)
 
     const { error } = await admin.from('profiles').update({ uniform: nuevoValor }).eq('id', player_id as string)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'toggle_uniform', detalles: { player_id, username: (current as { username?: string })?.username, uniform: nuevoValor }, ip })
     return NextResponse.json({ ok: true, uniform: nuevoValor, mensaje: nuevoValor ? 'Uniforme activado.' : 'Uniforme desactivado.' })
   }
 

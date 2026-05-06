@@ -14,7 +14,12 @@ export async function POST(req: NextRequest) {
   const { data: prof } = await admin.from('profiles').select('role').eq('id', user.id).single()
   if (prof?.role !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-  const { title, body, player_id } = await req.json()
+  let parsed: Record<string, unknown>
+  try { parsed = await req.json() } catch { return NextResponse.json({ error: 'JSON inválido' }, { status: 400 }) }
+
+  const title = typeof parsed.title === 'string' ? parsed.title.slice(0, 256) : 'MBA FC'
+  const body = typeof parsed.body === 'string' ? parsed.body.slice(0, 512) : 'Notificación de prueba ⚽'
+  const player_id = typeof parsed.player_id === 'string' ? parsed.player_id : undefined
 
   let query = admin.from('push_subscriptions').select('endpoint, p256dh, auth, player_id')
   if (player_id) query = (query as typeof query).eq('player_id', player_id)

@@ -32,7 +32,13 @@ export async function DELETE(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
-  const { endpoint } = await req.json()
+  let parsed: Record<string, unknown>
+  try { parsed = await req.json() } catch { return NextResponse.json({ error: 'JSON inválido' }, { status: 400 }) }
+
+  const { endpoint } = parsed
+  if (typeof endpoint !== 'string' || endpoint.length < 1 || endpoint.length > 2048) {
+    return NextResponse.json({ error: 'endpoint inválido' }, { status: 400 })
+  }
 
   await admin
     .from('push_subscriptions')

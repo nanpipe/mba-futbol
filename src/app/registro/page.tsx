@@ -109,7 +109,9 @@ export default function RegistroPage() {
           <div style={{ fontSize: 48, marginBottom: 24 }}>⚽</div>
           <h2 className="display" style={{ fontSize: 32, marginBottom: 16 }}>¡Registro exitoso!</h2>
           <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 32 }}>
-            Revisa tu email para confirmar tu cuenta,<br />luego inicia sesión.
+            Tu solicitud fue enviada al administrador.<br />
+            Recibirás acceso una vez que sea aprobada.<br />
+            <span style={{ color: 'var(--text-dim)', fontSize: 12 }}>Revisa tu email para confirmar tu cuenta.</span>
           </p>
           <Link href="/login" className="btn btn-primary">Ir al login</Link>
         </div>

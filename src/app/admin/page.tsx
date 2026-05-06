@@ -21,6 +21,7 @@ interface Player {
   id: string
   username: string
   email: string
+  role: string
   baneado: boolean
   aprobado: boolean
   uniform: boolean
@@ -216,8 +217,7 @@ export default function AdminPage() {
     const [{ data: ps }, { data: pushSubs }] = await Promise.all([
       supabase
         .from('profiles')
-        .select('id, username, email, baneado, aprobado, uniform, fecha_liberacion, razon_ban, ip_registro, created_at, avatar_url')
-        .neq('role', 'admin')
+        .select('id, username, email, role, baneado, aprobado, uniform, fecha_liberacion, razon_ban, ip_registro, created_at, avatar_url')
         .order('created_at', { ascending: false }),
       supabase.from('push_subscriptions').select('player_id'),
     ])
@@ -491,9 +491,11 @@ export default function AdminPage() {
 
   const activeDragPlayer = [...equipoA, ...equipoB].find(p => p.id === activeDragId) ?? null
 
-  const pendientes = players.filter(p => !p.aprobado && !p.baneado)
-  const baneados = players.filter(p => p.baneado)
-  const activos = players.filter(p => p.aprobado && !p.baneado)
+  const pendientes = players.filter(p => !p.aprobado && !p.baneado && p.role !== 'admin')
+  const baneados = players.filter(p => p.baneado && p.role !== 'admin')
+  const activos = players
+    .filter(p => p.aprobado && !p.baneado)
+    .sort((a, b) => (a.role === 'admin' ? -1 : 1) - (b.role === 'admin' ? -1 : 1))
 
   return (
     <div style={{ minHeight: '100vh', paddingBottom: 80 }}>
@@ -940,7 +942,7 @@ export default function AdminPage() {
             {/* ACTIVOS */}
             <div>
               <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 16 }}>
-                JUGADORES ACTIVOS — {activos.length}
+                MIEMBROS ACTIVOS — {activos.length}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {activos.map(p => {
@@ -957,42 +959,49 @@ export default function AdminPage() {
                         <div style={{ minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                             <span style={{ fontSize: 14, fontWeight: 500 }}>{p.username}</span>
-                            {p.uniform && (
+                            {p.role === 'admin' && (
+                              <span className="mono" style={{ fontSize: 9, color: 'var(--amber)', letterSpacing: '0.1em', background: '#2d1f00', border: '1px solid #92400e', padding: '2px 5px', borderRadius: 2 }}>ADMIN</span>
+                            )}
+                            {p.uniform && p.role !== 'admin' && (
                               <span className="mono" style={{ fontSize: 9, color: 'var(--green)', letterSpacing: '0.1em', background: '#0f2d1a', padding: '2px 5px', borderRadius: 2 }}>UNIFORME</span>
                             )}
                           </div>
                         </div>
                       </div>
-                      {/* Right: icons + edit */}
+                      {/* Right: icons + edit — hidden for other admins */}
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-                        {/* Push bell */}
-                        <span
-                          title={hasPush ? 'Notificaciones activadas' : 'Sin notificaciones'}
-                          style={{ fontSize: 15, opacity: hasPush ? 1 : 0.3, cursor: 'default', lineHeight: 1 }}
-                        >
-                          {hasPush ? '🔔' : '🔕'}
-                        </span>
-                        {/* Uniform toggle */}
-                        <button
-                          onClick={() => accionAdmin('toggle_uniform', { player_id: p.id })}
-                          title={p.uniform ? 'Tiene uniforme — clic para quitar' : 'Sin uniforme — clic para asignar'}
-                          style={{
-                            fontSize: 15, padding: '4px 6px', borderRadius: 3, cursor: 'pointer',
-                            background: p.uniform ? '#0f2d1a' : 'transparent',
-                            color: p.uniform ? 'var(--green)' : 'var(--text-dim)',
-                            border: `1px solid ${p.uniform ? '#16a34a' : 'var(--border)'}`,
-                            lineHeight: 1,
-                          }}
-                        >
-                          👕
-                        </button>
-                        <button
-                          onClick={() => abrirEdit(p)}
-                          className="btn btn-ghost"
-                          style={{ fontSize: 11, padding: '6px 12px' }}
-                        >
-                          Editar
-                        </button>
+                        {p.role !== 'admin' && (
+                          <>
+                            {/* Push bell */}
+                            <span
+                              title={hasPush ? 'Notificaciones activadas' : 'Sin notificaciones'}
+                              style={{ fontSize: 15, opacity: hasPush ? 1 : 0.3, cursor: 'default', lineHeight: 1 }}
+                            >
+                              {hasPush ? '🔔' : '🔕'}
+                            </span>
+                            {/* Uniform toggle */}
+                            <button
+                              onClick={() => accionAdmin('toggle_uniform', { player_id: p.id })}
+                              title={p.uniform ? 'Tiene uniforme — clic para quitar' : 'Sin uniforme — clic para asignar'}
+                              style={{
+                                fontSize: 15, padding: '4px 6px', borderRadius: 3, cursor: 'pointer',
+                                background: p.uniform ? '#0f2d1a' : 'transparent',
+                                color: p.uniform ? 'var(--green)' : 'var(--text-dim)',
+                                border: `1px solid ${p.uniform ? '#16a34a' : 'var(--border)'}`,
+                                lineHeight: 1,
+                              }}
+                            >
+                              👕
+                            </button>
+                            <button
+                              onClick={() => abrirEdit(p)}
+                              className="btn btn-ghost"
+                              style={{ fontSize: 11, padding: '6px 12px' }}
+                            >
+                              Editar
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   )

@@ -10,6 +10,8 @@ const RATE_WINDOWS: Record<string, { limit: number; windowMs: number }> = {
   '/api/push/test':      { limit: 5,  windowMs: 60_000 },
   '/api/admin':          { limit: 60, windowMs: 60_000 },
   '/api/notify':         { limit: 10, windowMs: 60_000 },
+  '/api/perfil':         { limit: 15, windowMs: 60_000 },
+  '/api/invitados':      { limit: 20, windowMs: 60_000 },
   default:               { limit: 120, windowMs: 60_000 },
 }
 

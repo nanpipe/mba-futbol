@@ -15,6 +15,28 @@ interface Player {
   razon_ban: string | null
   ip_registro: string | null
   created_at: string
+  avatar_url: string | null
+}
+
+function PlayerAvatar({ url, username, size = 32 }: { url: string | null; username: string; size?: number }) {
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      background: url ? 'transparent' : '#0f2d1a',
+      border: '1px solid var(--border)',
+      overflow: 'hidden',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0,
+    }}>
+      {url ? (
+        <img src={url} alt={username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      ) : (
+        <span className="display" style={{ fontSize: size * 0.4, color: 'var(--green)', lineHeight: 1 }}>
+          {username?.[0]?.toUpperCase() ?? '?'}
+        </span>
+      )}
+    </div>
+  )
 }
 
 interface ActivityLog {
@@ -57,6 +79,7 @@ export default function AdminPage() {
   const [tab, setTab] = useState<'partidos' | 'jugadores' | 'notifs' | 'log'>('partidos')
   const [authed, setAuthed] = useState<boolean | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
+  const [playerIdsWithPush, setPlayerIdsWithPush] = useState<Set<string>>(new Set())
   const [partidos, setPartidos] = useState<Partido[]>([])
   const [inscripciones, setInscripciones] = useState<Inscripcion[]>([])
   const [invitados, setInvitados] = useState<Invitado[]>([])
@@ -94,12 +117,16 @@ export default function AdminPage() {
   const [pushSending, setPushSending] = useState(false)
 
   const cargarDatos = useCallback(async () => {
-    const { data: ps } = await supabase
-      .from('profiles')
-      .select('id, username, email, baneado, aprobado, uniform, fecha_liberacion, razon_ban, ip_registro, created_at')
-      .neq('role', 'admin')
-      .order('created_at', { ascending: false })
+    const [{ data: ps }, { data: pushSubs }] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('id, username, email, baneado, aprobado, uniform, fecha_liberacion, razon_ban, ip_registro, created_at, avatar_url')
+        .neq('role', 'admin')
+        .order('created_at', { ascending: false }),
+      supabase.from('push_subscriptions').select('player_id'),
+    ])
     setPlayers(ps ?? [])
+    setPlayerIdsWithPush(new Set((pushSubs ?? []).map((s: { player_id: string }) => s.player_id)))
 
     const { data: pts } = await supabase
       .from('partidos')
@@ -560,44 +587,60 @@ export default function AdminPage() {
                 JUGADORES ACTIVOS — {activos.length}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {activos.map(p => (
-                  <div key={p.id} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '12px 16px', background: 'var(--bg-card)',
-                    border: '1px solid var(--border)', borderRadius: 3
-                  }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                        <span style={{ fontSize: 15 }}>{p.username}</span>
-                        {p.uniform && <span className="mono" style={{ fontSize: 9, color: 'var(--green)', letterSpacing: '0.1em', background: '#0f2d1a', padding: '2px 6px', borderRadius: 2 }}>UNIFORME</span>}
+                {activos.map(p => {
+                  const hasPush = playerIdsWithPush.has(p.id)
+                  return (
+                    <div key={p.id} style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '10px 14px', background: 'var(--bg-card)',
+                      border: '1px solid var(--border)', borderRadius: 3, gap: 10
+                    }}>
+                      {/* Left: avatar + name + badges */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                        <PlayerAvatar url={p.avatar_url} username={p.username} size={32} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 14, fontWeight: 500 }}>{p.username}</span>
+                            {p.uniform && (
+                              <span className="mono" style={{ fontSize: 9, color: 'var(--green)', letterSpacing: '0.1em', background: '#0f2d1a', padding: '2px 5px', borderRadius: 2 }}>UNIFORME</span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>{p.email}</div>
+                      {/* Right: icons + edit */}
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                        {/* Push bell */}
+                        <span
+                          title={hasPush ? 'Notificaciones activadas' : 'Sin notificaciones'}
+                          style={{ fontSize: 15, opacity: hasPush ? 1 : 0.3, cursor: 'default', lineHeight: 1 }}
+                        >
+                          {hasPush ? '🔔' : '🔕'}
+                        </span>
+                        {/* Uniform toggle */}
+                        <button
+                          onClick={() => accionAdmin('toggle_uniform', { player_id: p.id })}
+                          title={p.uniform ? 'Tiene uniforme — clic para quitar' : 'Sin uniforme — clic para asignar'}
+                          style={{
+                            fontSize: 15, padding: '4px 6px', borderRadius: 3, cursor: 'pointer',
+                            background: p.uniform ? '#0f2d1a' : 'transparent',
+                            color: p.uniform ? 'var(--green)' : 'var(--text-dim)',
+                            border: `1px solid ${p.uniform ? '#16a34a' : 'var(--border)'}`,
+                            lineHeight: 1,
+                          }}
+                        >
+                          👕
+                        </button>
+                        <button
+                          onClick={() => abrirEdit(p)}
+                          className="btn btn-ghost"
+                          style={{ fontSize: 11, padding: '6px 12px' }}
+                        >
+                          Editar
+                        </button>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <button
-                        onClick={() => accionAdmin('toggle_uniform', { player_id: p.id })}
-                        title={p.uniform ? 'Tiene uniforme — clic para quitar' : 'Sin uniforme — clic para asignar'}
-                        className="mono"
-                        style={{
-                          fontSize: 16, padding: '4px 8px', borderRadius: 3, cursor: 'pointer',
-                          background: p.uniform ? '#0f2d1a' : 'var(--bg-card)',
-                          color: p.uniform ? 'var(--green)' : 'var(--text-dim)',
-                          border: `1px solid ${p.uniform ? '#16a34a' : 'var(--border)'}`,
-                          lineHeight: 1,
-                        }}
-                      >
-                        👕
-                      </button>
-                      <button
-                        onClick={() => abrirEdit(p)}
-                        className="btn btn-ghost"
-                        style={{ fontSize: 11, padding: '8px 14px' }}
-                      >
-                        Editar
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           </div>
@@ -776,7 +819,13 @@ export default function AdminPage() {
           padding: 20, zIndex: 100, overflowY: 'auto'
         }}>
           <div className="card fade-in" style={{ width: '100%', maxWidth: 420, margin: 'auto' }}>
-            <h3 className="display" style={{ fontSize: 22, marginBottom: 20 }}>Editar — {editModal.username}</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+              <PlayerAvatar url={editModal.avatar_url} username={editModal.username} size={48} />
+              <div>
+                <div className="display" style={{ fontSize: 20 }}>{editModal.username}</div>
+                <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>{editModal.email}</div>
+              </div>
+            </div>
 
             {/* ── Edit fields ── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

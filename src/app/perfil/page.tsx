@@ -15,8 +15,6 @@ interface ProfileData {
   avatar_url: string | null
   created_at: string
   posicion: Posicion
-  habilidad: number
-  evaluaciones_recibidas: number
 }
 
 interface Badge {
@@ -25,17 +23,6 @@ interface Badge {
   badge_nombre: string
   partido_id: string | null
   earned_at: string
-}
-
-function StarDisplay({ value }: { value: number }) {
-  const full = Math.round(value)
-  return (
-    <span style={{ letterSpacing: 1 }}>
-      {[1,2,3,4,5].map(n => (
-        <span key={n} style={{ color: n <= full ? 'var(--amber)' : 'var(--border)', fontSize: 16 }}>★</span>
-      ))}
-    </span>
-  )
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -87,7 +74,7 @@ export default function PerfilPage() {
     const [{ data: prof }, { data: badgesData }, { count }] = await Promise.all([
       supabase
         .from('profiles')
-        .select('username, email, avatar_url, created_at, posicion, habilidad, evaluaciones_recibidas')
+        .select('username, email, avatar_url, created_at, posicion')
         .eq('id', u.id)
         .single(),
       supabase
@@ -258,15 +245,9 @@ export default function PerfilPage() {
             <div className="display" style={{ fontSize: 28, color: 'var(--green)' }}>{totalMatches}</div>
             <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>PARTIDOS</div>
           </div>
-          <div style={{ flex: 1, textAlign: 'center', borderRight: '1px solid var(--border)' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 4 }}>
-              <StarDisplay value={profile?.habilidad ?? 3} />
-            </div>
-            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em', marginTop: 2 }}>HABILIDAD</div>
-          </div>
           <div style={{ flex: 1, textAlign: 'center' }}>
             <div className="display" style={{ fontSize: 28, color: 'var(--amber)' }}>{badges.length}</div>
-            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>BADGES</div>
+            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>RECONOCIMIENTOS</div>
           </div>
         </div>
 

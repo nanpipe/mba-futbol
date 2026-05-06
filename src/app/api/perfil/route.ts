@@ -38,30 +38,17 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
   }
 
-  const { username, avatar_url } = body
+  const { avatar_url, posicion } = body
   const ip = getIP(req)
   const updates: Record<string, string> = {}
 
-  // ── Username ──────────────────────────────────────────────────────────────
-  if (username !== undefined) {
-    if (!isString(username, 2, 50)) {
-      return NextResponse.json({ error: 'Usuario debe tener entre 2 y 50 caracteres.' }, { status: 400 })
+  // ── Posición ──────────────────────────────────────────────────────────────
+  const POSICIONES = ['portero', 'defensa', 'medio', 'delantero', 'cualquiera']
+  if (posicion !== undefined) {
+    if (typeof posicion !== 'string' || !POSICIONES.includes(posicion)) {
+      return NextResponse.json({ error: 'Posición inválida.' }, { status: 400 })
     }
-    const clean = (username as string).trim().toLowerCase().replace(/[^a-z0-9_]/g, '')
-    if (clean.length < 2) {
-      return NextResponse.json({ error: 'Usuario inválido. Solo letras, números y _.' }, { status: 400 })
-    }
-    // Uniqueness check
-    const { data: existing } = await admin
-      .from('profiles')
-      .select('id')
-      .eq('username', clean)
-      .neq('id', user.id)
-      .maybeSingle()
-    if (existing) {
-      return NextResponse.json({ error: 'Ese nombre de usuario ya está en uso.' }, { status: 409 })
-    }
-    updates.username = clean
+    updates.posicion = posicion
   }
 
   // ── Avatar URL ────────────────────────────────────────────────────────────

@@ -292,5 +292,59 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, uniform: nuevoValor, mensaje: nuevoValor ? 'Uniforme activado.' : 'Uniforme desactivado.' })
   }
 
+  // ── Actualizar posición del jugador (admin) ────────────────────────────────
+  if (accion === 'actualizar_posicion') {
+    const { player_id, posicion } = body
+    if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
+    const POSICIONES = ['portero', 'defensa', 'medio', 'delantero', 'cualquiera']
+    if (typeof posicion !== 'string' || !POSICIONES.includes(posicion)) {
+      return NextResponse.json({ error: 'Posición inválida' }, { status: 400 })
+    }
+    const { error } = await admin.from('profiles').update({ posicion }).eq('id', player_id as string)
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'actualizar_posicion', detalles: { player_id, posicion }, ip })
+    return NextResponse.json({ ok: true, mensaje: `Posición actualizada a ${posicion}.` })
+  }
+
+  // ── Registrar resultado del partido ───────────────────────────────────────
+  if (accion === 'registrar_resultado') {
+    const { partido_id, resultado } = body
+    if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
+    if (!isString(resultado, 1, 20)) return NextResponse.json({ error: 'Resultado inválido (máx 20 chars)' }, { status: 400 })
+    const { error } = await admin.from('partidos').update({ resultado: (resultado as string).trim() }).eq('id', partido_id as string)
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'registrar_resultado', detalles: { partido_id, resultado }, ip })
+    return NextResponse.json({ ok: true, mensaje: `Resultado registrado: ${resultado}` })
+  }
+
+  // ── Abrir evaluaciones (+ push a jugadores confirmados) ───────────────────
+  if (accion === 'abrir_evaluaciones') {
+    const { partido_id } = body
+    if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
+    const { error } = await admin.from('partidos').update({ evaluaciones_abiertas: true }).eq('id', partido_id as string)
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+
+    const { data: ins } = await admin
+      .from('inscripciones').select('player_id')
+      .eq('partido_id', partido_id as string).eq('estado', 'confirmado')
+
+    const playerIds = (ins ?? []).map(i => i.player_id)
+    if (playerIds.length > 0) {
+      const { data: subs } = await admin
+        .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', playerIds)
+      const { sendPush } = await import('@/lib/push')
+      for (const sub of (subs ?? [])) {
+        await sendPush(sub, {
+          title: '📊 ¿Cómo jugaron?',
+          body: 'Las evaluaciones del partido están abiertas. Evalúa a tus compañeros.',
+          url: `/evaluar/${partido_id}`,
+        }).catch(() => {})
+      }
+    }
+
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'abrir_evaluaciones', detalles: { partido_id }, ip })
+    return NextResponse.json({ ok: true, mensaje: 'Evaluaciones abiertas y jugadores notificados.' })
+  }
+
   return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 })
 }

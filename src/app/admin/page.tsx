@@ -3,6 +3,19 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import {
+  DndContext,
+  type DragEndEvent,
+  DragOverlay,
+  useDraggable,
+  useDroppable,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import { CSS } from '@dnd-kit/utilities'
+import { posicionEmoji } from '@/lib/teamBalancer'
 
 interface Player {
   id: string
@@ -39,6 +52,62 @@ function PlayerAvatar({ url, username, size = 32 }: { url: string | null; userna
   )
 }
 
+function DraggablePlayerCard({ jugador, equipo, confirmado }: { jugador: JugadorEquipo; equipo: 'A' | 'B'; confirmado: boolean }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: jugador.id,
+    data: { equipo },
+    disabled: confirmado,
+  })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Translate.toString(transform),
+        opacity: isDragging ? 0.25 : 1,
+        padding: '8px 10px',
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border)',
+        borderRadius: 3,
+        cursor: confirmado ? 'default' : 'grab',
+        touchAction: 'none',
+        display: 'flex', alignItems: 'center', gap: 8,
+        userSelect: 'none',
+        transition: 'opacity 0.1s',
+      }}
+      {...(!confirmado ? listeners : {})}
+      {...(!confirmado ? attributes : {})}
+    >
+      <PlayerAvatar url={jugador.avatar_url} username={jugador.username} size={26} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{jugador.username}</div>
+        <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>{posicionEmoji(jugador.posicion)} ★{jugador.habilidad.toFixed(1)}</div>
+      </div>
+      {!confirmado && <span style={{ color: 'var(--text-dim)', fontSize: 14, flexShrink: 0 }}>⠿</span>}
+    </div>
+  )
+}
+
+function DroppableZone({ equipo, children, isConfirmado }: { equipo: 'A' | 'B'; children: React.ReactNode; isConfirmado: boolean }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `equipo-${equipo}`, disabled: isConfirmado })
+  const color = equipo === 'A' ? 'var(--green)' : 'var(--amber)'
+  const bgOver = equipo === 'A' ? '#0a1f0f' : '#1a1500'
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        minHeight: 160,
+        background: isOver ? bgOver : 'transparent',
+        border: `2px dashed ${isOver ? color : 'var(--border)'}`,
+        borderRadius: 6,
+        padding: 8,
+        transition: 'background 0.15s, border-color 0.15s',
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
 interface ActivityLog {
   id: string
   user_id: string | null
@@ -67,16 +136,27 @@ interface Inscripcion {
   partidos: { fecha: string; dia_semana: string }
 }
 
+interface JugadorEquipo {
+  id: string
+  username: string
+  avatar_url: string | null
+  posicion: string
+  habilidad: number
+}
+
 interface Partido {
   id: string
   fecha: string
   dia_semana: string
   inscripciones: { count: number }[]
+  evaluaciones_abiertas?: boolean
+  equipos_confirmados?: boolean
+  resultado?: string | null
 }
 
 export default function AdminPage() {
   const supabase = createClient()
-  const [tab, setTab] = useState<'partidos' | 'jugadores' | 'notifs' | 'log'>('partidos')
+  const [tab, setTab] = useState<'partidos' | 'equipos' | 'jugadores' | 'notifs' | 'log'>('partidos')
   const [authed, setAuthed] = useState<boolean | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
   const [playerIdsWithPush, setPlayerIdsWithPush] = useState<Set<string>>(new Set())
@@ -110,6 +190,22 @@ export default function AdminPage() {
   const [editDeleteOpen, setEditDeleteOpen] = useState(false)
   const [editDeleteConfirm, setEditDeleteConfirm] = useState('')
 
+  // Equipos tab
+  const [equiposPartido, setEquiposPartido] = useState<Partido | null>(null)
+  const [equipoA, setEquipoA] = useState<JugadorEquipo[]>([])
+  const [equipoB, setEquipoB] = useState<JugadorEquipo[]>([])
+  const [equiposConfirmado, setEquiposConfirmado] = useState(false)
+  const [equiposLoading, setEquiposLoading] = useState(false)
+  const [equiposDraft, setEquiposDraft] = useState(false)
+  const [equiposResultado, setEquiposResultado] = useState('')
+  const [evaluacionesAbiertas, setEvaluacionesAbiertas] = useState(false)
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } })
+  )
+
   // Test push
   const [pushTitle, setPushTitle] = useState('MBA FC')
   const [pushBody, setPushBody] = useState('¡Hay cupo en el partido! Entra a inscribirte ⚽')
@@ -130,7 +226,7 @@ export default function AdminPage() {
 
     const { data: pts } = await supabase
       .from('partidos')
-      .select('id, fecha, dia_semana, inscripciones(count)')
+      .select('id, fecha, dia_semana, inscripciones(count), evaluaciones_abiertas, equipos_confirmados, resultado')
       .gte('fecha', new Date().toISOString().split('T')[0])
       .order('fecha', { ascending: true })
       .limit(8)
@@ -164,6 +260,104 @@ export default function AdminPage() {
     }
     setLogsLoading(false)
   }, [])
+
+  const cargarEquipos = useCallback(async (partido: Partido) => {
+    setEquiposLoading(true)
+    setEquiposPartido(partido)
+    setEquiposConfirmado(partido.equipos_confirmados ?? false)
+    setEvaluacionesAbiertas(partido.evaluaciones_abiertas ?? false)
+    setEquiposResultado(partido.resultado ?? '')
+    setEquiposDraft(false)
+    const res = await fetch(`/api/equipos?partido_id=${partido.id}`)
+    const data = await res.json()
+    if (data.equipos) {
+      const ea = data.equipos.find((e: { nombre: string }) => e.nombre === 'A')
+      const eb = data.equipos.find((e: { nombre: string }) => e.nombre === 'B')
+      setEquipoA(ea?.jugadores ?? [])
+      setEquipoB(eb?.jugadores ?? [])
+    } else {
+      setEquipoA([])
+      setEquipoB([])
+    }
+    setEquiposLoading(false)
+  }, [])
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveDragId(null)
+    const { active, over } = event
+    if (!over) return
+    const fromEquipo = active.data.current?.equipo as 'A' | 'B'
+    const toEquipo = (over.id as string) === 'equipo-A' ? 'A' : 'B'
+    if (fromEquipo === toEquipo) return
+    const playerId = active.id as string
+    if (fromEquipo === 'A') {
+      const player = equipoA.find(p => p.id === playerId)
+      if (player) { setEquipoA(equipoA.filter(p => p.id !== playerId)); setEquipoB([...equipoB, player]); setEquiposDraft(true) }
+    } else {
+      const player = equipoB.find(p => p.id === playerId)
+      if (player) { setEquipoB(equipoB.filter(p => p.id !== playerId)); setEquipoA([...equipoA, player]); setEquiposDraft(true) }
+    }
+  }
+
+  const balancearAutomatico = async () => {
+    if (!equiposPartido) return
+    setEquiposLoading(true)
+    const res = await fetch('/api/equipos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'balancear', partido_id: equiposPartido.id }) })
+    const data = await res.json()
+    if (res.ok) { setEquipoA(data.equipoA ?? []); setEquipoB(data.equipoB ?? []); setEquiposDraft(true) }
+    else flash(`Error: ${data.error}`)
+    setEquiposLoading(false)
+  }
+
+  const guardarEquiposAction = async () => {
+    if (!equiposPartido) return
+    setEquiposLoading(true)
+    const res = await fetch('/api/equipos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'guardar', partido_id: equiposPartido.id, equipoA, equipoB }) })
+    const data = await res.json()
+    if (res.ok) { flash(data.mensaje ?? 'Guardado.'); setEquiposDraft(false) }
+    else flash(`Error: ${data.error}`)
+    setEquiposLoading(false)
+  }
+
+  const confirmarEquiposAction = async () => {
+    if (!equiposPartido || !confirm('¿Confirmar equipos y notificar a los jugadores?')) return
+    setEquiposLoading(true)
+    const res = await fetch('/api/equipos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'confirmar', partido_id: equiposPartido.id }) })
+    const data = await res.json()
+    if (res.ok) { flash(data.mensaje ?? 'Confirmado.'); setEquiposConfirmado(true); await cargarDatos() }
+    else flash(`Error: ${data.error}`)
+    setEquiposLoading(false)
+  }
+
+  const resetearEquiposAction = async () => {
+    if (!equiposPartido || !confirm('¿Eliminar los equipos de este partido?')) return
+    setEquiposLoading(true)
+    const res = await fetch('/api/equipos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'resetear', partido_id: equiposPartido.id }) })
+    const data = await res.json()
+    if (res.ok) { flash(data.mensaje ?? 'Reseteado.'); setEquipoA([]); setEquipoB([]); setEquiposConfirmado(false); setEquiposDraft(false); await cargarDatos() }
+    else flash(`Error: ${data.error}`)
+    setEquiposLoading(false)
+  }
+
+  const abrirEvaluacionesAction = async () => {
+    if (!equiposPartido) return
+    const ok = await accionAdmin('abrir_evaluaciones', { partido_id: equiposPartido.id })
+    if (ok) { setEvaluacionesAbiertas(true); setEquiposPartido(prev => prev ? { ...prev, evaluaciones_abiertas: true } : prev) }
+  }
+
+  const cerrarEvaluacionesAction = async () => {
+    if (!equiposPartido || !confirm('¿Cerrar evaluaciones y calcular badges?')) return
+    const res = await fetch('/api/evaluaciones', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ partido_id: equiposPartido.id }) })
+    const data = await res.json()
+    if (res.ok) { flash(data.mensaje ?? 'Evaluaciones cerradas.'); setEvaluacionesAbiertas(false); setEquiposPartido(prev => prev ? { ...prev, evaluaciones_abiertas: false } : prev); await cargarDatos() }
+    else flash(`Error: ${data.error}`)
+  }
+
+  const guardarResultadoAction = async () => {
+    if (!equiposPartido || !equiposResultado.trim()) return
+    const ok = await accionAdmin('registrar_resultado', { partido_id: equiposPartido.id, resultado: equiposResultado.trim() })
+    if (ok) setEquiposPartido(prev => prev ? { ...prev, resultado: equiposResultado.trim() } : prev)
+  }
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -295,6 +489,8 @@ export default function AdminPage() {
     )
   }
 
+  const activeDragPlayer = [...equipoA, ...equipoB].find(p => p.id === activeDragId) ?? null
+
   const pendientes = players.filter(p => !p.aprobado && !p.baneado)
   const baneados = players.filter(p => p.baneado)
   const activos = players.filter(p => p.aprobado && !p.baneado)
@@ -327,7 +523,7 @@ export default function AdminPage() {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 0, marginBottom: 40, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
-          {(['partidos', 'jugadores', 'notifs', 'log'] as const).map(t => (
+          {(['partidos', 'equipos', 'jugadores', 'notifs', 'log'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)} className="mono" style={{
               padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer',
               fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap',
@@ -478,6 +674,167 @@ export default function AdminPage() {
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* TAB: EQUIPOS */}
+        {tab === 'equipos' && (
+          <div className="fade-in">
+            {/* Match selector */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28, flexWrap: 'wrap' }}>
+              <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>PARTIDO</div>
+              <select
+                value={equiposPartido?.id ?? ''}
+                onChange={e => { const p = partidos.find(pt => pt.id === e.target.value); if (p) cargarEquipos(p) }}
+                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, padding: '8px 12px', color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: 12 }}
+              >
+                <option value="">Seleccionar partido...</option>
+                {partidos.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.dia_semana} {new Date(p.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}
+                    {p.equipos_confirmados ? ' ✓' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {!equiposPartido ? (
+              <div className="card" style={{ textAlign: 'center', padding: 48 }}>
+                <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>Selecciona un partido para gestionar los equipos.</p>
+              </div>
+            ) : equiposLoading ? (
+              <div className="mono pulsing" style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: 48 }}>Cargando...</div>
+            ) : (
+              <>
+                {/* Status row */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {equiposConfirmado && <span className="badge badge-green">✓ EQUIPOS CONFIRMADOS</span>}
+                  {evaluacionesAbiertas && <span className="badge badge-amber">📊 EVALUACIONES ABIERTAS</span>}
+                  {equiposDraft && !equiposConfirmado && (
+                    <span className="mono" style={{ fontSize: 10, color: 'var(--amber)', letterSpacing: '0.1em' }}>● BORRADOR SIN GUARDAR</span>
+                  )}
+                </div>
+
+                {/* Skill balance */}
+                {(equipoA.length > 0 || equipoB.length > 0) && (() => {
+                  const avgA = equipoA.length ? equipoA.reduce((s, p) => s + p.habilidad, 0) / equipoA.length : 0
+                  const avgB = equipoB.length ? equipoB.reduce((s, p) => s + p.habilidad, 0) / equipoB.length : 0
+                  const diff = Math.abs(avgA - avgB)
+                  return (
+                    <div className="card" style={{ padding: '12px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <div style={{ flex: 1, textAlign: 'center' }}>
+                        <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4 }}>EQUIPO A</div>
+                        <div className="display" style={{ fontSize: 22, color: 'var(--green)' }}>★{avgA.toFixed(1)}</div>
+                        <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>{equipoA.length} jugadores</div>
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <div className="mono" style={{ fontSize: 9, letterSpacing: '0.1em', color: diff <= 0.3 ? 'var(--green)' : diff <= 0.6 ? 'var(--amber)' : 'var(--red)' }}>
+                          {diff <= 0.3 ? 'EQUILIBRADO' : diff <= 0.6 ? 'LEVE DIF.' : 'DESBAL.'}
+                        </div>
+                        <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>Δ {diff.toFixed(1)}</div>
+                      </div>
+                      <div style={{ flex: 1, textAlign: 'center' }}>
+                        <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4 }}>EQUIPO B</div>
+                        <div className="display" style={{ fontSize: 22, color: 'var(--amber)' }}>★{avgB.toFixed(1)}</div>
+                        <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>{equipoB.length} jugadores</div>
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* DnD columns */}
+                <DndContext sensors={sensors} onDragStart={e => setActiveDragId(e.active.id as string)} onDragEnd={handleDragEnd}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+                    <div>
+                      <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--green)', marginBottom: 8 }}>EQUIPO A — {equipoA.length}</div>
+                      <DroppableZone equipo="A" isConfirmado={equiposConfirmado}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {equipoA.map(p => <DraggablePlayerCard key={p.id} jugador={p} equipo="A" confirmado={equiposConfirmado} />)}
+                          {equipoA.length === 0 && <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', textAlign: 'center', padding: '24px 0' }}>Arrastra jugadores aquí</div>}
+                        </div>
+                      </DroppableZone>
+                    </div>
+                    <div>
+                      <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--amber)', marginBottom: 8 }}>EQUIPO B — {equipoB.length}</div>
+                      <DroppableZone equipo="B" isConfirmado={equiposConfirmado}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {equipoB.map(p => <DraggablePlayerCard key={p.id} jugador={p} equipo="B" confirmado={equiposConfirmado} />)}
+                          {equipoB.length === 0 && <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', textAlign: 'center', padding: '24px 0' }}>Arrastra jugadores aquí</div>}
+                        </div>
+                      </DroppableZone>
+                    </div>
+                  </div>
+                  <DragOverlay>
+                    {activeDragPlayer ? (
+                      <div style={{ padding: '8px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--green)', borderRadius: 3, display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+                        <PlayerAvatar url={activeDragPlayer.avatar_url} username={activeDragPlayer.username} size={26} />
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 500 }}>{activeDragPlayer.username}</div>
+                          <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>{posicionEmoji(activeDragPlayer.posicion)} ★{activeDragPlayer.habilidad.toFixed(1)}</div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </DragOverlay>
+                </DndContext>
+
+                {/* Action buttons */}
+                {!equiposConfirmado && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                    <button onClick={balancearAutomatico} disabled={equiposLoading} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px' }}>
+                      ⚖️ Balancear automáticamente
+                    </button>
+                    <button onClick={guardarEquiposAction} disabled={equiposLoading || !equiposDraft || (equipoA.length + equipoB.length === 0)} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px', color: 'var(--green)', borderColor: '#16a34a' }}>
+                      💾 Guardar borrador
+                    </button>
+                    <button onClick={confirmarEquiposAction} disabled={equiposLoading || equiposDraft || (equipoA.length + equipoB.length === 0)} className="btn btn-primary" style={{ fontSize: 12, padding: '10px 16px' }}>
+                      ✓ Confirmar y notificar
+                    </button>
+                  </div>
+                )}
+                <div style={{ marginBottom: 28 }}>
+                  <button onClick={resetearEquiposAction} disabled={equiposLoading} className="mono" style={{ fontSize: 11, padding: '8px 14px', background: 'none', border: '1px solid #7f1d1d', borderRadius: 3, color: '#7f1d1d', cursor: 'pointer', letterSpacing: '0.08em' }}>
+                    ✕ Resetear equipos
+                  </button>
+                </div>
+
+                {/* Resultado */}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginBottom: 24 }}>
+                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>RESULTADO DEL PARTIDO</div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input type="text" value={equiposResultado} onChange={e => setEquiposResultado(e.target.value)} placeholder="Ej: 7-5" style={{ width: 100 }} />
+                    <button onClick={guardarResultadoAction} disabled={!equiposResultado.trim()} className="btn btn-ghost" style={{ fontSize: 12, padding: '8px 14px' }}>
+                      Guardar resultado
+                    </button>
+                    {equiposPartido.resultado && (
+                      <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                        Guardado: <strong style={{ color: 'var(--text)' }}>{equiposPartido.resultado}</strong>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Evaluaciones */}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24 }}>
+                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>EVALUACIONES ENTRE PARES</div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                    {!evaluacionesAbiertas ? (
+                      <button onClick={abrirEvaluacionesAction} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px', color: 'var(--amber)', borderColor: '#92400e' }}>
+                        📊 Abrir evaluaciones
+                      </button>
+                    ) : (
+                      <button onClick={cerrarEvaluacionesAction} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px', color: 'var(--red)', borderColor: '#7f1d1d' }}>
+                        🏅 Cerrar y calcular badges
+                      </button>
+                    )}
+                  </div>
+                  <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.6 }}>
+                    {evaluacionesAbiertas
+                      ? 'Los jugadores pueden evaluar a sus compañeros. Al cerrar, se asignan badges y se actualiza el rating de habilidad.'
+                      : 'Al abrir, se envía una notificación push a los jugadores confirmados.'}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 

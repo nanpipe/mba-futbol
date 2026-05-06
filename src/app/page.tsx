@@ -13,6 +13,21 @@ interface Partido {
   hora?: string
   hora_apertura?: string
   dias_antes_apertura?: number
+  equipos_confirmados?: boolean
+  evaluaciones_abiertas?: boolean
+}
+
+interface EquipoJugador {
+  id: string
+  username: string
+  avatar_url: string | null
+  posicion: string
+  habilidad: number
+}
+
+interface Equipo {
+  nombre: 'A' | 'B'
+  jugadores: EquipoJugador[]
 }
 
 interface Inscripcion {
@@ -52,6 +67,7 @@ export default function HomePage() {
   const [agregandoInvitado, setAgregandoInvitado] = useState(false)
   const [countdown, setCountdown] = useState('')
   const [ultimoPartido, setUltimoPartido] = useState<{ partido: Partido; inscripciones: Inscripcion[] } | null>(null)
+  const [misEquipos, setMisEquipos] = useState<{ miEquipo: Equipo | null; partido_id: string } | null>(null)
   const abreEnRef = useRef<Date | null>(null)
   const [pushPermission, setPushPermission] = useState<NotificationPermission | null>(null)
   const [installPrompt, setInstallPrompt] = useState<Event & { prompt: () => void } | null>(null)
@@ -105,7 +121,7 @@ export default function HomePage() {
     // Fetch next upcoming partido
     const { data: partido } = await supabase
       .from('partidos')
-      .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura')
+      .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, equipos_confirmados, evaluaciones_abiertas')
       .gte('fecha', hoy)
       .order('fecha', { ascending: true })
       .limit(1)
@@ -167,6 +183,19 @@ export default function HomePage() {
 
     setInscripciones((ins as unknown as Inscripcion[]) ?? [])
     setMiInscripcion((ins as unknown as Inscripcion[])?.find(i => i.player_id === u.id) ?? null)
+
+    // Load teams if confirmed
+    if (partido.equipos_confirmados) {
+      const teamsRes = await fetch(`/api/equipos?partido_id=${partido.id}`)
+      const teamsData = await teamsRes.json()
+      if (teamsData.equipos) {
+        const eqs: Equipo[] = teamsData.equipos
+        const mine = eqs.find(e => e.jugadores.some(j => j.id === u.id)) ?? null
+        setMisEquipos({ miEquipo: mine, partido_id: partido.id })
+      }
+    } else {
+      setMisEquipos(null)
+    }
 
     // Load player's own invitees for this match
     const { data: invs } = await supabase
@@ -617,6 +646,68 @@ export default function HomePage() {
 
                 <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 8, lineHeight: 1.6 }}>
                   Los invitados están en lista de espera. Si quedan cupos a las 2:00 PM del día del partido, entran automáticamente.
+                </div>
+              </div>
+            )}
+
+            {/* Teams display when confirmed */}
+            {misEquipos && (
+              <div style={{ marginTop: 40 }}>
+                <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--green)', marginBottom: 4 }}>
+                  ⚽ EQUIPOS CONFIRMADOS
+                </div>
+                {misEquipos.miEquipo ? (
+                  <>
+                    <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 16 }}>
+                      Juegas en el <strong style={{ color: misEquipos.miEquipo.nombre === 'A' ? 'var(--green)' : 'var(--amber)' }}>Equipo {misEquipos.miEquipo.nombre}</strong>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {misEquipos.miEquipo.jugadores.map(j => (
+                        <div key={j.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 12,
+                          padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 3,
+                          border: j.id === user?.id ? `1px solid ${misEquipos.miEquipo!.nombre === 'A' ? '#16a34a' : '#92400e'}` : '1px solid transparent'
+                        }}>
+                          <div style={{ width: 30, height: 30, borderRadius: '50%', background: j.avatar_url ? 'transparent' : '#0f2d1a', border: '1px solid var(--border)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {j.avatar_url
+                              ? <img src={j.avatar_url} alt={j.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              : <span className="display" style={{ fontSize: 12, color: 'var(--green)', lineHeight: 1 }}>{j.username[0].toUpperCase()}</span>
+                            }
+                          </div>
+                          <span style={{ fontSize: 15, flex: 1 }}>{j.username}</span>
+                          {j.id === user?.id && (
+                            <span className="mono" style={{ fontSize: 10, color: misEquipos.miEquipo!.nombre === 'A' ? 'var(--green)' : 'var(--amber)', letterSpacing: '0.1em' }}>TÚ</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>No estás asignado a ningún equipo.</div>
+                )}
+              </div>
+            )}
+
+            {/* Evaluation CTA */}
+            {ventana?.partido?.evaluaciones_abiertas && miInscripcion?.estado === 'confirmado' && (
+              <div style={{ marginTop: 32 }}>
+                <div style={{ background: '#1a1500', border: '1px solid #92400e', borderRadius: 6, padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontSize: 20 }}>📊</span>
+                      <span className="display" style={{ fontSize: 18, letterSpacing: '0.05em' }}>Evalúa a tus compañeros</span>
+                    </div>
+                    <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                      Anónimo · Solo toma 2 minutos · Ayuda a balancear equipos
+                    </div>
+                  </div>
+                  <Link
+                    href={`/evaluar/${ventana.partido.id}`}
+                    className="btn btn-ghost"
+                    style={{ fontSize: 12, padding: '10px 20px', color: 'var(--amber)', borderColor: '#92400e', whiteSpace: 'nowrap' }}
+                  >
+                    Evaluar ahora →
+                  </Link>
                 </div>
               </div>
             )}

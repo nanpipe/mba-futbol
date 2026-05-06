@@ -521,6 +521,62 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* ── Access Requests — always visible on any tab ── */}
+        {pendientes.length > 0 && (
+          <div className="fade-in" style={{
+            background: '#130f00',
+            border: '1px solid #5a4200',
+            borderRadius: 6,
+            padding: '18px 20px',
+            marginBottom: 36,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <span style={{ fontSize: 18, lineHeight: 1 }}>🔔</span>
+              <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--amber)' }}>
+                SOLICITUDES DE ACCESO — {pendientes.length}
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {pendientes.map(p => (
+                <div key={p.id} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '12px 16px', background: 'var(--bg-card)',
+                  border: '1px solid #3a2800', borderRadius: 4,
+                  flexWrap: 'wrap', gap: 10,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                    <PlayerAvatar url={p.avatar_url} username={p.username} size={36} />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 15, fontWeight: 500 }}>{p.username}</div>
+                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>
+                        {p.email}
+                        {p.ip_registro && <span style={{ marginLeft: 6 }}>· {p.ip_registro}</span>}
+                        <span style={{ marginLeft: 6 }}>· {new Date(p.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    <button
+                      onClick={() => accionAdmin('aprobar_jugador', { player_id: p.id })}
+                      className="btn btn-ghost"
+                      style={{ fontSize: 12, padding: '8px 18px', color: 'var(--green)', borderColor: '#16a34a' }}
+                    >
+                      ✓ Aprobar
+                    </button>
+                    <button
+                      onClick={() => { if (confirm(`¿Rechazar y eliminar la solicitud de ${p.username}?`)) accionAdmin('rechazar_jugador', { player_id: p.id }) }}
+                      className="btn btn-ghost"
+                      style={{ fontSize: 12, padding: '8px 14px', color: 'var(--red)', borderColor: '#7f1d1d' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 0, marginBottom: 40, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
           {(['partidos', 'equipos', 'jugadores', 'notifs', 'log'] as const).map(t => (
@@ -533,13 +589,6 @@ export default function AdminPage() {
               position: 'relative',
             }}>
               {t}
-              {t === 'jugadores' && pendientes.length > 0 && (
-                <span style={{
-                  position: 'absolute', top: 8, right: 4,
-                  width: 8, height: 8, borderRadius: '50%',
-                  background: 'var(--amber)',
-                }} />
-              )}
             </button>
           ))}
         </div>
@@ -841,56 +890,6 @@ export default function AdminPage() {
         {/* TAB: JUGADORES */}
         {tab === 'jugadores' && (
           <div className="fade-in">
-
-            {/* PENDIENTES */}
-            {pendientes.length > 0 && (
-              <div style={{ marginBottom: 40 }}>
-                <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--amber)', marginBottom: 16 }}>
-                  PENDIENTES DE APROBACIÓN — {pendientes.length}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {pendientes.map(p => (
-                    <div key={p.id} style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '14px 16px', background: '#1a1500',
-                      border: '1px solid #3a3000', borderRadius: 3,
-                      flexWrap: 'wrap', gap: 12
-                    }}>
-                      <div>
-                        <div style={{ fontSize: 15, marginBottom: 2 }}>{p.username}</div>
-                        <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-                          {p.email}
-                          {p.ip_registro && <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>· IP: {p.ip_registro}</span>}
-                        </div>
-                        <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>
-                          {new Date(p.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button
-                          onClick={() => accionAdmin('aprobar_jugador', { player_id: p.id })}
-                          className="btn btn-ghost"
-                          style={{ fontSize: 11, padding: '8px 16px', color: 'var(--green)', borderColor: '#16a34a' }}
-                        >
-                          Aprobar
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (confirm(`¿Rechazar y eliminar la solicitud de ${p.username}?`)) {
-                              accionAdmin('rechazar_jugador', { player_id: p.id })
-                            }
-                          }}
-                          className="btn btn-ghost"
-                          style={{ fontSize: 11, padding: '8px 14px', color: 'var(--red)', borderColor: '#7f1d1d' }}
-                        >
-                          Rechazar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* SUSPENDIDOS */}
             {baneados.length > 0 && (

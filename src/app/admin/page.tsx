@@ -460,7 +460,7 @@ export default function AdminPage() {
 
   const confirmarEdit = async () => {
     if (!editModal) return
-    await accionAdmin('editar_jugador', { player_id: editModal.id, username: editUsername, email: editEmail })
+    await accionAdmin('editar_jugador', { player_id: editModal.id, email: editEmail })
     if (editPassword.trim().length >= 6) {
       await accionAdmin('cambiar_password', { player_id: editModal.id, password: editPassword.trim() })
     }
@@ -1272,10 +1272,6 @@ export default function AdminPage() {
 
             {/* ── Edit fields ── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>NOMBRE DE USUARIO</label>
-                <input type="text" value={editUsername} onChange={e => setEditUsername(e.target.value)} placeholder="username" />
-              </div>
               <div>
                 <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>EMAIL</label>
                 <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="email@ejemplo.com" />

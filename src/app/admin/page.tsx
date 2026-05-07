@@ -204,6 +204,13 @@ export default function AdminPage() {
   const [equiposResultado, setEquiposResultado] = useState('')
   const [evaluacionesAbiertas, setEvaluacionesAbiertas] = useState(false)
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const [balancerRazon, setBalancerRazon] = useState('')
+  const [balancerSource, setBalancerSource] = useState<'gemini' | 'fallback' | null>(null)
+
+  // Feedback loop
+  const [feedbackText, setFeedbackText] = useState('')
+  const [feedbackHistory, setFeedbackHistory] = useState<{ id: string; feedback: string; created_at: string }[]>([])
+  const [savingFeedback, setSavingFeedback] = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -285,6 +292,42 @@ export default function AdminPage() {
     setEquiposLoading(false)
   }, [])
 
+  const cargarFeedback = useCallback(async () => {
+    const res = await fetch('/api/balancer-feedback')
+    if (res.ok) {
+      const data = await res.json()
+      setFeedbackHistory(data.feedback ?? [])
+    }
+  }, [])
+
+  const guardarFeedback = async () => {
+    if (!feedbackText.trim()) return
+    setSavingFeedback(true)
+    const res = await fetch('/api/balancer-feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feedback: feedbackText.trim() }),
+    })
+    if (res.ok) {
+      setFeedbackText('')
+      await cargarFeedback()
+      flash('Feedback guardado. Se usará en el próximo balanceo.')
+    } else {
+      const data = await res.json()
+      flash(`Error: ${data.error}`)
+    }
+    setSavingFeedback(false)
+  }
+
+  const eliminarFeedback = async (id: string) => {
+    const res = await fetch('/api/balancer-feedback', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    if (res.ok) await cargarFeedback()
+  }
+
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveDragId(null)
     const { active, over } = event
@@ -305,10 +348,19 @@ export default function AdminPage() {
   const balancearAutomatico = async () => {
     if (!equiposPartido) return
     setEquiposLoading(true)
+    setBalancerRazon('')
+    setBalancerSource(null)
     const res = await fetch('/api/equipos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'balancear', partido_id: equiposPartido.id }) })
     const data = await res.json()
-    if (res.ok) { setEquipoA(data.equipoA ?? []); setEquipoB(data.equipoB ?? []); setEquiposDraft(true) }
-    else flash(`Error: ${data.error}`)
+    if (res.ok) {
+      setEquipoA(data.equipoA ?? [])
+      setEquipoB(data.equipoB ?? [])
+      setEquiposDraft(true)
+      setBalancerRazon(data.razon ?? '')
+      setBalancerSource(data.source ?? 'fallback')
+    } else {
+      flash(`Error: ${data.error}`)
+    }
     setEquiposLoading(false)
   }
 
@@ -380,6 +432,10 @@ export default function AdminPage() {
   useEffect(() => {
     if (tab === 'log') cargarLogs()
   }, [tab, cargarLogs])
+
+  useEffect(() => {
+    if (tab === 'equipos') cargarFeedback()
+  }, [tab, cargarFeedback])
 
   const flash = (msg: string) => {
     setMensaje(msg)
@@ -939,6 +995,79 @@ export default function AdminPage() {
                   <button onClick={resetearEquiposAction} disabled={equiposLoading} className="mono" style={{ fontSize: 11, padding: '8px 14px', background: 'none', border: '1px solid #7f1d1d', borderRadius: 3, color: '#7f1d1d', cursor: 'pointer', letterSpacing: '0.08em' }}>
                     ✕ Resetear equipos
                   </button>
+                </div>
+
+                {/* Gemini razon + feedback loop */}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginBottom: 24 }}>
+                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>
+                    🤖 BALANCEADOR IA
+                    {balancerSource === 'gemini' && <span style={{ marginLeft: 8, color: 'var(--green)' }}>· Gemini</span>}
+                    {balancerSource === 'fallback' && <span style={{ marginLeft: 8, color: 'var(--amber)' }}>· Snake-draft (fallback)</span>}
+                  </div>
+                  {balancerRazon && (
+                    <div style={{
+                      background: '#0a1a0f', border: '1px solid #16a34a', borderRadius: 4,
+                      padding: '10px 14px', marginBottom: 16, fontSize: 12,
+                      color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.6,
+                    }}>
+                      &ldquo;{balancerRazon}&rdquo;
+                    </div>
+                  )}
+
+                  {/* Feedback textarea */}
+                  <div style={{ marginBottom: 16 }}>
+                    <label className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--text-dim)', display: 'block', marginBottom: 8 }}>
+                      FEEDBACK PARA EL PRÓXIMO BALANCEO
+                    </label>
+                    <textarea
+                      value={feedbackText}
+                      onChange={e => setFeedbackText(e.target.value)}
+                      placeholder={'Ej: "Juli y Mauricio no deben ir juntos, se pelean mucho"\nEj: "Magic y Mati siempre en el mismo equipo (padre e hijo)"'}
+                      rows={3}
+                      style={{
+                        width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)',
+                        borderRadius: 3, padding: '10px 12px', color: 'var(--text)',
+                        fontFamily: 'DM Mono, monospace', fontSize: 12, resize: 'vertical',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                    <button
+                      onClick={guardarFeedback}
+                      disabled={savingFeedback || !feedbackText.trim()}
+                      className="btn btn-ghost"
+                      style={{ marginTop: 8, fontSize: 11, padding: '8px 16px', color: 'var(--green)', borderColor: '#16a34a' }}
+                    >
+                      {savingFeedback ? 'Guardando...' : '💾 Guardar feedback'}
+                    </button>
+                  </div>
+
+                  {/* Feedback history */}
+                  {feedbackHistory.length > 0 && (
+                    <div>
+                      <div className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--text-dim)', marginBottom: 8 }}>
+                        CONTEXTO ACUMULADO — {feedbackHistory.length} entradas
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 240, overflowY: 'auto' }}>
+                        {feedbackHistory.map(f => (
+                          <div key={f.id} style={{
+                            display: 'flex', alignItems: 'flex-start', gap: 10,
+                            padding: '8px 12px', background: 'var(--bg-card)',
+                            border: '1px solid var(--border)', borderRadius: 3,
+                          }}>
+                            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', whiteSpace: 'nowrap', minWidth: 60, paddingTop: 1 }}>
+                              {new Date(f.created_at).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
+                            </div>
+                            <div style={{ flex: 1, fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>{f.feedback}</div>
+                            <button
+                              onClick={() => eliminarFeedback(f.id)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#7f1d1d', fontSize: 13, lineHeight: 1, flexShrink: 0, padding: '0 4px' }}
+                              title="Eliminar"
+                            >✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Resultado */}

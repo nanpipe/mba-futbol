@@ -143,3 +143,16 @@ hr { border: none; border-top: 1px solid var(--border); }
   50% { opacity: 0.5; }
 }
 .pulsing { animation: pulse 2s ease-in-out infinite; }
+
+/* Admin: partidos grid — side-by-side on desktop, stacked on mobile */
+.admin-partidos-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 600px) {
+  .admin-partidos-grid {
+    grid-template-columns: 1fr;
+  }
+}

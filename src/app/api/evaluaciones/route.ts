@@ -5,6 +5,8 @@ import { isUUID } from '@/lib/validation'
 import { logActivity } from '@/lib/activityLog'
 import { CATEGORIAS } from '@/lib/categorias'
 
+export const dynamic = 'force-dynamic'
+
 const VALID_CATEGORIAS: Set<string> = new Set(CATEGORIAS.map(c => c.id))
 
 // GET /api/evaluaciones?partido_id=xxx — check status for current user
@@ -110,7 +112,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Ya enviaste tus votos.' }, { status: 409 })
   }
 
-  // Build validated rows (one per category, no self-votes)
+  // Fetch confirmed teammates — votado_id must be in this set
+  const { data: confirmados } = await admin
+    .from('inscripciones')
+    .select('player_id')
+    .eq('partido_id', partido_id as string)
+    .eq('estado', 'confirmado')
+    .neq('player_id', user.id)
+
+  const validTargets = new Set((confirmados ?? []).map((c: { player_id: string }) => c.player_id))
+
+  // Build validated rows (one per category, no self-votes, target must be confirmed participant)
   const rows: object[] = []
   const seen = new Set<string>()
 
@@ -119,6 +131,7 @@ export async function POST(req: NextRequest) {
     if (typeof categoria !== 'string' || !VALID_CATEGORIAS.has(categoria)) continue
     if (!isUUID(votado_id)) continue
     if (votado_id === user.id) continue
+    if (!validTargets.has(votado_id as string)) continue  // must be confirmed teammate
     if (seen.has(categoria)) continue
     seen.add(categoria)
     rows.push({ partido_id, votante_id: user.id, votado_id, categoria })

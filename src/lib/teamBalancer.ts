@@ -4,6 +4,7 @@ export interface JugadorEquipo {
   avatar_url: string | null
   posicion: string
   habilidad: number
+  isInvitado?: boolean
 }
 
 const POSICION_EMOJI: Record<string, string> = {

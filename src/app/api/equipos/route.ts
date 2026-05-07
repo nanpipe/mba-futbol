@@ -70,15 +70,34 @@ export async function POST(req: NextRequest) {
 
   // ── balancear: run algorithm, return teams (NOT saved) ─────────────────────
   if (accion === 'balancear') {
-    const { data: ins } = await admin
-      .from('inscripciones')
-      .select('player_id, profiles(id, username, avatar_url, posicion, habilidad)')
-      .eq('partido_id', partido_id as string)
-      .eq('estado', 'confirmado')
+    const [{ data: ins }, { data: invs }] = await Promise.all([
+      admin
+        .from('inscripciones')
+        .select('player_id, profiles(id, username, avatar_url, posicion, habilidad)')
+        .eq('partido_id', partido_id as string)
+        .eq('estado', 'confirmado'),
+      admin
+        .from('invitados')
+        .select('id, nombre')
+        .eq('partido_id', partido_id as string)
+        .eq('estado', 'confirmado'),
+    ])
 
-    const jugadores = (ins ?? []).map(i =>
-      (i as unknown as { profiles: JugadorEquipo }).profiles
-    ).filter(Boolean)
+    const jugadores: JugadorEquipo[] = (ins ?? [])
+      .map(i => (i as unknown as { profiles: JugadorEquipo }).profiles)
+      .filter(Boolean)
+
+    // Add confirmed invitados as pseudo-players (habilidad 3.0, posicion cualquiera)
+    for (const inv of invs ?? []) {
+      jugadores.push({
+        id: (inv as { id: string }).id,
+        username: `${(inv as { nombre: string }).nombre} *`,
+        avatar_url: null,
+        posicion: 'cualquiera',
+        habilidad: 3.0,
+        isInvitado: true,
+      })
+    }
 
     const { equipoA, equipoB } = balancearEquipos(jugadores)
     return NextResponse.json({ ok: true, equipoA, equipoB })
@@ -101,8 +120,19 @@ export async function POST(req: NextRequest) {
 
     if (!tA || !tB) return NextResponse.json({ error: 'Error creando equipos' }, { status: 500 })
 
-    const rowsA = (equipoA ?? []).map((p: { id: string }) => ({ equipo_id: tA.id, player_id: p.id }))
-    const rowsB = (equipoB ?? []).map((p: { id: string }) => ({ equipo_id: tB.id, player_id: p.id }))
+    // Fetch invitado IDs for this partido to exclude them (no profiles FK)
+    const { data: invitadosIds } = await admin
+      .from('invitados')
+      .select('id')
+      .eq('partido_id', partido_id as string)
+    const invSet = new Set((invitadosIds ?? []).map((i: { id: string }) => i.id))
+
+    const rowsA = (equipoA ?? [])
+      .filter((p: { id: string }) => !invSet.has(p.id))
+      .map((p: { id: string }) => ({ equipo_id: tA.id, player_id: p.id }))
+    const rowsB = (equipoB ?? [])
+      .filter((p: { id: string }) => !invSet.has(p.id))
+      .map((p: { id: string }) => ({ equipo_id: tB.id, player_id: p.id }))
 
     if (rowsA.length) await admin.from('equipo_jugadores').insert(rowsA)
     if (rowsB.length) await admin.from('equipo_jugadores').insert(rowsB)

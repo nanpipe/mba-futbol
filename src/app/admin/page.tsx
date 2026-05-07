@@ -151,6 +151,7 @@ interface Partido {
   dia_semana: string
   cupos_total: number
   inscripciones: { estado: string }[]
+  invitados: { estado: string }[]
   evaluaciones_abiertas?: boolean
   equipos_confirmados?: boolean
   resultado?: string | null
@@ -228,7 +229,7 @@ export default function AdminPage() {
 
     const { data: pts } = await supabase
       .from('partidos')
-      .select('id, fecha, dia_semana, cupos_total, inscripciones(estado), evaluaciones_abiertas, equipos_confirmados, resultado')
+      .select('id, fecha, dia_semana, cupos_total, inscripciones(estado), invitados(estado), evaluaciones_abiertas, equipos_confirmados, resultado')
       .gte('fecha', new Date().toISOString().split('T')[0])
       .order('fecha', { ascending: true })
       .limit(8)
@@ -664,7 +665,9 @@ export default function AdminPage() {
                       espera = inscripciones.filter(i => i.estado === 'espera').length
                     } else {
                       const rows = p.inscripciones ?? []
+                      const invRows = p.invitados ?? []
                       confirmados = rows.filter((r: { estado: string }) => r.estado === 'confirmado').length
+                        + invRows.filter((r: { estado: string }) => r.estado === 'confirmado').length
                       espera = rows.filter((r: { estado: string }) => r.estado === 'espera').length
                     }
                     return (

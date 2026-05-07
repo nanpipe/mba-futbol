@@ -77,11 +77,18 @@ export async function POST(req: NextRequest) {
   const spotsLibres = (totalConfirmados ?? 0) < partido.cupos_total
 
   // ── Uniform priority logic ─────────────────────────────────────────────────
-  // Uniformed players can bump the last non-uniform confirmed player if full.
-  // Non-uniformed players go to espera if any uniformed player is waiting.
+  // Rule: players WITHOUT uniform always go to espera, no exceptions.
+  // Uniformed players: confirmed if spots available, can bump non-uniform if full.
 
-  if (tieneUniforme && !spotsLibres) {
-    // List is full — try to bump the most-recent non-uniform confirmed player
+  if (!tieneUniforme) {
+    // No uniform → always espera
+  } else if (tieneUniforme && spotsLibres) {
+    // Uniform + spots free → confirmed
+    const { error } = await admin.from('inscripciones').insert({ partido_id, player_id: user.id, estado: 'confirmado' })
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    return NextResponse.json({ estado: 'confirmado' })
+  } else if (tieneUniforme && !spotsLibres) {
+    // Uniform + full → try to bump the most-recent non-uniform confirmed player
     const { data: confirmed } = await admin
       .from('inscripciones')
       .select('id, player_id, profiles(uniform)')
@@ -92,39 +99,13 @@ export async function POST(req: NextRequest) {
     const toBump = (confirmed as unknown as InscripcionConUniform[])?.find(i => !i.profiles?.uniform)
 
     if (toBump) {
-      // Shift all current espera positions up by 1, then put bumped player at front
       await admin.rpc('incrementar_posiciones_espera', { p_partido_id: partido_id })
       await admin.from('inscripciones').update({ estado: 'espera', posicion_espera: 1 }).eq('id', toBump.id)
-      // Confirm uniform player
       const { error } = await admin.from('inscripciones').insert({ partido_id, player_id: user.id, estado: 'confirmado' })
       if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
       return NextResponse.json({ estado: 'confirmado', prioridad: true })
     }
-    // All confirmed slots taken by uniformed players → espera
-  }
-
-  if (!tieneUniforme && spotsLibres) {
-    // Check if any uniformed players are waiting (they take priority)
-    const { data: espera } = await admin
-      .from('inscripciones')
-      .select('id, profiles(uniform)')
-      .eq('partido_id', partido_id)
-      .eq('estado', 'espera')
-
-    const uniformWaiting = (espera as unknown as InscripcionConUniform[])?.some(i => i.profiles?.uniform)
-    if (!uniformWaiting) {
-      const { error } = await admin.from('inscripciones').insert({ partido_id, player_id: user.id, estado: 'confirmado' })
-      if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
-      return NextResponse.json({ estado: 'confirmado' })
-    }
-    // Uniformed players waiting → this player goes to espera
-  }
-
-  if (spotsLibres && tieneUniforme) {
-    // Simple case: uniform player, spots available
-    const { error } = await admin.from('inscripciones').insert({ partido_id, player_id: user.id, estado: 'confirmado' })
-    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
-    return NextResponse.json({ estado: 'confirmado' })
+    // All confirmed slots taken by uniformed players → fall through to espera
   }
 
   // Fall-through: go to waiting list

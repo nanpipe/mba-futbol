@@ -283,11 +283,11 @@ export async function POST(req: NextRequest) {
 
   // ── Editar jugador ─────────────────────────────────────────────────────────
   if (accion === 'editar_jugador') {
-    const { player_id, username, email } = body
+    const { player_id, email } = body
     if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
 
     const updates: Record<string, string> = {}
-    if (isString(username, 2, 50)) updates.username = (username as string).trim().toLowerCase()
+    // username is immutable — not accepted here
     if (isEmail(email)) updates.email = (email as string).trim().toLowerCase()
 
     if (Object.keys(updates).length === 0) {

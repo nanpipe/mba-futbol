@@ -95,7 +95,13 @@ export async function DELETE(req: NextRequest) {
     .single()
 
   if (!inv) return NextResponse.json({ error: 'Invitado no encontrado' }, { status: 404 })
-  if (inv.player_id !== user.id) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+
+  // Allow owner OR admin to delete
+  const { data: callerProfile } = await admin.from('profiles').select('role').eq('id', user.id).single()
+  const isAdmin = (callerProfile as { role?: string })?.role === 'admin'
+  if (!isAdmin && inv.player_id !== user.id) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
 
   await admin.from('invitados').delete().eq('id', invitado_id)
   return NextResponse.json({ ok: true })
@@ -130,6 +136,30 @@ export async function PATCH(req: NextRequest) {
 
   if (!inv) return NextResponse.json({ error: 'Invitado no encontrado' }, { status: 404 })
   if (inv.estado === 'confirmado') return NextResponse.json({ error: 'Ya está confirmado' }, { status: 409 })
+
+  // Check cupos: confirmed inscripciones + confirmed invitados must not exceed cupos_total
+  const { data: partido } = await admin
+    .from('partidos')
+    .select('cupos_total')
+    .eq('id', inv.partido_id)
+    .single()
+
+  const [{ count: confirmedIns }, { count: confirmedInv }] = await Promise.all([
+    admin.from('inscripciones').select('id', { count: 'exact', head: true })
+      .eq('partido_id', inv.partido_id).eq('estado', 'confirmado'),
+    admin.from('invitados').select('id', { count: 'exact', head: true })
+      .eq('partido_id', inv.partido_id).eq('estado', 'confirmado'),
+  ])
+
+  const totalConfirmados = (confirmedIns ?? 0) + (confirmedInv ?? 0)
+  const cupos = (partido as { cupos_total: number } | null)?.cupos_total ?? 14
+
+  if (totalConfirmados >= cupos) {
+    return NextResponse.json(
+      { error: `No hay cupos disponibles. Partido lleno (${totalConfirmados}/${cupos}).` },
+      { status: 400 }
+    )
+  }
 
   // Confirm the invitado
   const { error } = await admin

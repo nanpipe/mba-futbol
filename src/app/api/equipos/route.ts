@@ -68,9 +68,9 @@ export async function POST(req: NextRequest) {
   const { accion, partido_id } = body
   if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
 
-  // ── balancear: run algorithm, return teams (NOT saved) ─────────────────────
+  // ── balancear: Gemini AI → fallback snake-draft ────────────────────────────
   if (accion === 'balancear') {
-    const [{ data: ins }, { data: invs }] = await Promise.all([
+    const [{ data: ins }, { data: invs }, { data: knowledge }, { data: feedbackRows }] = await Promise.all([
       admin
         .from('inscripciones')
         .select('player_id, profiles(id, username, avatar_url, posicion, habilidad)')
@@ -81,13 +81,20 @@ export async function POST(req: NextRequest) {
         .select('id, nombre')
         .eq('partido_id', partido_id as string)
         .eq('estado', 'confirmado'),
+      admin
+        .from('player_knowledge')
+        .select('username, skill_override, roles, traits, notes'),
+      admin
+        .from('balancer_feedback')
+        .select('feedback, created_at')
+        .order('created_at', { ascending: true }),
     ])
 
     const jugadores: JugadorEquipo[] = (ins ?? [])
       .map(i => (i as unknown as { profiles: JugadorEquipo }).profiles)
       .filter(Boolean)
 
-    // Add confirmed invitados as pseudo-players (habilidad 3.0, posicion cualquiera)
+    // Add confirmed invitados as pseudo-players
     for (const inv of invs ?? []) {
       jugadores.push({
         id: (inv as { id: string }).id,
@@ -99,8 +106,103 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    // ── Try Gemini AI balancer ─────────────────────────────────────────────
+    const geminiKey = process.env.GEMINI_API_KEY
+    if (geminiKey && jugadores.length >= 2) {
+      try {
+        // Build knowledge map by username
+        type KnowledgeRow = { username: string; skill_override: string; roles: string[]; traits: string[]; notes: string }
+        const km: Record<string, KnowledgeRow> = {}
+        for (const k of (knowledge ?? []) as KnowledgeRow[]) km[k.username] = k
+
+        // Player list for prompt
+        const playerLines = jugadores.map(j => {
+          const k = km[j.username.replace(' *', '')]
+          const skillLabel = k?.skill_override ?? 'unknown'
+          const roles = k?.roles?.length ? k.roles.join(', ') : j.posicion
+          const traits = k?.traits?.length ? ` | rasgos: ${k.traits.join(', ')}` : ''
+          const notes = k?.notes ? ` | notas: "${k.notes}"` : ''
+          const invTag = j.isInvitado ? ' [INVITADO]' : ''
+          return `• ${j.username}${invTag} — habilidad: ${j.habilidad.toFixed(1)}, skill: ${skillLabel}, roles: ${roles}${traits}${notes}`
+        }).join('\n')
+
+        // Feedback context
+        type FeedbackRow = { feedback: string; created_at: string }
+        const feedbackLines = (feedbackRows as FeedbackRow[] ?? []).length > 0
+          ? (feedbackRows as FeedbackRow[]).map(f =>
+              `[${new Date(f.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}] ${f.feedback}`
+            ).join('\n')
+          : 'Sin feedback previo.'
+
+        const prompt = `Eres el organizador de equipos del MBA Fútbol Club. Divide los jugadores disponibles en dos equipos balanceados y competitivos.
+
+=== CONTEXTO APRENDIDO (feedback histórico del administrador) ===
+${feedbackLines}
+
+=== JUGADORES DISPONIBLES HOY (${jugadores.length} jugadores) ===
+${playerLines}
+
+=== INSTRUCCIONES ===
+1. Crea Equipo A y Equipo B lo más balanceados posible en habilidad total y distribución de posiciones
+2. Respeta ESTRICTAMENTE el feedback histórico (relaciones, conflictos, preferencias)
+3. Si hay porteros disponibles, asigna al menos uno por equipo cuando sea posible
+4. Para jugadores sin datos cualitativos, usa el valor numérico de habilidad
+5. Introduce variedad natural — no siempre el mismo resultado para los mismos jugadores
+
+Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
+{"equipoA":["username1","username2"],"equipoB":["username3","username4"],"razon":"Explicación clave en máx 200 caracteres"}`
+
+        const geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+            }),
+            signal: AbortSignal.timeout(15000),
+          }
+        )
+
+        if (geminiRes.ok) {
+          const geminiData = await geminiRes.json()
+          const rawText: string = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+          // Strip markdown fences if present
+          const jsonText = rawText.replace(/```json?\n?/g, '').replace(/```/g, '').trim()
+          const parsed = JSON.parse(jsonText)
+
+          // Map usernames → JugadorEquipo objects
+          const byUsername = Object.fromEntries(jugadores.map(j => [j.username, j]))
+          const equipoA: JugadorEquipo[] = (parsed.equipoA ?? [])
+            .map((u: string) => byUsername[u] ?? byUsername[u + ' *'])
+            .filter(Boolean)
+          const equipoB: JugadorEquipo[] = (parsed.equipoB ?? [])
+            .map((u: string) => byUsername[u] ?? byUsername[u + ' *'])
+            .filter(Boolean)
+
+          // Safety: assign any player Gemini missed to the smaller team
+          const assigned = new Set([...equipoA, ...equipoB].map(j => j.id))
+          for (const j of jugadores) {
+            if (!assigned.has(j.id)) {
+              equipoA.length <= equipoB.length ? equipoA.push(j) : equipoB.push(j)
+            }
+          }
+
+          return NextResponse.json({
+            ok: true, equipoA, equipoB,
+            razon: (parsed.razon as string) ?? '',
+            source: 'gemini',
+          })
+        }
+      } catch (err) {
+        console.error('[balancear] Gemini error, falling back to snake-draft:', err)
+      }
+    }
+
+    // ── Fallback: deterministic snake-draft ───────────────────────────────
     const { equipoA, equipoB } = balancearEquipos(jugadores)
-    return NextResponse.json({ ok: true, equipoA, equipoB })
+    return NextResponse.json({ ok: true, equipoA, equipoB, razon: '', source: 'fallback' })
   }
 
   // ── guardar: save (or overwrite) teams in DB ──────────────────────────────

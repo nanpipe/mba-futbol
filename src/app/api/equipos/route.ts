@@ -5,6 +5,8 @@ import { isUUID } from '@/lib/validation'
 import { balancearEquipos, type JugadorEquipo } from '@/lib/teamBalancer'
 import { logActivity } from '@/lib/activityLog'
 
+export const dynamic = 'force-dynamic'
+
 async function getAdminUser(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null

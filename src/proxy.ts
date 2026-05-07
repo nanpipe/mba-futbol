@@ -5,13 +5,18 @@ import { NextResponse, type NextRequest } from 'next/server'
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 
 const RATE_WINDOWS: Record<string, { limit: number; windowMs: number }> = {
-  '/api/inscripciones': { limit: 20,  windowMs: 60_000 },
-  '/api/push/subscribe': { limit: 10, windowMs: 60_000 },
-  '/api/push/test':      { limit: 5,  windowMs: 60_000 },
-  '/api/admin':          { limit: 60, windowMs: 60_000 },
-  '/api/notify':         { limit: 10, windowMs: 60_000 },
-  '/api/perfil':         { limit: 15, windowMs: 60_000 },
-  '/api/invitados':      { limit: 20, windowMs: 60_000 },
+  // Auth pages — tight to slow brute-force / enumeration
+  '/login':              { limit: 10,  windowMs: 600_000  }, // 10 per 10 min
+  '/registro':           { limit: 5,   windowMs: 3_600_000 }, // 5 per hour
+  '/recuperar':          { limit: 5,   windowMs: 3_600_000 }, // 5 per hour
+  // API routes
+  '/api/inscripciones':  { limit: 20,  windowMs: 60_000 },
+  '/api/push/subscribe': { limit: 10,  windowMs: 60_000 },
+  '/api/push/test':      { limit: 5,   windowMs: 60_000 },
+  '/api/admin':          { limit: 60,  windowMs: 60_000 },
+  '/api/notify':         { limit: 10,  windowMs: 60_000 },
+  '/api/perfil':         { limit: 15,  windowMs: 60_000 },
+  '/api/invitados':      { limit: 20,  windowMs: 60_000 },
   default:               { limit: 120, windowMs: 60_000 },
 }
 
@@ -59,9 +64,11 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   }
 
   // ── Rate limiting ─────────────────────────────────────────────────────────
+  // x-real-ip is set by Vercel to the true client IP (not spoofable).
+  // x-forwarded-for first value is client-controlled; use it only as fallback.
   const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
     request.headers.get('x-real-ip') ??
+    request.headers.get('x-forwarded-for')?.split(',').pop()?.trim() ??
     '127.0.0.1'
 
   if (!checkRateLimit(ip, pathname)) {

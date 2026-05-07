@@ -108,6 +108,7 @@ export async function POST(req: NextRequest) {
 
     // ── Try Gemini AI balancer ─────────────────────────────────────────────
     const geminiKey = process.env.GEMINI_API_KEY
+    let fallbackReason = !geminiKey ? 'GEMINI_API_KEY no configurada' : ''
     if (geminiKey && jugadores.length >= 2) {
       try {
         // Build knowledge map by username
@@ -196,13 +197,14 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
           })
         }
       } catch (err) {
-        console.error('[balancear] Gemini error, falling back to snake-draft:', err)
+        fallbackReason = err instanceof Error ? err.message : String(err)
+        console.error('[balancear] Gemini error, falling back to snake-draft:', fallbackReason)
       }
     }
 
     // ── Fallback: deterministic snake-draft ───────────────────────────────
     const { equipoA, equipoB } = balancearEquipos(jugadores)
-    return NextResponse.json({ ok: true, equipoA, equipoB, razon: '', source: 'fallback' })
+    return NextResponse.json({ ok: true, equipoA, equipoB, razon: '', source: 'fallback', fallbackReason })
   }
 
   // ── guardar: save (or overwrite) teams in DB ──────────────────────────────

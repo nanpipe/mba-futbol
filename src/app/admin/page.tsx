@@ -206,6 +206,7 @@ export default function AdminPage() {
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const [balancerRazon, setBalancerRazon] = useState('')
   const [balancerSource, setBalancerSource] = useState<'gemini' | 'fallback' | null>(null)
+  const [balancerFallbackReason, setBalancerFallbackReason] = useState('')
 
   // Feedback loop
   const [feedbackText, setFeedbackText] = useState('')
@@ -350,6 +351,7 @@ export default function AdminPage() {
     setEquiposLoading(true)
     setBalancerRazon('')
     setBalancerSource(null)
+    setBalancerFallbackReason('')
     const res = await fetch('/api/equipos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'balancear', partido_id: equiposPartido.id }) })
     const data = await res.json()
     if (res.ok) {
@@ -358,6 +360,7 @@ export default function AdminPage() {
       setEquiposDraft(true)
       setBalancerRazon(data.razon ?? '')
       setBalancerSource(data.source ?? 'fallback')
+      setBalancerFallbackReason(data.fallbackReason ?? '')
     } else {
       flash(`Error: ${data.error}`)
     }
@@ -674,7 +677,7 @@ export default function AdminPage() {
         )}
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 0, marginBottom: 40, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
+        <div style={{ display: 'flex', gap: 0, marginBottom: 40, borderBottom: '1px solid var(--border)', overflowX: 'auto', overflowY: 'hidden' }}>
           {(['partidos', 'equipos', 'jugadores', 'notifs', 'log'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)} className="mono" style={{
               padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer',
@@ -692,7 +695,7 @@ export default function AdminPage() {
         {/* TAB: PARTIDOS */}
         {tab === 'partidos' && (
           <div className="fade-in">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 24, alignItems: 'start' }}>
+            <div className="admin-partidos-grid">
 
               {/* Lista de partidos */}
               <div>
@@ -1002,7 +1005,7 @@ export default function AdminPage() {
                   <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>
                     🤖 BALANCEADOR IA
                     {balancerSource === 'gemini' && <span style={{ marginLeft: 8, color: 'var(--green)' }}>· Gemini</span>}
-                    {balancerSource === 'fallback' && <span style={{ marginLeft: 8, color: 'var(--amber)' }}>· Snake-draft (fallback)</span>}
+                    {balancerSource === 'fallback' && <span style={{ marginLeft: 8, color: 'var(--amber)' }}>· Snake-draft (fallback){balancerFallbackReason ? ': ' + balancerFallbackReason : ''}</span>}
                   </div>
                   {balancerRazon && (
                     <div style={{

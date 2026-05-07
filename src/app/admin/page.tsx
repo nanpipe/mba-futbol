@@ -401,7 +401,23 @@ export default function AdminPage() {
     return res.ok
   }
 
-  const confirmarInvitado = async (invitadoId: string) => {
+  const confirmarInvitado = async (invitadoId: string, remove = false) => {
+    if (remove) {
+      if (!confirm('¿Remover este invitado confirmado?')) return
+      const res = await fetch('/api/invitados', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invitado_id: invitadoId }),
+      })
+      if (res.ok) {
+        setInvitados(prev => prev.filter(inv => inv.id !== invitadoId))
+        flash('Invitado removido.')
+      } else {
+        const data = await res.json()
+        flash(`Error: ${data.error}`)
+      }
+      return
+    }
     setConfirmandoInvitado(invitadoId)
     const res = await fetch('/api/invitados', {
       method: 'PATCH',
@@ -683,6 +699,7 @@ export default function AdminPage() {
                     ) : (
                       <>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {/* Confirmed players (inscripciones) */}
                         {inscripciones.map(ins => (
                           <div key={ins.id} style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -715,42 +732,60 @@ export default function AdminPage() {
                             </div>
                           </div>
                         ))}
+                        {/* Confirmed invitados — shown inline with inscripciones */}
+                        {invitados.filter(inv => inv.estado === 'confirmado').map(inv => (
+                          <div key={inv.id} style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            padding: '10px 14px', background: 'var(--bg-card)',
+                            border: '1px solid #16a34a', borderRadius: 3
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                              <span className="badge badge-green">✓</span>
+                              <div>
+                                <div style={{ fontSize: 15 }}>{inv.nombre}</div>
+                                <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>inv. de {inv.profiles.username}</div>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => confirmarInvitado(inv.id, true)}
+                              className="mono"
+                              style={{ fontSize: 11, color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
+                            >
+                              REMOVER
+                            </button>
+                          </div>
+                        ))}
                       </div>
 
-                      {invitados.length > 0 && (
+                      {/* Espera invitados — confirm button */}
+                      {invitados.some(inv => inv.estado === 'espera') && (
                         <div style={{ marginTop: 20 }}>
                           <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 8 }}>
-                            INVITADOS — {invitados.length}
+                            INVITADOS EN ESPERA — {invitados.filter(inv => inv.estado === 'espera').length}
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            {invitados.map(inv => (
+                            {invitados.filter(inv => inv.estado === 'espera').map(inv => (
                               <div key={inv.id} style={{
                                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                                 padding: '10px 14px', background: 'var(--bg-card)',
-                                border: `1px solid ${inv.estado === 'confirmado' ? '#16a34a' : '#1a2a3a'}`, borderRadius: 3,
+                                border: '1px solid #1a2a3a', borderRadius: 3,
                                 gap: 10,
                               }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                                  <span className={`badge ${inv.estado === 'confirmado' ? 'badge-green' : 'badge-amber'}`}>
-                                    {inv.estado === 'confirmado' ? '✓' : `#${inv.posicion_espera}`}
-                                  </span>
+                                  <span className="badge badge-amber">{`#${inv.posicion_espera}`}</span>
                                   <div style={{ minWidth: 0 }}>
                                     <div style={{ fontSize: 14 }}>{inv.nombre}</div>
                                     <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>inv. de {inv.profiles.username}</div>
                                   </div>
                                 </div>
-                                {inv.estado === 'espera' ? (
-                                  <button
-                                    onClick={() => confirmarInvitado(inv.id)}
-                                    disabled={confirmandoInvitado === inv.id}
-                                    className="btn btn-ghost"
-                                    style={{ fontSize: 11, padding: '6px 12px', color: 'var(--green)', borderColor: '#16a34a', flexShrink: 0 }}
-                                  >
-                                    {confirmandoInvitado === inv.id ? '...' : '✓ Confirmar'}
-                                  </button>
-                                ) : (
-                                  <span className="mono" style={{ fontSize: 10, color: 'var(--green)', letterSpacing: '0.08em', flexShrink: 0 }}>CONFIRMADO</span>
-                                )}
+                                <button
+                                  onClick={() => confirmarInvitado(inv.id)}
+                                  disabled={confirmandoInvitado === inv.id}
+                                  className="btn btn-ghost"
+                                  style={{ fontSize: 11, padding: '6px 12px', color: 'var(--green)', borderColor: '#16a34a', flexShrink: 0 }}
+                                >
+                                  {confirmandoInvitado === inv.id ? '...' : '✓ Confirmar'}
+                                </button>
                               </div>
                             ))}
                           </div>

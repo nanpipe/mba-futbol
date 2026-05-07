@@ -149,6 +149,7 @@ interface Partido {
   id: string
   fecha: string
   dia_semana: string
+  cupos_total: number
   inscripciones: { count: number }[]
   evaluaciones_abiertas?: boolean
   equipos_confirmados?: boolean
@@ -227,7 +228,7 @@ export default function AdminPage() {
 
     const { data: pts } = await supabase
       .from('partidos')
-      .select('id, fecha, dia_semana, inscripciones(count), evaluaciones_abiertas, equipos_confirmados, resultado')
+      .select('id, fecha, dia_semana, cupos_total, inscripciones(count), evaluaciones_abiertas, equipos_confirmados, resultado')
       .gte('fecha', new Date().toISOString().split('T')[0])
       .order('fecha', { ascending: true })
       .limit(8)
@@ -652,9 +653,20 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {partidos.map(p => {
-                    const total = (p.inscripciones?.[0] as { count: number } | undefined)?.count ?? 0
-                    const confirmados = Math.min(total, 14)
-                    const espera = Math.max(0, total - 14)
+                    const cupos = p.cupos_total ?? 14
+                    // For the selected partido, derive counts from the live inscripciones/invitados state
+                    // (refreshed after every EN ESPERA / REMOVER action). For others, use query count.
+                    let confirmados: number
+                    let espera: number
+                    if (p.id === selectedPartido) {
+                      confirmados = inscripciones.filter(i => i.estado === 'confirmado').length
+                        + invitados.filter(i => i.estado === 'confirmado').length
+                      espera = inscripciones.filter(i => i.estado === 'espera').length
+                    } else {
+                      const total = (p.inscripciones?.[0] as { count: number } | undefined)?.count ?? 0
+                      confirmados = Math.min(total, cupos)
+                      espera = Math.max(0, total - cupos)
+                    }
                     return (
                       <button key={p.id} onClick={() => setSelectedPartido(p.id)} style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -672,8 +684,8 @@ export default function AdminPage() {
                         </div>
                         <div style={{ textAlign: 'right' }}>
                           <div className="mono" style={{ fontSize: 13 }}>
-                            <span style={{ color: confirmados >= 14 ? 'var(--red)' : 'var(--green)' }}>{confirmados}</span>
-                            <span style={{ color: 'var(--text-dim)' }}>/14</span>
+                            <span style={{ color: confirmados >= cupos ? 'var(--red)' : 'var(--green)' }}>{confirmados}</span>
+                            <span style={{ color: 'var(--text-dim)' }}>/{cupos}</span>
                           </div>
                           {espera > 0 && (
                             <div className="mono" style={{ fontSize: 11, color: 'var(--amber)' }}>+{espera} espera</div>

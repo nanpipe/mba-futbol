@@ -5,6 +5,8 @@ import { isUUID } from '@/lib/validation'
 import { logActivity } from '@/lib/activityLog'
 import { CATEGORIAS } from '@/lib/categorias'
 
+export const dynamic = 'force-dynamic'
+
 const VALID_CATEGORIAS: Set<string> = new Set(CATEGORIAS.map(c => c.id))
 
 // GET /api/evaluaciones?partido_id=xxx — check status for current user

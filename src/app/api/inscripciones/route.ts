@@ -5,6 +5,8 @@ import { calcularVentanaPartido } from '@/lib/partidos'
 import { safeError, isUUID } from '@/lib/validation'
 import { internalFetch } from '@/lib/internalFetch'
 
+export const dynamic = 'force-dynamic'
+
 type InscripcionConUniform = { id: string; player_id: string; profiles: { uniform: boolean } }
 
 // POST /api/inscripciones — inscribirse a un partido

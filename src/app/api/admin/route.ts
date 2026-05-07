@@ -5,6 +5,8 @@ import { safeError, isUUID, isString, isEmail, isDate, isIntInRange } from '@/li
 import { internalFetch } from '@/lib/internalFetch'
 import { logActivity } from '@/lib/activityLog'
 
+export const dynamic = 'force-dynamic'
+
 async function verificarAdmin(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null

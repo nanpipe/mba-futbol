@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { safeError, isString } from '@/lib/validation'
 import { logActivity } from '@/lib/activityLog'
 
+export const dynamic = 'force-dynamic'
+
 function getIP(req: NextRequest) {
   return (
     req.headers.get('x-forwarded-for')?.split(',')[0].trim() ??

@@ -6,6 +6,8 @@ import { isUUID, isString, safeError } from '@/lib/validation'
 import { sendPush } from '@/lib/push'
 import { logActivity } from '@/lib/activityLog'
 
+export const dynamic = 'force-dynamic'
+
 const MAX_INVITADOS = 3
 
 // POST /api/invitados — agregar un invitado al partido

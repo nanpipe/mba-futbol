@@ -13,6 +13,7 @@ interface Partido {
   hora?: string
   hora_apertura?: string
   dias_antes_apertura?: number
+  cupos_total?: number
   equipos_confirmados?: boolean
   evaluaciones_abiertas?: boolean
 }
@@ -131,7 +132,7 @@ export default function HomePage() {
     // Fetch next upcoming partido
     const { data: partido } = await supabase
       .from('partidos')
-      .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, equipos_confirmados, evaluaciones_abiertas')
+      .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, cupos_total, equipos_confirmados, evaluaciones_abiertas')
       .gte('fecha', hoy)
       .order('fecha', { ascending: true })
       .limit(1)
@@ -323,7 +324,10 @@ export default function HomePage() {
 
   const confirmados = inscripciones.filter(i => i.estado === 'confirmado')
   const enEspera = inscripciones.filter(i => i.estado === 'espera')
-  const cuposLibres = 14 - confirmados.length
+  const cuposTotal = ventana?.partido?.cupos_total ?? 14
+  const invitadosConfirmados = todosInvitados.filter(i => i.estado === 'confirmado')
+  const totalConfirmados = confirmados.length + invitadosConfirmados.length
+  const cuposLibres = cuposTotal - totalConfirmados
 
   // Pull-to-refresh handlers (PWA standalone loses native browser pull-to-refresh)
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -544,15 +548,15 @@ export default function HomePage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <span className="mono" style={{ fontSize: 12, letterSpacing: '0.08em', color: 'var(--text-muted)' }}>CUPOS</span>
                 <span className="mono" style={{ fontSize: 13 }}>
-                  <strong style={{ color: confirmados.length >= 14 ? 'var(--red)' : 'var(--green)' }}>{confirmados.length}</strong>
-                  <span style={{ color: 'var(--text-dim)' }}>/14</span>
+                  <strong style={{ color: totalConfirmados >= cuposTotal ? 'var(--red)' : 'var(--green)' }}>{totalConfirmados}</strong>
+                  <span style={{ color: 'var(--text-dim)' }}>/{cuposTotal}</span>
                 </span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(14, 1fr)', gap: 4 }}>
-                {Array.from({ length: 14 }, (_, i) => (
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cuposTotal}, 1fr)`, gap: 4 }}>
+                {Array.from({ length: cuposTotal }, (_, i) => (
                   <div key={i} style={{
                     height: 8, borderRadius: 2,
-                    background: i < confirmados.length ? 'var(--green)' : 'var(--border-light)'
+                    background: i < totalConfirmados ? 'var(--green)' : 'var(--border-light)'
                   }} />
                 ))}
               </div>
@@ -734,7 +738,7 @@ export default function HomePage() {
             {inscripciones.length > 0 && (
               <div style={{ marginTop: 40 }}>
                 <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 16 }}>
-                  JUGADORES — {confirmados.length} CONFIRMADOS
+                  JUGADORES — {totalConfirmados} CONFIRMADOS
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {confirmados.map((ins, idx) => (

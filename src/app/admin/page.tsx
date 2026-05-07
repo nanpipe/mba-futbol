@@ -150,7 +150,7 @@ interface Partido {
   fecha: string
   dia_semana: string
   cupos_total: number
-  inscripciones: { count: number }[]
+  inscripciones: { estado: string }[]
   evaluaciones_abiertas?: boolean
   equipos_confirmados?: boolean
   resultado?: string | null
@@ -228,7 +228,11 @@ export default function AdminPage() {
 
     const { data: pts } = await supabase
       .from('partidos')
+<<<<<<< HEAD
+      .select('id, fecha, dia_semana, cupos_total, inscripciones(estado), evaluaciones_abiertas, equipos_confirmados, resultado')
+=======
       .select('id, fecha, dia_semana, cupos_total, inscripciones(count), evaluaciones_abiertas, equipos_confirmados, resultado')
+>>>>>>> origin/main
       .gte('fecha', new Date().toISOString().split('T')[0])
       .order('fecha', { ascending: true })
       .limit(8)
@@ -654,8 +658,13 @@ export default function AdminPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {partidos.map(p => {
                     const cupos = p.cupos_total ?? 14
+<<<<<<< HEAD
+                    // For the selected partido, derive from live state (refreshed after every action).
+                    // For others, compute from the inscripciones(estado) rows fetched by cargarDatos.
+=======
                     // For the selected partido, derive counts from the live inscripciones/invitados state
                     // (refreshed after every EN ESPERA / REMOVER action). For others, use query count.
+>>>>>>> origin/main
                     let confirmados: number
                     let espera: number
                     if (p.id === selectedPartido) {
@@ -663,9 +672,15 @@ export default function AdminPage() {
                         + invitados.filter(i => i.estado === 'confirmado').length
                       espera = inscripciones.filter(i => i.estado === 'espera').length
                     } else {
+<<<<<<< HEAD
+                      const rows = p.inscripciones ?? []
+                      confirmados = rows.filter((r: { estado: string }) => r.estado === 'confirmado').length
+                      espera = rows.filter((r: { estado: string }) => r.estado === 'espera').length
+=======
                       const total = (p.inscripciones?.[0] as { count: number } | undefined)?.count ?? 0
                       confirmados = Math.min(total, cupos)
                       espera = Math.max(0, total - cupos)
+>>>>>>> origin/main
                     }
                     return (
                       <button key={p.id} onClick={() => setSelectedPartido(p.id)} style={{

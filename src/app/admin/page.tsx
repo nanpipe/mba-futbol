@@ -675,13 +675,24 @@ export default function AdminPage() {
                               </span>
                               <span style={{ fontSize: 15 }}>{ins.profiles.username}</span>
                             </div>
-                            <button
-                              onClick={() => accionAdmin('remover_partido', { player_id: ins.profiles.id, partido_id: ins.partido_id })}
-                              className="mono"
-                              style={{ fontSize: 11, color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
-                            >
-                              REMOVER
-                            </button>
+                            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                              {ins.estado === 'confirmado' && (
+                                <button
+                                  onClick={() => accionAdmin('mover_espera', { player_id: ins.profiles.id, partido_id: ins.partido_id })}
+                                  className="mono"
+                                  style={{ fontSize: 11, color: 'var(--amber)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
+                                >
+                                  EN ESPERA
+                                </button>
+                              )}
+                              <button
+                                onClick={() => accionAdmin('remover_partido', { player_id: ins.profiles.id, partido_id: ins.partido_id })}
+                                className="mono"
+                                style={{ fontSize: 11, color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
+                              >
+                                REMOVER
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>

@@ -221,6 +221,37 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
+  // ── Mover a espera ─────────────────────────────────────────────────────────
+  if (accion === 'mover_espera') {
+    const { player_id, partido_id } = body
+    if (!isUUID(player_id) || !isUUID(partido_id)) {
+      return NextResponse.json({ error: 'IDs inválidos' }, { status: 400 })
+    }
+
+    const { data: ins } = await admin
+      .from('inscripciones')
+      .select('id, estado, profiles(username)')
+      .eq('player_id', player_id)
+      .eq('partido_id', partido_id)
+      .single()
+
+    if (!ins) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
+    if (ins.estado !== 'confirmado') {
+      return NextResponse.json({ error: 'Solo se pueden mover jugadores confirmados' }, { status: 400 })
+    }
+
+    // Get next espera position
+    const { data: posicion } = await admin.rpc('siguiente_posicion_espera', { p_partido_id: partido_id })
+
+    await admin.from('inscripciones')
+      .update({ estado: 'espera', posicion_espera: posicion })
+      .eq('id', ins.id)
+
+    const username = (ins as unknown as { profiles: { username: string } }).profiles?.username
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'mover_espera', detalles: { player_id, partido_id, username }, ip })
+    return NextResponse.json({ ok: true, mensaje: `${username} movido a lista de espera.` })
+  }
+
   // ── Crear partido ──────────────────────────────────────────────────────────
   if (accion === 'crear_partido') {
     const { fecha, hora, cupos_total, hora_apertura, dias_antes_apertura } = body

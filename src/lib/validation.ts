@@ -58,8 +58,10 @@ export function isIntInRange(val: unknown, min: number, max: number): boolean {
 
 // ─── Internal API secret check ────────────────────────────────────────────────
 // Used to protect server-to-server calls (e.g. /api/notify called by other API routes)
+// Fails CLOSED: if INTERNAL_API_SECRET is not set, all calls are rejected.
+// Set INTERNAL_API_SECRET=dev-secret in .env.local for local development.
 export function verifyInternalSecret(req: Request | { headers: { get(k: string): string | null } }): boolean {
   const secret = process.env.INTERNAL_API_SECRET
-  if (!secret) return true // dev: skip if not configured
+  if (!secret) return false // fail closed — missing env var blocks all calls
   return req.headers.get('x-internal-secret') === secret
 }

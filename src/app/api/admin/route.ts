@@ -88,7 +88,8 @@ export async function POST(req: NextRequest) {
     const { player_id } = body
     if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
 
-    const { data: info } = await admin.from('profiles').select('username').eq('id', player_id as string).single()
+    const { data: info } = await admin.from('profiles').select('username, role').eq('id', player_id as string).single()
+    if ((info as { role?: string })?.role === 'admin') return NextResponse.json({ error: 'No se puede aplicar esta acción a un administrador' }, { status: 403 })
     const { error } = await admin.auth.admin.deleteUser(player_id as string)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
 
@@ -101,8 +102,9 @@ export async function POST(req: NextRequest) {
     const { player_id } = body
     if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
 
-    const { data: info } = await admin.from('profiles').select('username, email').eq('id', player_id as string).single()
-    const infoTyped = info as { username?: string; email?: string } | null
+    const { data: info } = await admin.from('profiles').select('username, email, role').eq('id', player_id as string).single()
+    const infoTyped = info as { username?: string; email?: string; role?: string } | null
+    if (infoTyped?.role === 'admin') return NextResponse.json({ error: 'No se puede aplicar esta acción a un administrador' }, { status: 403 })
 
     // Remove from future matches
     const hoy = new Date().toISOString().split('T')[0]
@@ -137,7 +139,8 @@ export async function POST(req: NextRequest) {
     const razonSafe = isString(razon, 0, 300) ? (razon as string).trim() : 'Multa pendiente'
     const fechaSafe = isDate(fecha_liberacion) ? (fecha_liberacion as string) : null
 
-    const { data: info } = await admin.from('profiles').select('username').eq('id', player_id as string).single()
+    const { data: info } = await admin.from('profiles').select('username, role').eq('id', player_id as string).single()
+    if ((info as { role?: string })?.role === 'admin') return NextResponse.json({ error: 'No se puede aplicar esta acción a un administrador' }, { status: 403 })
     const { error } = await admin
       .from('profiles')
       .update({
@@ -258,6 +261,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 })
     }
 
+    const { data: targetProf } = await admin.from('profiles').select('role').eq('id', player_id as string).single()
+    if ((targetProf as { role?: string })?.role === 'admin') return NextResponse.json({ error: 'No se puede aplicar esta acción a un administrador' }, { status: 403 })
+
     const { error } = await admin.from('profiles').update(updates).eq('id', player_id as string)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'editar_jugador', detalles: { player_id, ...updates }, ip })
@@ -272,6 +278,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Contraseña debe tener entre 6 y 128 caracteres' }, { status: 400 })
     }
 
+    const { data: targetProf } = await admin.from('profiles').select('role').eq('id', player_id as string).single()
+    if ((targetProf as { role?: string })?.role === 'admin') return NextResponse.json({ error: 'No se puede aplicar esta acción a un administrador' }, { status: 403 })
+
     const { error } = await admin.auth.admin.updateUserById(player_id as string, { password: (password as string) })
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'cambiar_password', detalles: { player_id }, ip })
@@ -283,7 +292,8 @@ export async function POST(req: NextRequest) {
     const { player_id } = body
     if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
 
-    const { data: current } = await admin.from('profiles').select('uniform, username').eq('id', player_id as string).single()
+    const { data: current } = await admin.from('profiles').select('uniform, username, role').eq('id', player_id as string).single()
+    if ((current as { role?: string })?.role === 'admin') return NextResponse.json({ error: 'No se puede aplicar esta acción a un administrador' }, { status: 403 })
     const nuevoValor = !((current as { uniform?: boolean })?.uniform ?? false)
 
     const { error } = await admin.from('profiles').update({ uniform: nuevoValor }).eq('id', player_id as string)

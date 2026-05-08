@@ -28,21 +28,40 @@ export async function GET(req: NextRequest) {
 
   const { data: equipos } = await admin
     .from('equipos')
-    .select('id, nombre, confirmado, color, portero_fijo, rotacion_banca, rotacion_portero')
+    .select('id, nombre, confirmado, color, portero_fijo, portero_fijo_id, rotacion_banca, rotacion_portero')
     .eq('partido_id', partido_id)
 
   if (!equipos || equipos.length === 0) return NextResponse.json({ ok: true, equipos: null })
 
-  const { data: jugadores } = await admin
-    .from('equipo_jugadores')
-    .select('equipo_id, player_id, profiles(id, username, avatar_url, posicion, habilidad)')
-    .in('equipo_id', equipos.map(e => e.id))
+  const [{ data: jugadores }, { data: invitadosEnEquipo }] = await Promise.all([
+    admin
+      .from('equipo_jugadores')
+      .select('equipo_id, player_id, profiles(id, username, avatar_url, posicion, habilidad)')
+      .in('equipo_id', equipos.map(e => e.id)),
+    admin
+      .from('invitados')
+      .select('id, nombre, equipo_id')
+      .in('equipo_id', equipos.map(e => e.id)),
+  ])
 
   const byEquipo: Record<string, JugadorEquipo[]> = {}
   for (const row of (jugadores ?? [])) {
     const prof = (row as unknown as { profiles: JugadorEquipo }).profiles
     if (!byEquipo[row.equipo_id]) byEquipo[row.equipo_id] = []
     byEquipo[row.equipo_id].push(prof)
+  }
+  // Re-attach invitados to their team
+  for (const inv of (invitadosEnEquipo ?? []) as { id: string; nombre: string; equipo_id: string }[]) {
+    if (!inv.equipo_id) continue
+    if (!byEquipo[inv.equipo_id]) byEquipo[inv.equipo_id] = []
+    byEquipo[inv.equipo_id].push({
+      id: inv.id,
+      username: `${inv.nombre} *`,
+      avatar_url: null,
+      posicion: 'cualquiera',
+      habilidad: 3.0,
+      isInvitado: true,
+    } as JugadorEquipo)
   }
 
   return NextResponse.json({
@@ -135,6 +154,7 @@ export async function POST(req: NextRequest) {
             ).join('\n')
           : 'Sin feedback previo.'
 
+        const half = Math.ceil(jugadores.length / 2)
         const prompt = `Eres el organizador de equipos del MBA Fútbol Club. Divide los jugadores disponibles en dos equipos balanceados y competitivos.
 
 === CONTEXTO APRENDIDO (feedback histórico del administrador) ===
@@ -144,7 +164,7 @@ ${feedbackLines}
 ${playerLines}
 
 === INSTRUCCIONES ===
-1. Crea Equipo A y Equipo B lo más balanceados posible en habilidad total y distribución de posiciones
+1. Crea Equipo A con exactamente ${half} jugadores y Equipo B con exactamente ${jugadores.length - half} jugadores (diferencia máxima de 1)
 2. Respeta ESTRICTAMENTE el feedback histórico (relaciones, conflictos, preferencias)
 3. Si hay porteros disponibles, asigna al menos uno por equipo cuando sea posible
 4. Para jugadores sin datos cualitativos, usa el valor numérico de habilidad
@@ -206,6 +226,10 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
             }
           }
 
+          // Rebalance: max diff = 1 (move last player from bigger team)
+          while (equipoA.length > equipoB.length + 1) equipoB.push(equipoA.pop()!)
+          while (equipoB.length > equipoA.length + 1) equipoA.push(equipoB.pop()!)
+
           return NextResponse.json({
             ok: true, equipoA, equipoB,
             razon: (parsed.razon as string) ?? '',
@@ -230,32 +254,39 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
       equipoB: { id: string }[]
     }
 
-    // Delete existing teams for this match
-    await admin.from('equipos').delete().eq('partido_id', partido_id as string)
-
-    // Create team A
-    const { data: tA } = await admin.from('equipos').insert({ partido_id, nombre: 'A' }).select().single()
-    // Create team B
-    const { data: tB } = await admin.from('equipos').insert({ partido_id, nombre: 'B' }).select().single()
-
-    if (!tA || !tB) return NextResponse.json({ error: 'Error creando equipos' }, { status: 500 })
-
-    // Fetch invitado IDs for this partido to exclude them (no profiles FK)
+    // Fetch invitado IDs for this partido
     const { data: invitadosIds } = await admin
       .from('invitados')
       .select('id')
       .eq('partido_id', partido_id as string)
     const invSet = new Set((invitadosIds ?? []).map((i: { id: string }) => i.id))
 
+    // Delete existing teams (FK on delete set null clears invitados.equipo_id automatically)
+    await admin.from('equipos').delete().eq('partido_id', partido_id as string)
+
+    // Create team A and B
+    const { data: tA } = await admin.from('equipos').insert({ partido_id, nombre: 'A' }).select().single()
+    const { data: tB } = await admin.from('equipos').insert({ partido_id, nombre: 'B' }).select().single()
+
+    if (!tA || !tB) return NextResponse.json({ error: 'Error creando equipos' }, { status: 500 })
+
+    // Insert regular players (profiles FK)
     const rowsA = (equipoA ?? [])
       .filter((p: { id: string }) => !invSet.has(p.id))
       .map((p: { id: string }) => ({ equipo_id: tA.id, player_id: p.id }))
     const rowsB = (equipoB ?? [])
       .filter((p: { id: string }) => !invSet.has(p.id))
       .map((p: { id: string }) => ({ equipo_id: tB.id, player_id: p.id }))
-
     if (rowsA.length) await admin.from('equipo_jugadores').insert(rowsA)
     if (rowsB.length) await admin.from('equipo_jugadores').insert(rowsB)
+
+    // Assign invitados to their team via equipo_id
+    const invitadosA = (equipoA ?? []).filter((p: { id: string }) => invSet.has(p.id))
+    const invitadosB = (equipoB ?? []).filter((p: { id: string }) => invSet.has(p.id))
+    await Promise.all([
+      ...invitadosA.map((p: { id: string }) => admin.from('invitados').update({ equipo_id: tA.id }).eq('id', p.id)),
+      ...invitadosB.map((p: { id: string }) => admin.from('invitados').update({ equipo_id: tB.id }).eq('id', p.id)),
+    ])
 
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'guardar_equipos', detalles: { partido_id, totalA: rowsA.length, totalB: rowsB.length } })
     return NextResponse.json({ ok: true, mensaje: 'Equipos guardados como borrador.' })
@@ -312,6 +343,7 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
 
   // ── resetear: delete teams for a match ────────────────────────────────────
   if (accion === 'resetear') {
+    // FK on delete set null clears invitados.equipo_id automatically
     await admin.from('equipos').delete().eq('partido_id', partido_id as string)
     await admin.from('partidos').update({ equipos_confirmados: false }).eq('id', partido_id as string)
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'resetear_equipos', detalles: { partido_id } })
@@ -325,6 +357,7 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
         equipo_id: string
         color: string
         portero_fijo: boolean
+        portero_fijo_id: string | null
         rotacion_banca: string[]
         rotacion_portero: string[]
       }[]
@@ -336,6 +369,7 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
       admin.from('equipos').update({
         color: r.color,
         portero_fijo: r.portero_fijo,
+        portero_fijo_id: r.portero_fijo_id ?? null,
         rotacion_banca: r.rotacion_banca,
         rotacion_portero: r.rotacion_portero,
       }).eq('id', r.equipo_id)

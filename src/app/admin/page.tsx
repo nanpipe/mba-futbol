@@ -210,6 +210,7 @@ export default function AdminPage() {
     equipo_id: string
     color: 'blanco' | 'negro'
     porteroFijo: boolean
+    porteroFijoId: string   // username of fixed goalie (empty = not selected)
     rotacionBanca: string[]
     rotacionPortero: string[]
   }
@@ -303,6 +304,7 @@ export default function AdminPage() {
         equipo_id: ea.id,
         color: ea.color ?? 'blanco',
         porteroFijo: ea.portero_fijo ?? false,
+        porteroFijoId: ea.portero_fijo_id ?? '',
         rotacionBanca: ea.rotacion_banca ?? [],
         rotacionPortero: ea.rotacion_portero ?? [],
       } : null)
@@ -310,6 +312,7 @@ export default function AdminPage() {
         equipo_id: eb.id,
         color: eb.color ?? 'negro',
         porteroFijo: eb.portero_fijo ?? false,
+        porteroFijoId: eb.portero_fijo_id ?? '',
         rotacionBanca: eb.rotacion_banca ?? [],
         rotacionPortero: eb.rotacion_portero ?? [],
       } : null)
@@ -341,13 +344,20 @@ export default function AdminPage() {
 
   const aleatorizarRotacion = (equipo: 'A' | 'B') => {
     const jugadores = equipo === 'A' ? equipoA : equipoB
-    const usernames = jugadores.map(j => j.username)
     const setter = equipo === 'A' ? setRotacionA : setRotacionB
-    setter(prev => prev ? {
-      ...prev,
-      rotacionBanca: shuffleArray(usernames),
-      rotacionPortero: shuffleArray(usernames),
-    } : prev)
+    setter(prev => {
+      if (!prev) return prev
+      const allUsernames = jugadores.map(j => j.username)
+      // Exclude fixed goalie from bench rotation
+      const goalie = prev.porteroFijo ? prev.porteroFijoId : ''
+      const fieldPlayers = goalie ? allUsernames.filter(u => u !== goalie) : allUsernames
+      return {
+        ...prev,
+        rotacionBanca: shuffleArray(fieldPlayers),
+        // If portero fijo, no goalie rotation needed
+        rotacionPortero: prev.porteroFijo ? [] : shuffleArray(allUsernames),
+      }
+    })
   }
 
   const swapColores = () => {
@@ -365,8 +375,8 @@ export default function AdminPage() {
         accion: 'guardar_rotacion',
         partido_id: equiposPartido.id,
         rotaciones: [
-          { equipo_id: rotacionA.equipo_id, color: rotacionA.color, portero_fijo: rotacionA.porteroFijo, rotacion_banca: rotacionA.rotacionBanca, rotacion_portero: rotacionA.rotacionPortero },
-          { equipo_id: rotacionB.equipo_id, color: rotacionB.color, portero_fijo: rotacionB.porteroFijo, rotacion_banca: rotacionB.rotacionBanca, rotacion_portero: rotacionB.rotacionPortero },
+          { equipo_id: rotacionA.equipo_id, color: rotacionA.color, portero_fijo: rotacionA.porteroFijo, portero_fijo_id: rotacionA.porteroFijoId || null, rotacion_banca: rotacionA.rotacionBanca, rotacion_portero: rotacionA.rotacionPortero },
+          { equipo_id: rotacionB.equipo_id, color: rotacionB.color, portero_fijo: rotacionB.porteroFijo, portero_fijo_id: rotacionB.porteroFijoId || null, rotacion_banca: rotacionB.rotacionBanca, rotacion_portero: rotacionB.rotacionPortero },
         ],
       }),
     })
@@ -1111,127 +1121,187 @@ export default function AdminPage() {
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                      {/* EQUIPO A */}
-                      {rotacionA && (
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                            <div className="mono" style={{ fontSize: 11, letterSpacing: '0.1em', color: 'var(--green)' }}>EQUIPO A</div>
-                            <span style={{
-                              fontSize: 11, padding: '2px 8px', borderRadius: 2,
-                              background: rotacionA.color === 'blanco' ? '#e5e5e5' : '#1a1a1a',
-                              color: rotacionA.color === 'blanco' ? '#111' : '#aaa',
-                              border: `1px solid ${rotacionA.color === 'blanco' ? '#ccc' : '#444'}`,
-                              fontFamily: 'DM Mono, monospace',
-                            }}>
-                              {rotacionA.color === 'blanco' ? '⬜ BLANCO' : '⬛ NEGRO'}
-                            </span>
+                      {/* ── EQUIPO A ── */}
+                      {rotacionA && (() => {
+                        const accentA = 'var(--green)'
+                        const jugadoresA = equipoA.map(j => j.username)
+                        return (
+                          <div>
+                            {/* Header: name + color badge */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                              <div className="mono" style={{ fontSize: 11, letterSpacing: '0.1em', color: accentA }}>EQUIPO A</div>
+                              <span style={{
+                                fontSize: 11, padding: '2px 8px', borderRadius: 2,
+                                background: rotacionA.color === 'blanco' ? '#e5e5e5' : '#1a1a1a',
+                                color: rotacionA.color === 'blanco' ? '#111' : '#aaa',
+                                border: `1px solid ${rotacionA.color === 'blanco' ? '#ccc' : '#444'}`,
+                                fontFamily: 'DM Mono, monospace',
+                              }}>
+                                {rotacionA.color === 'blanco' ? '⬜ BLANCO' : '⬛ NEGRO'}
+                              </span>
+                            </div>
+
+                            {/* Portero fijo toggle + goalie picker */}
+                            <div style={{ marginBottom: 14 }}>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, cursor: 'pointer' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={rotacionA.porteroFijo}
+                                  onChange={e => setRotacionA(p => p ? { ...p, porteroFijo: e.target.checked, porteroFijoId: '' } : p)}
+                                  style={{ width: 14, height: 14, accentColor: accentA, cursor: 'pointer' }}
+                                />
+                                <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>🧤 Portero fijo</span>
+                              </label>
+                              {rotacionA.porteroFijo && (
+                                <div>
+                                  <select
+                                    value={rotacionA.porteroFijoId}
+                                    onChange={e => setRotacionA(p => p ? { ...p, porteroFijoId: e.target.value } : p)}
+                                    style={{ fontSize: 12, padding: '6px 10px', marginBottom: 8, width: '100%' }}
+                                  >
+                                    <option value="">— seleccionar portero —</option>
+                                    {jugadoresA.map(u => <option key={u} value={u}>{u}</option>)}
+                                  </select>
+                                  {rotacionA.porteroFijoId && (
+                                    <div style={{
+                                      display: 'flex', alignItems: 'center', gap: 8,
+                                      background: '#0a1f0f', border: '1px solid #16a34a',
+                                      borderRadius: 4, padding: '8px 12px',
+                                    }}>
+                                      <span style={{ fontSize: 18 }}>🧤</span>
+                                      <div>
+                                        <div className="mono" style={{ fontSize: 12, color: accentA, fontWeight: 600 }}>{rotacionA.porteroFijoId}</div>
+                                        <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>portero titular — no rota</div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Bench rotation */}
+                            {rotacionA.rotacionBanca.length > 0 ? (
+                              <div style={{ marginBottom: 12 }}>
+                                <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.08em', marginBottom: 6 }}>ROTACIÓN BANCA</div>
+                                {rotacionA.rotacionBanca.map((u, i) => (
+                                  <div key={u} className="mono" style={{ fontSize: 12, color: i === 0 ? 'var(--amber)' : 'var(--text-dim)', padding: '3px 0', display: 'flex', gap: 8 }}>
+                                    <span style={{ minWidth: 20, color: 'var(--text-dim)' }}>{i + 1}.</span>
+                                    <span>{u}</span>
+                                    {i === 0 && <span style={{ fontSize: 10, color: 'var(--amber)' }}>← empieza banca</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>Presiona 🎲 para generar rotaciones</div>
+                            )}
+
+                            {/* Goalie rotation (only if not portero fijo) */}
+                            {!rotacionA.porteroFijo && rotacionA.rotacionPortero.length > 0 && (
+                              <div>
+                                <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.08em', marginBottom: 6 }}>ROTACIÓN PORTERO</div>
+                                {rotacionA.rotacionPortero.map((u, i) => (
+                                  <div key={u} className="mono" style={{ fontSize: 12, color: i === 0 ? accentA : 'var(--text-dim)', padding: '3px 0', display: 'flex', gap: 8 }}>
+                                    <span style={{ minWidth: 20, color: 'var(--text-dim)' }}>{i + 1}.</span>
+                                    <span>{u}</span>
+                                    {i === 0 && <span style={{ fontSize: 10, color: accentA }}>← primer portero</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
+                        )
+                      })()}
 
-                          {/* Portero fijo toggle */}
-                          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer' }}>
-                            <input
-                              type="checkbox"
-                              checked={rotacionA.porteroFijo}
-                              onChange={e => setRotacionA(p => p ? { ...p, porteroFijo: e.target.checked } : p)}
-                              style={{ width: 14, height: 14, accentColor: 'var(--green)', cursor: 'pointer' }}
-                            />
-                            <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>🧤 Portero fijo</span>
-                          </label>
-
-                          {/* Bench rotation */}
-                          {rotacionA.rotacionBanca.length > 0 && (
-                            <div style={{ marginBottom: 12 }}>
-                              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.08em', marginBottom: 6 }}>ROTACIÓN BANCA</div>
-                              {rotacionA.rotacionBanca.map((u, i) => (
-                                <div key={u} className="mono" style={{ fontSize: 12, color: i === 0 ? 'var(--amber)' : 'var(--text-dim)', padding: '3px 0', display: 'flex', gap: 8 }}>
-                                  <span style={{ minWidth: 20, color: 'var(--text-dim)' }}>{i + 1}.</span>
-                                  <span>{u}</span>
-                                  {i === 0 && <span style={{ fontSize: 10, color: 'var(--amber)' }}>← empieza</span>}
-                                </div>
-                              ))}
+                      {/* ── EQUIPO B ── */}
+                      {rotacionB && (() => {
+                        const accentB = 'var(--amber)'
+                        const jugadoresB = equipoB.map(j => j.username)
+                        return (
+                          <div>
+                            {/* Header: name + color badge */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                              <div className="mono" style={{ fontSize: 11, letterSpacing: '0.1em', color: accentB }}>EQUIPO B</div>
+                              <span style={{
+                                fontSize: 11, padding: '2px 8px', borderRadius: 2,
+                                background: rotacionB.color === 'blanco' ? '#e5e5e5' : '#1a1a1a',
+                                color: rotacionB.color === 'blanco' ? '#111' : '#aaa',
+                                border: `1px solid ${rotacionB.color === 'blanco' ? '#ccc' : '#444'}`,
+                                fontFamily: 'DM Mono, monospace',
+                              }}>
+                                {rotacionB.color === 'blanco' ? '⬜ BLANCO' : '⬛ NEGRO'}
+                              </span>
                             </div>
-                          )}
 
-                          {/* Goalie rotation */}
-                          {!rotacionA.porteroFijo && rotacionA.rotacionPortero.length > 0 && (
-                            <div>
-                              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.08em', marginBottom: 6 }}>ROTACIÓN PORTERO</div>
-                              {rotacionA.rotacionPortero.map((u, i) => (
-                                <div key={u} className="mono" style={{ fontSize: 12, color: i === 0 ? 'var(--green)' : 'var(--text-dim)', padding: '3px 0', display: 'flex', gap: 8 }}>
-                                  <span style={{ minWidth: 20, color: 'var(--text-dim)' }}>{i + 1}.</span>
-                                  <span>{u}</span>
-                                  {i === 0 && <span style={{ fontSize: 10, color: 'var(--green)' }}>← primer portero</span>}
+                            {/* Portero fijo toggle + goalie picker */}
+                            <div style={{ marginBottom: 14 }}>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, cursor: 'pointer' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={rotacionB.porteroFijo}
+                                  onChange={e => setRotacionB(p => p ? { ...p, porteroFijo: e.target.checked, porteroFijoId: '' } : p)}
+                                  style={{ width: 14, height: 14, accentColor: accentB, cursor: 'pointer' }}
+                                />
+                                <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>🧤 Portero fijo</span>
+                              </label>
+                              {rotacionB.porteroFijo && (
+                                <div>
+                                  <select
+                                    value={rotacionB.porteroFijoId}
+                                    onChange={e => setRotacionB(p => p ? { ...p, porteroFijoId: e.target.value } : p)}
+                                    style={{ fontSize: 12, padding: '6px 10px', marginBottom: 8, width: '100%' }}
+                                  >
+                                    <option value="">— seleccionar portero —</option>
+                                    {jugadoresB.map(u => <option key={u} value={u}>{u}</option>)}
+                                  </select>
+                                  {rotacionB.porteroFijoId && (
+                                    <div style={{
+                                      display: 'flex', alignItems: 'center', gap: 8,
+                                      background: '#1a1200', border: '1px solid #92400e',
+                                      borderRadius: 4, padding: '8px 12px',
+                                    }}>
+                                      <span style={{ fontSize: 18 }}>🧤</span>
+                                      <div>
+                                        <div className="mono" style={{ fontSize: 12, color: accentB, fontWeight: 600 }}>{rotacionB.porteroFijoId}</div>
+                                        <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>portero titular — no rota</div>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
-                              ))}
+                              )}
                             </div>
-                          )}
 
-                          {rotacionA.rotacionBanca.length === 0 && (
-                            <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>Presiona 🎲 para generar</div>
-                          )}
-                        </div>
-                      )}
+                            {/* Bench rotation */}
+                            {rotacionB.rotacionBanca.length > 0 ? (
+                              <div style={{ marginBottom: 12 }}>
+                                <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.08em', marginBottom: 6 }}>ROTACIÓN BANCA</div>
+                                {rotacionB.rotacionBanca.map((u, i) => (
+                                  <div key={u} className="mono" style={{ fontSize: 12, color: i === 0 ? accentB : 'var(--text-dim)', padding: '3px 0', display: 'flex', gap: 8 }}>
+                                    <span style={{ minWidth: 20, color: 'var(--text-dim)' }}>{i + 1}.</span>
+                                    <span>{u}</span>
+                                    {i === 0 && <span style={{ fontSize: 10, color: accentB }}>← empieza banca</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>Presiona 🎲 para generar rotaciones</div>
+                            )}
 
-                      {/* EQUIPO B */}
-                      {rotacionB && (
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                            <div className="mono" style={{ fontSize: 11, letterSpacing: '0.1em', color: 'var(--amber)' }}>EQUIPO B</div>
-                            <span style={{
-                              fontSize: 11, padding: '2px 8px', borderRadius: 2,
-                              background: rotacionB.color === 'blanco' ? '#e5e5e5' : '#1a1a1a',
-                              color: rotacionB.color === 'blanco' ? '#111' : '#aaa',
-                              border: `1px solid ${rotacionB.color === 'blanco' ? '#ccc' : '#444'}`,
-                              fontFamily: 'DM Mono, monospace',
-                            }}>
-                              {rotacionB.color === 'blanco' ? '⬜ BLANCO' : '⬛ NEGRO'}
-                            </span>
+                            {/* Goalie rotation (only if not portero fijo) */}
+                            {!rotacionB.porteroFijo && rotacionB.rotacionPortero.length > 0 && (
+                              <div>
+                                <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.08em', marginBottom: 6 }}>ROTACIÓN PORTERO</div>
+                                {rotacionB.rotacionPortero.map((u, i) => (
+                                  <div key={u} className="mono" style={{ fontSize: 12, color: i === 0 ? accentB : 'var(--text-dim)', padding: '3px 0', display: 'flex', gap: 8 }}>
+                                    <span style={{ minWidth: 20, color: 'var(--text-dim)' }}>{i + 1}.</span>
+                                    <span>{u}</span>
+                                    {i === 0 && <span style={{ fontSize: 10, color: accentB }}>← primer portero</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
-
-                          {/* Portero fijo toggle */}
-                          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer' }}>
-                            <input
-                              type="checkbox"
-                              checked={rotacionB.porteroFijo}
-                              onChange={e => setRotacionB(p => p ? { ...p, porteroFijo: e.target.checked } : p)}
-                              style={{ width: 14, height: 14, accentColor: 'var(--amber)', cursor: 'pointer' }}
-                            />
-                            <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>🧤 Portero fijo</span>
-                          </label>
-
-                          {/* Bench rotation */}
-                          {rotacionB.rotacionBanca.length > 0 && (
-                            <div style={{ marginBottom: 12 }}>
-                              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.08em', marginBottom: 6 }}>ROTACIÓN BANCA</div>
-                              {rotacionB.rotacionBanca.map((u, i) => (
-                                <div key={u} className="mono" style={{ fontSize: 12, color: i === 0 ? 'var(--amber)' : 'var(--text-dim)', padding: '3px 0', display: 'flex', gap: 8 }}>
-                                  <span style={{ minWidth: 20, color: 'var(--text-dim)' }}>{i + 1}.</span>
-                                  <span>{u}</span>
-                                  {i === 0 && <span style={{ fontSize: 10, color: 'var(--amber)' }}>← empieza</span>}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Goalie rotation */}
-                          {!rotacionB.porteroFijo && rotacionB.rotacionPortero.length > 0 && (
-                            <div>
-                              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.08em', marginBottom: 6 }}>ROTACIÓN PORTERO</div>
-                              {rotacionB.rotacionPortero.map((u, i) => (
-                                <div key={u} className="mono" style={{ fontSize: 12, color: i === 0 ? 'var(--green)' : 'var(--text-dim)', padding: '3px 0', display: 'flex', gap: 8 }}>
-                                  <span style={{ minWidth: 20, color: 'var(--text-dim)' }}>{i + 1}.</span>
-                                  <span>{u}</span>
-                                  {i === 0 && <span style={{ fontSize: 10, color: 'var(--green)' }}>← primer portero</span>}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {rotacionB.rotacionBanca.length === 0 && (
-                            <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>Presiona 🎲 para generar</div>
-                          )}
-                        </div>
-                      )}
+                        )
+                      })()}
                     </div>
                   </div>
                 )}

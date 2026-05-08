@@ -154,7 +154,7 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
 {"equipoA":["username1","username2"],"equipoB":["username3","username4"],"razon":"Explicación clave en máx 200 caracteres"}`
 
         const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -165,6 +165,11 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
             signal: AbortSignal.timeout(15000),
           }
         )
+
+        if (!geminiRes.ok) {
+          const errBody = await geminiRes.text().catch(() => '')
+          throw new Error(`Gemini HTTP ${geminiRes.status}: ${errBody.slice(0, 200)}`)
+        }
 
         if (geminiRes.ok) {
           const geminiData = await geminiRes.json()

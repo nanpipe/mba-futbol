@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPush } from '@/lib/push'
 import { calcularVentanaPartido } from '@/lib/partidos'
+import { logActivity } from '@/lib/activityLog'
 
 // Single daily cron — runs at 19:00 UTC = 2:00 PM Colombia
 // Handles 4 tasks in one pass:
@@ -147,6 +148,13 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  const totalPush = results.apertura + results.recordatorio + results.cupos
+  if (totalPush > 0 || results.invitados > 0) {
+    await logActivity({
+      accion: 'cron_notificaciones',
+      detalles: { ...results, total_push: totalPush, timestamp: now.toISOString() },
+    })
+  }
   console.log('[cron/notificaciones]', now.toISOString(), results)
   return NextResponse.json({ ok: true, ...results })
 }

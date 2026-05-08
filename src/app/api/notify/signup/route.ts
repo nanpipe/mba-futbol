@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPush } from '@/lib/push'
+import { logActivity } from '@/lib/activityLog'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +36,11 @@ export async function POST(req: NextRequest) {
     })
     enviados++
   }
+
+  await logActivity({
+    accion: 'notif_nueva_solicitud',
+    detalles: { username, push_enviados: enviados, admins_notificados: adminIds.length },
+  })
 
   return NextResponse.json({ ok: true, enviados })
 }

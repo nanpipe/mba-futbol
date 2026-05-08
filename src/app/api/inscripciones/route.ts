@@ -153,25 +153,40 @@ export async function DELETE(req: NextRequest) {
     internalFetch('/api/notify', { method: 'POST' }).catch(() => {})
   }
 
-  // Push all admins about the withdrawal
+  // Push all admins about the withdrawal (fire-and-forget, logged)
   ;(async () => {
     const { data: adminProfiles } = await admin.from('profiles').select('id').eq('role', 'admin')
     const adminIds = (adminProfiles ?? []).map((a: { id: string }) => a.id)
-    if (!adminIds.length) return
-    const { data: subs } = await admin
-      .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', adminIds)
-    if (!subs?.length) return
-    const { sendPush } = await import('@/lib/push')
     const username = (playerProfile as { username?: string } | null)?.username ?? 'Un jugador'
     const estado = inscripcion.estado === 'confirmado' ? 'confirmado' : 'lista de espera'
     const dia = (partidoInfo as { dia_semana?: string } | null)?.dia_semana ?? ''
-    for (const sub of subs) {
-      await sendPush(sub, {
-        title: '⚠️ Baja en el partido',
-        body: `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}`,
-        url: '/admin',
-      }).catch(() => {})
+    let pushEnviados = 0
+    if (adminIds.length) {
+      const { data: subs } = await admin
+        .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', adminIds)
+      if (subs?.length) {
+        const { sendPush } = await import('@/lib/push')
+        for (const sub of subs) {
+          await sendPush(sub, {
+            title: '⚠️ Baja en el partido',
+            body: `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}`,
+            url: '/admin',
+          }).then(() => { pushEnviados++ }).catch(() => {})
+        }
+      }
     }
+    const { logActivity } = await import('@/lib/activityLog')
+    await logActivity({
+      user_id: user.id,
+      username,
+      accion: 'baja_partido',
+      detalles: {
+        partido_id,
+        estado_previo: inscripcion.estado,
+        dia,
+        push_admins_enviados: pushEnviados,
+      },
+    })
   })().catch(() => {})
 
   return NextResponse.json({ ok: true })

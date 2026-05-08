@@ -372,6 +372,7 @@ export async function POST(req: NextRequest) {
       .eq('partido_id', partido_id as string).eq('estado', 'confirmado')
 
     const playerIds = (ins ?? []).map(i => i.player_id)
+    let pushEnviados = 0
     if (playerIds.length > 0) {
       const { data: subs } = await admin
         .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', playerIds)
@@ -381,11 +382,11 @@ export async function POST(req: NextRequest) {
           title: '📊 ¿Cómo jugaron?',
           body: 'Las evaluaciones del partido están abiertas. Evalúa a tus compañeros.',
           url: `/evaluar/${partido_id}`,
-        }).catch(() => {})
+        }).then(() => { pushEnviados++ }).catch(() => {})
       }
     }
 
-    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'abrir_evaluaciones', detalles: { partido_id }, ip })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'abrir_evaluaciones', detalles: { partido_id, push_enviados: pushEnviados, jugadores_confirmados: playerIds.length }, ip })
     return NextResponse.json({ ok: true, mensaje: 'Evaluaciones abiertas y jugadores notificados.' })
   }
 

@@ -13,6 +13,7 @@ import {
   TouchSensor,
   useSensor,
   useSensors,
+  MeasuringStrategy,
 } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { posicionEmoji } from '@/lib/teamBalancer'
@@ -446,8 +447,14 @@ export default function AdminPage() {
     setEquiposLoading(true)
     const res = await fetch('/api/equipos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'guardar', partido_id: equiposPartido.id, equipoA, equipoB }) })
     const data = await res.json()
-    if (res.ok) { flash(data.mensaje ?? 'Guardado.'); setEquiposDraft(false) }
-    else flash(`Error: ${data.error}`)
+    if (res.ok) {
+      flash(data.mensaje ?? 'Guardado.')
+      setEquiposDraft(false)
+      // Reload to get fresh equipo IDs (old rows deleted, new ones created) → rotation section appears
+      await cargarEquipos(equiposPartido)
+    } else {
+      flash(`Error: ${data.error}`)
+    }
     setEquiposLoading(false)
   }
 
@@ -1020,7 +1027,7 @@ export default function AdminPage() {
                 })()}
 
                 {/* DnD columns */}
-                <DndContext sensors={sensors} onDragStart={e => setActiveDragId(e.active.id as string)} onDragEnd={handleDragEnd}>
+                <DndContext sensors={sensors} measuring={{ droppable: { strategy: MeasuringStrategy.Always } }} onDragStart={e => setActiveDragId(e.active.id as string)} onDragEnd={handleDragEnd}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
                     <div>
                       <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--green)', marginBottom: 8 }}>EQUIPO A — {equipoA.length}</div>

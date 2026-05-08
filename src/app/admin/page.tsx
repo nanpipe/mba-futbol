@@ -1049,7 +1049,7 @@ export default function AdminPage() {
                 })()}
 
                 {/* DnD columns */}
-                <DndContext sensors={sensors} measuring={{ droppable: { strategy: MeasuringStrategy.Always } }} onDragStart={e => setActiveDragId(e.active.id as string)} onDragEnd={handleDragEnd}>
+                <DndContext sensors={sensors} measuring={{ draggable: { measure: (node) => node.getBoundingClientRect() }, droppable: { strategy: MeasuringStrategy.Always } }} onDragStart={e => setActiveDragId(e.active.id as string)} onDragEnd={handleDragEnd}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
                     <div>
                       <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--green)', marginBottom: 8 }}>EQUIPO A — {equipoA.length}</div>

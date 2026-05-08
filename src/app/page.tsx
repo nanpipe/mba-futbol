@@ -27,7 +27,14 @@ interface EquipoJugador {
 }
 
 interface Equipo {
+  id: string
   nombre: 'A' | 'B'
+  color: 'blanco' | 'negro'
+  confirmado: boolean
+  portero_fijo: boolean
+  portero_fijo_id: string | null
+  rotacion_banca: string[] | null
+  rotacion_portero: string[] | null
   jugadores: EquipoJugador[]
 }
 
@@ -78,7 +85,7 @@ export default function HomePage() {
   const [agregandoInvitado, setAgregandoInvitado] = useState(false)
   const [countdown, setCountdown] = useState('')
   const [ultimoPartido, setUltimoPartido] = useState<{ partido: Partido; inscripciones: Inscripcion[] } | null>(null)
-  const [misEquipos, setMisEquipos] = useState<{ miEquipo: Equipo | null; partido_id: string } | null>(null)
+  const [misEquipos, setMisEquipos] = useState<{ equipos: Equipo[]; miEquipo: Equipo | null; partido_id: string } | null>(null)
   const abreEnRef = useRef<Date | null>(null)
   const [pushPermission, setPushPermission] = useState<NotificationPermission | null>(null)
   const [installPrompt, setInstallPrompt] = useState<Event & { prompt: () => void } | null>(null)
@@ -202,7 +209,7 @@ export default function HomePage() {
       if (teamsData.equipos) {
         const eqs: Equipo[] = teamsData.equipos
         const mine = eqs.find(e => e.jugadores.some(j => j.id === u.id)) ?? null
-        setMisEquipos({ miEquipo: mine, partido_id: partido.id })
+        setMisEquipos({ equipos: eqs, miEquipo: mine, partido_id: partido.id })
       }
     } else {
       setMisEquipos(null)
@@ -678,42 +685,150 @@ export default function HomePage() {
             )}
 
             {/* Teams display when confirmed */}
-            {misEquipos && (
-              <div style={{ marginTop: 40 }}>
-                <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--green)', marginBottom: 4 }}>
-                  ⚽ EQUIPOS CONFIRMADOS
-                </div>
-                {misEquipos.miEquipo ? (
-                  <>
-                    <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 16 }}>
-                      Juegas en el <strong style={{ color: misEquipos.miEquipo.nombre === 'A' ? 'var(--green)' : 'var(--amber)' }}>Equipo {misEquipos.miEquipo.nombre}</strong>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      {misEquipos.miEquipo.jugadores.map(j => (
-                        <div key={j.id} style={{
-                          display: 'flex', alignItems: 'center', gap: 12,
-                          padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 3,
-                          border: j.id === user?.id ? `1px solid ${misEquipos.miEquipo!.nombre === 'A' ? '#16a34a' : '#92400e'}` : '1px solid transparent'
-                        }}>
-                          <div style={{ width: 30, height: 30, borderRadius: '50%', background: j.avatar_url ? 'transparent' : '#0f2d1a', border: '1px solid var(--border)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            {j.avatar_url
-                              ? <img src={j.avatar_url} alt={j.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                              : <span className="display" style={{ fontSize: 12, color: 'var(--green)', lineHeight: 1 }}>{j.username[0].toUpperCase()}</span>
-                            }
+            {misEquipos && (() => {
+              const myUsername = profile?.username ?? ''
+              const colorLabel = (c: string) => c === 'blanco' ? '🤍 BLANCO' : '🖤 NEGRO'
+              const colorAccent = (eq: Equipo) => eq.nombre === 'A' ? 'var(--green)' : 'var(--amber)'
+              const colorBorder = (eq: Equipo) => eq.nombre === 'A' ? '#16a34a' : '#92400e'
+              const colorBg = (eq: Equipo) => eq.nombre === 'A' ? '#0a1f0a' : '#1a0e00'
+
+              const getMyRole = (eq: Equipo): { label: string; sub?: string; color: string } => {
+                if (eq.portero_fijo && eq.portero_fijo_id === myUsername) {
+                  return { label: '🧤 Portero titular', sub: 'no rota', color: '#818cf8' }
+                }
+                const bancaIdx = (eq.rotacion_banca ?? []).indexOf(myUsername)
+                if (bancaIdx >= 0) {
+                  return {
+                    label: bancaIdx === 0 ? '🔄 Empieza en banca' : `🔄 Banca — turno #${bancaIdx + 1}`,
+                    sub: bancaIdx === 0 ? 'primer turno de entrada' : undefined,
+                    color: 'var(--amber)',
+                  }
+                }
+                const porteroIdx = (eq.rotacion_portero ?? []).indexOf(myUsername)
+                if (porteroIdx >= 0) {
+                  return {
+                    label: porteroIdx === 0 ? '🧤 Primer portero' : `🧤 Portero — turno #${porteroIdx + 1}`,
+                    sub: porteroIdx === 0 ? 'primer turno en arco' : undefined,
+                    color: '#818cf8',
+                  }
+                }
+                return { label: '⚽ Titular', sub: 'empieza en cancha', color: colorAccent(eq) }
+              }
+
+              return (
+                <div style={{ marginTop: 40 }}>
+                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--green)', marginBottom: 20 }}>
+                    ⚽ EQUIPOS CONFIRMADOS
+                  </div>
+
+                  {misEquipos.equipos.map(eq => {
+                    const isMyTeam = eq.jugadores.some(j => j.id === user?.id)
+                    const myRole = isMyTeam ? getMyRole(eq) : null
+                    const accent = colorAccent(eq)
+                    const border = colorBorder(eq)
+                    const bg = colorBg(eq)
+
+                    return (
+                      <div key={eq.id} style={{ marginBottom: 24, border: `1px solid ${isMyTeam ? border : 'var(--border)'}`, borderRadius: 6, overflow: 'hidden' }}>
+                        {/* Team header */}
+                        <div style={{ background: isMyTeam ? bg : 'var(--bg-card)', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${isMyTeam ? border : 'var(--border)'}` }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: accent, letterSpacing: '0.05em' }}>
+                              EQUIPO {eq.nombre}
+                            </span>
+                            <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg)', padding: '2px 8px', borderRadius: 3, border: '1px solid var(--border)' }}>
+                              {colorLabel(eq.color)}
+                            </span>
                           </div>
-                          <span style={{ fontSize: 15, flex: 1 }}>{j.username}</span>
-                          {j.id === user?.id && (
-                            <span className="mono" style={{ fontSize: 10, color: misEquipos.miEquipo!.nombre === 'A' ? 'var(--green)' : 'var(--amber)', letterSpacing: '0.1em' }}>TÚ</span>
+                          {isMyTeam && (
+                            <span className="mono" style={{ fontSize: 10, color: accent, letterSpacing: '0.1em' }}>TU EQUIPO</span>
                           )}
                         </div>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <div className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>No estás asignado a ningún equipo.</div>
-                )}
-              </div>
-            )}
+
+                        {/* My role banner */}
+                        {myRole && (
+                          <div style={{ background: bg, borderBottom: `1px solid ${border}`, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span className="mono" style={{ fontSize: 13, color: myRole.color, fontWeight: 600 }}>{myRole.label}</span>
+                            {myRole.sub && <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>— {myRole.sub}</span>}
+                          </div>
+                        )}
+
+                        {/* Goalkeeper info */}
+                        {eq.portero_fijo && eq.portero_fijo_id && (
+                          <div style={{ padding: '8px 16px', background: '#0d0d1a', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span className="mono" style={{ fontSize: 10, color: '#818cf8', letterSpacing: '0.1em' }}>🧤 PORTERO FIJO</span>
+                            <span className="mono" style={{ fontSize: 12, color: 'var(--text)' }}>{eq.portero_fijo_id}</span>
+                            <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>— no rota</span>
+                          </div>
+                        )}
+
+                        {/* Players list */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: 'var(--bg)' }}>
+                          {eq.jugadores.map(j => {
+                            const isMe = j.id === user?.id
+                            const isPorteroFijo = eq.portero_fijo && eq.portero_fijo_id === j.username
+                            return (
+                              <div key={j.id} style={{
+                                display: 'flex', alignItems: 'center', gap: 12,
+                                padding: '9px 16px', background: isMe ? bg : 'transparent',
+                              }}>
+                                <div style={{ width: 28, height: 28, borderRadius: '50%', background: j.avatar_url ? 'transparent' : '#0f2d1a', border: `1px solid ${isMe ? border : 'var(--border)'}`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  {j.avatar_url
+                                    ? <img src={j.avatar_url} alt={j.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    : <span className="display" style={{ fontSize: 11, color: 'var(--green)', lineHeight: 1 }}>{j.username[0].toUpperCase()}</span>
+                                  }
+                                </div>
+                                <span style={{ fontSize: 14, flex: 1, color: isMe ? 'var(--text)' : 'var(--text-muted)' }}>{j.username}</span>
+                                {isPorteroFijo && <span style={{ fontSize: 13 }}>🧤</span>}
+                                {isMe && <span className="mono" style={{ fontSize: 10, color: accent, letterSpacing: '0.1em' }}>TÚ</span>}
+                              </div>
+                            )
+                          })}
+                        </div>
+
+                        {/* Rotations */}
+                        {((eq.rotacion_banca ?? []).length > 0 || (eq.rotacion_portero ?? []).length > 0) && (
+                          <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'var(--bg-card)', display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+                            {(eq.rotacion_banca ?? []).length > 0 && (
+                              <div>
+                                <div className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--text-dim)', marginBottom: 6 }}>ROTACIÓN BANCA</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                  {(eq.rotacion_banca ?? []).map((u, i) => (
+                                    <div key={u} className="mono" style={{ fontSize: 11, display: 'flex', gap: 8, alignItems: 'center' }}>
+                                      <span style={{ color: 'var(--text-dim)', width: 14, textAlign: 'right' }}>{i + 1}.</span>
+                                      <span style={{ color: u === myUsername ? accent : 'var(--text-muted)', fontWeight: u === myUsername ? 700 : 400 }}>{u}</span>
+                                      {i === 0 && <span style={{ fontSize: 10, color: 'var(--amber)' }}>← empieza</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {!eq.portero_fijo && (eq.rotacion_portero ?? []).length > 0 && (
+                              <div>
+                                <div className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--text-dim)', marginBottom: 6 }}>ROTACIÓN PORTERO</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                  {(eq.rotacion_portero ?? []).map((u, i) => (
+                                    <div key={u} className="mono" style={{ fontSize: 11, display: 'flex', gap: 8, alignItems: 'center' }}>
+                                      <span style={{ color: 'var(--text-dim)', width: 14, textAlign: 'right' }}>{i + 1}.</span>
+                                      <span style={{ color: u === myUsername ? '#818cf8' : 'var(--text-muted)', fontWeight: u === myUsername ? 700 : 400 }}>{u}</span>
+                                      {i === 0 && <span style={{ fontSize: 10, color: '#818cf8' }}>← primer portero</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {!misEquipos.miEquipo && (
+                    <div className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>No estás asignado a ningún equipo.</div>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* Evaluation CTA */}
             {ventana?.partido?.evaluaciones_abiertas && ventana?.partido?.equipos_confirmados && miInscripcion?.estado === 'confirmado' && (

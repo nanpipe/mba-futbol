@@ -506,6 +506,14 @@ export default function AdminPage() {
     else flash(`Error: ${data.error}`)
   }
 
+  const reabrirEvaluacionesAction = async () => {
+    if (!equiposPartido || !confirm('¿Reabrir evaluaciones? Los badges asignados de este partido se eliminarán y se recalcularán al cerrar de nuevo.')) return
+    const res = await fetch('/api/evaluaciones', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ partido_id: equiposPartido.id }) })
+    const data = await res.json()
+    if (res.ok) { flash(data.mensaje ?? 'Evaluaciones reabiertas.'); setEvaluacionesAbiertas(true); setEquiposPartido(prev => prev ? { ...prev, evaluaciones_abiertas: true } : prev) }
+    else flash(`Error: ${data.error}`)
+  }
+
   const guardarResultadoAction = async () => {
     if (!equiposPartido || !equiposResultado.trim()) return
     const ok = await accionAdmin('registrar_resultado', { partido_id: equiposPartido.id, resultado: equiposResultado.trim() })
@@ -789,7 +797,7 @@ export default function AdminPage() {
 
         {/* TAB: PARTIDOS */}
         {tab === 'partidos' && (
-          <div className="fade-in">
+          <div id="tab-partidos" className="fade-in">
             <div className="admin-partidos-grid">
 
               {/* Lista de partidos */}
@@ -977,7 +985,7 @@ export default function AdminPage() {
 
         {/* TAB: EQUIPOS */}
         {tab === 'equipos' && (
-          <div className="fade-in">
+          <div id="tab-equipos" className="fade-in">
             {/* Match selector */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28, flexWrap: 'wrap' }}>
               <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>PARTIDO</div>
@@ -1077,27 +1085,27 @@ export default function AdminPage() {
 
                 {/* Action buttons */}
                 {!equiposConfirmado && (
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-                    <button onClick={balancearAutomatico} disabled={equiposLoading} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px' }}>
+                  <div id="admin-equipos-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                    <button id="btn-balancear" onClick={balancearAutomatico} disabled={equiposLoading} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px' }}>
                       ⚖️ Balancear automáticamente
                     </button>
-                    <button onClick={guardarEquiposAction} disabled={equiposLoading || !equiposDraft || (equipoA.length + equipoB.length === 0)} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px', color: 'var(--green)', borderColor: '#16a34a' }}>
+                    <button id="btn-guardar-borrador" onClick={guardarEquiposAction} disabled={equiposLoading || !equiposDraft || (equipoA.length + equipoB.length === 0)} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px', color: 'var(--green)', borderColor: '#16a34a' }}>
                       💾 Guardar borrador
                     </button>
-                    <button onClick={confirmarEquiposAction} disabled={equiposLoading || equiposDraft || (equipoA.length + equipoB.length === 0)} className="btn btn-primary" style={{ fontSize: 12, padding: '10px 16px' }}>
+                    <button id="btn-confirmar-equipos" onClick={confirmarEquiposAction} disabled={equiposLoading || equiposDraft || (equipoA.length + equipoB.length === 0)} className="btn btn-primary" style={{ fontSize: 12, padding: '10px 16px' }}>
                       ✓ Confirmar y notificar
                     </button>
                   </div>
                 )}
                 <div style={{ marginBottom: 28 }}>
-                  <button onClick={resetearEquiposAction} disabled={equiposLoading} className="mono" style={{ fontSize: 11, padding: '8px 14px', background: 'none', border: '1px solid #7f1d1d', borderRadius: 3, color: '#7f1d1d', cursor: 'pointer', letterSpacing: '0.08em' }}>
+                  <button id="btn-resetear-equipos" onClick={resetearEquiposAction} disabled={equiposLoading} className="mono" style={{ fontSize: 11, padding: '8px 14px', background: 'none', border: '1px solid #7f1d1d', borderRadius: 3, color: '#7f1d1d', cursor: 'pointer', letterSpacing: '0.08em' }}>
                     ✕ Resetear equipos
                   </button>
                 </div>
 
                 {/* ── COLORES + ROTACIONES ───────────────────────────── */}
                 {(rotacionA || rotacionB) && (
-                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginBottom: 24 }}>
+                  <div id="admin-rotaciones" style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginBottom: 24 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
                       <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)' }}>
                         ⚽ COLORES Y ROTACIONES
@@ -1398,10 +1406,10 @@ export default function AdminPage() {
                 </div>}
 
                 {/* Resultado */}
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginBottom: 24 }}>
+                <div id="admin-resultado" style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginBottom: 24 }}>
                   <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>RESULTADO DEL PARTIDO</div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <input type="text" value={equiposResultado} onChange={e => setEquiposResultado(e.target.value)} placeholder="Ej: 7-5" style={{ width: 100 }} />
+                    <input id="input-resultado" type="text" value={equiposResultado} onChange={e => setEquiposResultado(e.target.value)} placeholder="Ej: 7-5" style={{ width: 100 }} />
                     <button onClick={guardarResultadoAction} disabled={!equiposResultado.trim()} className="btn btn-ghost" style={{ fontSize: 12, padding: '8px 14px' }}>
                       Guardar resultado
                     </button>
@@ -1414,23 +1422,31 @@ export default function AdminPage() {
                 </div>
 
                 {/* Evaluaciones */}
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24 }}>
+                <div id="admin-evaluaciones" style={{ borderTop: '1px solid var(--border)', paddingTop: 24 }}>
                   <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>EVALUACIONES ENTRE PARES</div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
                     {!evaluacionesAbiertas ? (
-                      <button onClick={abrirEvaluacionesAction} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px', color: 'var(--amber)', borderColor: '#92400e' }}>
-                        📊 Abrir evaluaciones
-                      </button>
+                      <>
+                        <button id="btn-abrir-evaluaciones" onClick={abrirEvaluacionesAction} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px', color: 'var(--amber)', borderColor: '#92400e' }}>
+                          📊 Abrir evaluaciones
+                        </button>
+                        {/* Undo: reopen after accidental close */}
+                        {equiposPartido?.evaluaciones_abiertas === false && (
+                          <button id="btn-reabrir-evaluaciones" onClick={reabrirEvaluacionesAction} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px', color: 'var(--text-muted)', borderColor: 'var(--border)' }}>
+                            ↩ Reabrir (deshacer cierre)
+                          </button>
+                        )}
+                      </>
                     ) : (
-                      <button onClick={cerrarEvaluacionesAction} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px', color: 'var(--red)', borderColor: '#7f1d1d' }}>
+                      <button id="btn-cerrar-evaluaciones" onClick={cerrarEvaluacionesAction} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px', color: 'var(--red)', borderColor: '#7f1d1d' }}>
                         🏅 Cerrar y calcular badges
                       </button>
                     )}
                   </div>
                   <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.6 }}>
                     {evaluacionesAbiertas
-                      ? 'Los jugadores pueden evaluar a sus compañeros. Al cerrar, se asignan badges y se actualiza el rating de habilidad.'
-                      : 'Al abrir, se envía una notificación push a los jugadores confirmados.'}
+                      ? 'Los jugadores pueden votar reconocimientos. Al cerrar, se asignan badges.'
+                      : 'Al abrir, los jugadores confirmados pueden votar reconocimientos entre pares.'}
                   </div>
                 </div>
               </>
@@ -1440,7 +1456,7 @@ export default function AdminPage() {
 
         {/* TAB: JUGADORES */}
         {tab === 'jugadores' && (
-          <div className="fade-in">
+          <div id="tab-jugadores" className="fade-in">
 
             {/* SUSPENDIDOS */}
             {baneados.length > 0 && (
@@ -1562,7 +1578,7 @@ export default function AdminPage() {
 
         {/* TAB: NOTIFICACIONES */}
         {tab === 'notifs' && (
-          <div className="fade-in" style={{ display: 'flex', justifyContent: 'center' }}>
+          <div id="tab-notifs" className="fade-in" style={{ display: 'flex', justifyContent: 'center' }}>
             <div style={{ width: '100%', maxWidth: 480 }}>
             <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 24 }}>
               ENVIAR NOTIFICACIÓN DE PRUEBA
@@ -1619,7 +1635,7 @@ export default function AdminPage() {
 
         {/* TAB: LOG */}
         {tab === 'log' && (
-          <div className="fade-in">
+          <div id="tab-log" className="fade-in">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
               <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
                 ACTIVIDAD RECIENTE — {logs.length}

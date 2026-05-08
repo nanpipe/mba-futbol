@@ -230,3 +230,38 @@ export async function PUT(req: NextRequest) {
     badges,
   })
 }
+
+// PATCH /api/evaluaciones — admin: reopen voting + delete assigned badges for this match
+export async function PATCH(req: NextRequest) {
+  const supabase = await createClient()
+  const admin = createAdminClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+  const { data: prof } = await admin.from('profiles').select('role, username').eq('id', user.id).single()
+  if ((prof as { role?: string })?.role !== 'admin') {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
+
+  let body: Record<string, unknown>
+  try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON inválido' }, { status: 400 }) }
+
+  const { partido_id } = body
+  if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
+
+  // Reopen voting
+  await admin.from('partidos').update({ evaluaciones_abiertas: true }).eq('id', partido_id as string)
+
+  // Delete badges previously awarded for this match so re-closing recalculates clean
+  await admin.from('player_badges').delete().eq('partido_id', partido_id as string)
+
+  await logActivity({
+    user_id: user.id,
+    username: (prof as { username?: string })?.username,
+    accion: 'reabrir_votacion',
+    detalles: { partido_id },
+  })
+
+  return NextResponse.json({ ok: true, mensaje: 'Evaluaciones reabiertas. Los badges previos de este partido fueron eliminados.' })
+}

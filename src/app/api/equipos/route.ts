@@ -160,7 +160,11 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+              generationConfig: {
+                temperature: 0.7,
+                maxOutputTokens: 2048,
+                thinkingConfig: { thinkingBudget: 0 }, // disable thinking tokens
+              },
             }),
             signal: AbortSignal.timeout(15000),
           }
@@ -173,10 +177,17 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
 
         if (geminiRes.ok) {
           const geminiData = await geminiRes.json()
-          const rawText: string = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-          // Strip markdown fences if present
-          const jsonText = rawText.replace(/```json?\n?/g, '').replace(/```/g, '').trim()
-          const parsed = JSON.parse(jsonText)
+          // gemini-2.5-flash may return thought parts before the actual answer;
+          // grab the last non-thought text part to get the JSON response
+          const parts: { text?: string; thought?: boolean }[] =
+            geminiData.candidates?.[0]?.content?.parts ?? []
+          const answerPart = [...parts].reverse().find(p => !p.thought && p.text)
+          const rawText: string = answerPart?.text ?? ''
+          // Strip markdown fences if present, then extract first {...} block
+          const stripped = rawText.replace(/```json?\n?/g, '').replace(/```/g, '').trim()
+          const jsonMatch = stripped.match(/\{[\s\S]*\}/)
+          if (!jsonMatch) throw new Error(`No JSON in Gemini response: ${stripped.slice(0, 100)}`)
+          const parsed = JSON.parse(jsonMatch[0])
 
           // Map usernames → JugadorEquipo objects
           const byUsername = Object.fromEntries(jugadores.map(j => [j.username, j]))

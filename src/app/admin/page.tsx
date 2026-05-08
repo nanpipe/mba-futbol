@@ -1695,8 +1695,17 @@ export default function AdminPage() {
             </div>
 
             <div className="card" style={{ marginTop: 16, borderColor: '#1a2a1a' }}>
-              <div className="mono" style={{ fontSize: 11, letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: 12 }}>CHECKLIST</div>
+              <div className="mono" style={{ fontSize: 11, letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: 12 }}>DIAGNÓSTICO</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  <span style={{ color: 'var(--green)' }}>·</span>{' '}
+                  Emails (Resend): ver entregas, rebotes y aperturas en{' '}
+                  <a href="https://resend.com/emails" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--green)', textDecoration: 'underline' }}>resend.com/emails</a>
+                </div>
+                <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  <span style={{ color: 'var(--green)' }}>·</span>{' '}
+                  Push y emails: cada envío queda registrado en el LOG de actividad
+                </div>
                 {[
                   'El jugador tiene que haber tocado "🔔 Notificaciones" y aceptado el permiso',
                   'En iOS, la app debe estar agregada al Home Screen primero',

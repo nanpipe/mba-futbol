@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPush } from '@/lib/push'
+import { logActivity } from '@/lib/activityLog'
 
 export async function POST(req: NextRequest) {
   const admin = createAdminClient()
@@ -74,6 +75,21 @@ export async function POST(req: NextRequest) {
       }
     }
   }
+
+  const { data: adminProf } = await admin.from('profiles').select('username').eq('id', user.id).single()
+  await logActivity({
+    user_id: user.id,
+    username: (adminProf as { username?: string } | null)?.username ?? null,
+    accion: 'push_manual',
+    detalles: {
+      grupo: group ?? (player_id ? 'individual' : 'todos'),
+      partido_id: partido_id ?? null,
+      player_id: player_id ?? null,
+      titulo: title,
+      enviados,
+      errores: errores.length,
+    },
+  })
 
   return NextResponse.json({
     ok: true,

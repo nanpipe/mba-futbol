@@ -13,8 +13,9 @@ export async function sendPromovido({
   username: string
   fechaPartido: string
   diaSemana: string
-}) {
-  await resend.emails.send({
+}): Promise<{ ok: boolean; error?: string; id?: string }> {
+  try {
+  const result = await resend.emails.send({
     from: FROM,
     to: email,
     subject: '⚽ ¡Tienes cupo! MBA Fútbol Club',
@@ -39,4 +40,9 @@ export async function sendPromovido({
       </div>
     `,
   })
+  return { ok: true, id: (result as { data?: { id?: string } }).data?.id }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { ok: false, error: msg }
+  }
 }

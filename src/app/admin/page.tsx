@@ -460,6 +460,10 @@ export default function AdminPage() {
     if (res.ok) {
       flash(data.mensaje ?? 'Guardado.')
       setEquiposDraft(false)
+      // Hide balancer/context sections after saving
+      setBalancerSource(null)
+      setBalancerRazon('')
+      setBalancerFallbackReason('')
       // Reload to get fresh equipo IDs (old rows deleted, new ones created) → rotation section appears
       await cargarEquipos(equiposPartido)
     } else {
@@ -1156,7 +1160,14 @@ export default function AdminPage() {
                                 <div>
                                   <select
                                     value={rotacionA.porteroFijoId}
-                                    onChange={e => setRotacionA(p => p ? { ...p, porteroFijoId: e.target.value } : p)}
+                                    onChange={e => {
+                                      const g = e.target.value
+                                      setRotacionA(p => p ? {
+                                        ...p,
+                                        porteroFijoId: g,
+                                        rotacionBanca: g ? p.rotacionBanca.filter(u => u !== g) : p.rotacionBanca,
+                                      } : p)
+                                    }}
                                     style={{ fontSize: 12, padding: '6px 10px', marginBottom: 8, width: '100%' }}
                                   >
                                     <option value="">— seleccionar portero —</option>
@@ -1247,7 +1258,14 @@ export default function AdminPage() {
                                 <div>
                                   <select
                                     value={rotacionB.porteroFijoId}
-                                    onChange={e => setRotacionB(p => p ? { ...p, porteroFijoId: e.target.value } : p)}
+                                    onChange={e => {
+                                      const g = e.target.value
+                                      setRotacionB(p => p ? {
+                                        ...p,
+                                        porteroFijoId: g,
+                                        rotacionBanca: g ? p.rotacionBanca.filter(u => u !== g) : p.rotacionBanca,
+                                      } : p)
+                                    }}
                                     style={{ fontSize: 12, padding: '6px 10px', marginBottom: 8, width: '100%' }}
                                   >
                                     <option value="">— seleccionar portero —</option>
@@ -1306,8 +1324,8 @@ export default function AdminPage() {
                   </div>
                 )}
 
-                {/* Gemini razon + feedback loop */}
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginBottom: 24 }}>
+                {/* Gemini razon + feedback loop — visible only while draft not yet saved */}
+                {balancerSource !== null && <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginBottom: 24 }}>
                   <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>
                     🤖 BALANCEADOR IA
                     {balancerSource === 'gemini' && <span style={{ marginLeft: 8, color: 'var(--green)' }}>· Gemini</span>}
@@ -1377,7 +1395,7 @@ export default function AdminPage() {
                       </div>
                     </div>
                   )}
-                </div>
+                </div>}
 
                 {/* Resultado */}
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginBottom: 24 }}>

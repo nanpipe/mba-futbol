@@ -326,7 +326,12 @@ export default function HomePage() {
   const enEspera = inscripciones.filter(i => i.estado === 'espera')
   const cuposTotal = ventana?.partido?.cupos_total ?? 14
   const invitadosConfirmados = todosInvitados.filter(i => i.estado === 'confirmado')
+  const invitadosEspera = todosInvitados.filter(i => i.estado === 'espera')
   const totalConfirmados = confirmados.length + invitadosConfirmados.length
+  // Sequential position in espera (gaps removed — someone may have been confirmed out of order)
+  const miPosicionEspera = miInscripcion?.estado === 'espera'
+    ? enEspera.findIndex(i => i.id === miInscripcion.id) + 1
+    : null
   const cuposLibres = cuposTotal - totalConfirmados
 
   // Pull-to-refresh handlers (PWA standalone loses native browser pull-to-refresh)
@@ -595,7 +600,7 @@ export default function HomePage() {
               }}>
                 <div>
                   <span className={`badge ${miInscripcion.estado === 'confirmado' ? 'badge-green' : 'badge-amber'}`}>
-                    {miInscripcion.estado === 'confirmado' ? '✓ CONFIRMADO' : `ESPERA #${miInscripcion.posicion_espera}`}
+                    {miInscripcion.estado === 'confirmado' ? '✓ CONFIRMADO' : `ESPERA #${miPosicionEspera}`}
                   </span>
                   <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
                     {miInscripcion.estado === 'confirmado'
@@ -630,7 +635,7 @@ export default function HomePage() {
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span className={`badge ${inv.estado === 'confirmado' ? 'badge-green' : 'badge-amber'}`}>
-                        {inv.estado === 'confirmado' ? '✓' : `ESPERA #${inv.posicion_espera}`}
+                        {inv.estado === 'confirmado' ? '✓' : `ESPERA #${invitadosEspera.findIndex(i => i.id === inv.id) + 1}`}
                       </span>
                       <span style={{ fontSize: 14 }}>{inv.nombre}</span>
                     </div>
@@ -762,14 +767,14 @@ export default function HomePage() {
                       EN ESPERA
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      {enEspera.map((ins) => (
+                      {enEspera.map((ins, idx) => (
                         <div key={ins.id} style={{
                           display: 'flex', alignItems: 'center', gap: 12,
                           padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 3,
                           border: ins.player_id === user.id ? '1px solid #92400e' : '1px solid transparent',
                           opacity: 0.7
                         }}>
-                          <span className="mono" style={{ fontSize: 11, color: 'var(--amber)', width: 20 }}>#{ins.posicion_espera}</span>
+                          <span className="mono" style={{ fontSize: 11, color: 'var(--amber)', width: 20 }}>#{idx + 1}</span>
                           <span style={{ fontSize: 15 }}>{ins.profiles.username}</span>
                           {ins.player_id === user.id && (
                             <span className="mono" style={{ fontSize: 10, color: 'var(--amber)', letterSpacing: '0.1em' }}>TÚ</span>
@@ -798,7 +803,7 @@ export default function HomePage() {
                             fontSize: 11, width: 20,
                             color: inv.estado === 'confirmado' ? 'var(--green)' : 'var(--amber)',
                           }}>
-                            {inv.estado === 'confirmado' ? '✓' : `#${inv.posicion_espera}`}
+                            {inv.estado === 'confirmado' ? '✓' : `#${invitadosEspera.findIndex(i => i.id === inv.id) + 1}`}
                           </span>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <span style={{ fontSize: 15 }}>{inv.nombre}</span>

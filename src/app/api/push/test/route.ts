@@ -20,9 +20,32 @@ export async function POST(req: NextRequest) {
   const title = typeof parsed.title === 'string' ? parsed.title.slice(0, 256) : 'MBA FC'
   const body = typeof parsed.body === 'string' ? parsed.body.slice(0, 512) : 'Notificación de prueba ⚽'
   const player_id = typeof parsed.player_id === 'string' ? parsed.player_id : undefined
+  const group = typeof parsed.group === 'string' ? parsed.group : undefined
+  const partido_id = typeof parsed.partido_id === 'string' ? parsed.partido_id : undefined
+
+  // Resolve group → player_ids
+  let groupPlayerIds: string[] | null = null
+  if (group === 'admins') {
+    const { data } = await admin.from('profiles').select('id').eq('role', 'admin')
+    groupPlayerIds = (data ?? []).map((p: { id: string }) => p.id)
+  } else if (group === 'confirmados' && partido_id) {
+    const { data } = await admin.from('inscripciones').select('player_id').eq('partido_id', partido_id).eq('estado', 'confirmado')
+    groupPlayerIds = (data ?? []).map((i: { player_id: string }) => i.player_id)
+  } else if (group === 'espera' && partido_id) {
+    const { data } = await admin.from('inscripciones').select('player_id').eq('partido_id', partido_id).eq('estado', 'espera')
+    groupPlayerIds = (data ?? []).map((i: { player_id: string }) => i.player_id)
+  } else if (group === 'todos_partido' && partido_id) {
+    const { data } = await admin.from('inscripciones').select('player_id').eq('partido_id', partido_id).in('estado', ['confirmado', 'espera'])
+    groupPlayerIds = (data ?? []).map((i: { player_id: string }) => i.player_id)
+  }
 
   let query = admin.from('push_subscriptions').select('endpoint, p256dh, auth, player_id')
-  if (player_id) query = (query as typeof query).eq('player_id', player_id)
+  if (groupPlayerIds !== null) {
+    if (groupPlayerIds.length === 0) return NextResponse.json({ error: 'No hay jugadores en este grupo.' }, { status: 404 })
+    query = (query as typeof query).in('player_id', groupPlayerIds)
+  } else if (player_id) {
+    query = (query as typeof query).eq('player_id', player_id)
+  }
   const { data: subs } = await query
 
   if (!subs || subs.length === 0) {

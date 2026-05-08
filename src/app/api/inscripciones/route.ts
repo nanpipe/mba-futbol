@@ -140,12 +140,39 @@ export async function DELETE(req: NextRequest) {
 
   if (!inscripcion) return NextResponse.json({ error: 'No estás inscrito en este partido' }, { status: 404 })
 
+  // Fetch info needed for admin notification before deletion
+  const [{ data: playerProfile }, { data: partidoInfo }] = await Promise.all([
+    admin.from('profiles').select('username').eq('id', user.id).single(),
+    admin.from('partidos').select('fecha, dia_semana').eq('id', partido_id as string).single(),
+  ])
+
   await admin.from('inscripciones').delete().eq('id', inscripcion.id)
 
   if (inscripcion.estado === 'confirmado') {
     await admin.rpc('promover_espera', { p_partido_id: partido_id })
     internalFetch('/api/notify', { method: 'POST' }).catch(() => {})
   }
+
+  // Push all admins about the withdrawal
+  ;(async () => {
+    const { data: adminProfiles } = await admin.from('profiles').select('id').eq('role', 'admin')
+    const adminIds = (adminProfiles ?? []).map((a: { id: string }) => a.id)
+    if (!adminIds.length) return
+    const { data: subs } = await admin
+      .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', adminIds)
+    if (!subs?.length) return
+    const { sendPush } = await import('@/lib/push')
+    const username = (playerProfile as { username?: string } | null)?.username ?? 'Un jugador'
+    const estado = inscripcion.estado === 'confirmado' ? 'confirmado' : 'lista de espera'
+    const dia = (partidoInfo as { dia_semana?: string } | null)?.dia_semana ?? ''
+    for (const sub of subs) {
+      await sendPush(sub, {
+        title: '⚠️ Baja en el partido',
+        body: `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}`,
+        url: '/admin',
+      }).catch(() => {})
+    }
+  })().catch(() => {})
 
   return NextResponse.json({ ok: true })
 }

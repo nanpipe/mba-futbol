@@ -98,6 +98,13 @@ export default function RegistroPage() {
     }
 
     // El trigger de DB crea el perfil automáticamente
+    // Notify admins of new signup request (fire-and-forget)
+    fetch('/api/notify/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: usernameClean }),
+    }).catch(() => {})
+
     setExito(true)
     setLoading(false)
   }

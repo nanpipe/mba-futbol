@@ -711,7 +711,7 @@ export default function HomePage() {
             )}
 
             {/* Evaluation CTA */}
-            {ventana?.partido?.evaluaciones_abiertas && miInscripcion?.estado === 'confirmado' && (
+            {ventana?.partido?.evaluaciones_abiertas && ventana?.partido?.equipos_confirmados && miInscripcion?.estado === 'confirmado' && (
               <div style={{ marginTop: 32 }}>
                 <div style={{ background: '#1a1500', border: '1px solid #92400e', borderRadius: 6, padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
                   <div>
@@ -720,7 +720,7 @@ export default function HomePage() {
                       <span className="display" style={{ fontSize: 18, letterSpacing: '0.05em' }}>Evalúa a tus compañeros</span>
                     </div>
                     <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>
-                      Anónimo · Solo toma 2 minutos · Ayuda a balancear equipos
+                      Anónimo · Solo toma 2 minutos · Reconoce a tus compañeros
                     </div>
                   </div>
                   <Link

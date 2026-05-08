@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
   const { data: equipos } = await admin
     .from('equipos')
-    .select('id, nombre, confirmado')
+    .select('id, nombre, confirmado, color, portero_fijo, rotacion_banca, rotacion_portero')
     .eq('partido_id', partido_id)
 
   if (!equipos || equipos.length === 0) return NextResponse.json({ ok: true, equipos: null })
@@ -316,6 +316,32 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
     await admin.from('partidos').update({ equipos_confirmados: false }).eq('id', partido_id as string)
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'resetear_equipos', detalles: { partido_id } })
     return NextResponse.json({ ok: true, mensaje: 'Equipos eliminados.' })
+  }
+
+  // ── guardar_rotacion: save colors + rotation queues ───────────────────────
+  if (accion === 'guardar_rotacion') {
+    const { rotaciones } = body as {
+      rotaciones: {
+        equipo_id: string
+        color: string
+        portero_fijo: boolean
+        rotacion_banca: string[]
+        rotacion_portero: string[]
+      }[]
+    }
+    if (!Array.isArray(rotaciones) || rotaciones.length === 0) {
+      return NextResponse.json({ error: 'rotaciones requeridas' }, { status: 400 })
+    }
+    await Promise.all(rotaciones.map(r =>
+      admin.from('equipos').update({
+        color: r.color,
+        portero_fijo: r.portero_fijo,
+        rotacion_banca: r.rotacion_banca,
+        rotacion_portero: r.rotacion_portero,
+      }).eq('id', r.equipo_id)
+    ))
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'guardar_rotacion', detalles: { partido_id } })
+    return NextResponse.json({ ok: true, mensaje: 'Rotaciones guardadas.' })
   }
 
   return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 })

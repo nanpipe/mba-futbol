@@ -148,7 +148,7 @@ export default function HomePage() {
     const cargarUltimo = async () => {
       const { data: ultimo } = await supabase
         .from('partidos')
-        .select('id, fecha, dia_semana')
+        .select('id, fecha, dia_semana, evaluaciones_abiertas')
         .lt('fecha', hoy)
         .order('fecha', { ascending: false })
         .limit(1)
@@ -845,6 +845,32 @@ export default function HomePage() {
                   </div>
                   <Link
                     href={`/evaluar/${ventana.partido.id}`}
+                    className="btn btn-ghost"
+                    style={{ fontSize: 12, padding: '10px 20px', color: 'var(--amber)', borderColor: '#92400e', whiteSpace: 'nowrap' }}
+                  >
+                    Evaluar ahora →
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {/* Evaluation CTA — last match (after match day, 24h window) */}
+            {ultimoPartido?.partido?.evaluaciones_abiertas &&
+              user &&
+              ultimoPartido.inscripciones.some(i => i.player_id === user.id) && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ background: '#1a1500', border: '1px solid #92400e', borderRadius: 6, padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontSize: 20 }}>📊</span>
+                      <span className="display" style={{ fontSize: 18, letterSpacing: '0.05em' }}>Evalúa el último partido</span>
+                    </div>
+                    <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                      {ultimoPartido.partido.dia_semana} · Anónimo · Solo toma 2 minutos
+                    </div>
+                  </div>
+                  <Link
+                    href={`/evaluar/${ultimoPartido.partido.id}`}
                     className="btn btn-ghost"
                     style={{ fontSize: 12, padding: '10px 20px', color: 'var(--amber)', borderColor: '#92400e', whiteSpace: 'nowrap' }}
                   >

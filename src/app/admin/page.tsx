@@ -156,6 +156,9 @@ interface Partido {
   evaluaciones_abiertas?: boolean
   equipos_confirmados?: boolean
   resultado?: string | null
+  goles_a?: number | null
+  goles_b?: number | null
+  notif_apertura_sent?: boolean
 }
 
 export default function AdminPage() {
@@ -208,6 +211,8 @@ export default function AdminPage() {
   const [equiposLoading, setEquiposLoading] = useState(false)
   const [equiposDraft, setEquiposDraft] = useState(false)
   const [equiposResultado, setEquiposResultado] = useState('')
+  const [golesA, setGolesA] = useState('')
+  const [golesB, setGolesB] = useState('')
   const [evaluacionesAbiertas, setEvaluacionesAbiertas] = useState(false)
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   // Rotation state
@@ -258,7 +263,7 @@ export default function AdminPage() {
 
     const { data: pts } = await supabase
       .from('partidos')
-      .select('id, fecha, dia_semana, cupos_total, inscripciones(estado), invitados(estado), evaluaciones_abiertas, equipos_confirmados, resultado')
+      .select('id, fecha, dia_semana, cupos_total, inscripciones(estado), invitados(estado), evaluaciones_abiertas, equipos_confirmados, resultado, goles_a, goles_b, notif_apertura_sent')
       .gte('fecha', new Date().toISOString().split('T')[0])
       .order('fecha', { ascending: true })
       .limit(8)
@@ -309,6 +314,15 @@ export default function AdminPage() {
     setEquiposConfirmado(partido.equipos_confirmados ?? false)
     setEvaluacionesAbiertas(partido.evaluaciones_abiertas ?? false)
     setEquiposResultado(partido.resultado ?? '')
+    // Pre-fill goles inputs from existing goles_a / goles_b or parse resultado "N-M"
+    if (partido.goles_a != null && partido.goles_b != null) {
+      setGolesA(String(partido.goles_a))
+      setGolesB(String(partido.goles_b))
+    } else if (partido.resultado) {
+      const m = partido.resultado.match(/^(\d+)-(\d+)$/)
+      if (m) { setGolesA(m[1]); setGolesB(m[2]) }
+      else { setGolesA(''); setGolesB('') }
+    } else { setGolesA(''); setGolesB('') }
     setEquiposDraft(false)
     const res = await fetch(`/api/equipos?partido_id=${partido.id}`)
     const data = await res.json()
@@ -532,9 +546,16 @@ export default function AdminPage() {
   }
 
   const guardarResultadoAction = async () => {
-    if (!equiposPartido || !equiposResultado.trim()) return
-    const ok = await accionAdmin('registrar_resultado', { partido_id: equiposPartido.id, resultado: equiposResultado.trim() })
-    if (ok) setEquiposPartido(prev => prev ? { ...prev, resultado: equiposResultado.trim() } : prev)
+    if (!equiposPartido) return
+    const gA = parseInt(golesA)
+    const gB = parseInt(golesB)
+    if (isNaN(gA) || isNaN(gB) || gA < 0 || gB < 0) return
+    const resultado = `${gA}-${gB}`
+    const ok = await accionAdmin('registrar_resultado', { partido_id: equiposPartido.id, goles_a: String(gA), goles_b: String(gB) })
+    if (ok) {
+      setEquiposPartido(prev => prev ? { ...prev, resultado, goles_a: gA, goles_b: gB } : prev)
+      setEquiposResultado(resultado)
+    }
   }
 
   useEffect(() => {
@@ -887,6 +908,9 @@ export default function AdminPage() {
                           {espera > 0 && (
                             <div className="mono" style={{ fontSize: 11, color: 'var(--amber)' }}>+{espera} espera</div>
                           )}
+                          <div className="mono" style={{ fontSize: 9, color: p.notif_apertura_sent ? 'var(--green)' : 'var(--text-dim)', marginTop: 2 }}>
+                            {p.notif_apertura_sent ? '🔔 notif ✓' : '🔕 notif pendiente'}
+                          </div>
                         </div>
                       </button>
                     )
@@ -898,8 +922,26 @@ export default function AdminPage() {
               <div>
                 {selectedPartido ? (
                   <>
-                    <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 16 }}>
-                      INSCRITOS
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+                      <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
+                        INSCRITOS
+                      </div>
+                      {(() => {
+                        const p = partidos.find(x => x.id === selectedPartido)
+                        if (!p || p.notif_apertura_sent) return null
+                        return (
+                          <button
+                            className="btn btn-ghost"
+                            style={{ fontSize: 10, padding: '4px 10px', color: 'var(--amber)', borderColor: '#92400e' }}
+                            onClick={async () => {
+                              const ok = await accionAdmin('forzar_notif_apertura', { partido_id: selectedPartido })
+                              if (ok) setPartidos(prev => prev.map(x => x.id === selectedPartido ? { ...x, notif_apertura_sent: true } : x))
+                            }}
+                          >
+                            🔔 Forzar notif apertura
+                          </button>
+                        )
+                      })()}
                     </div>
                     {inscripciones.length === 0 ? (
                       <div className="card" style={{ textAlign: 'center', padding: 32 }}>
@@ -1181,7 +1223,7 @@ export default function AdminPage() {
                                 border: `1px solid ${rotacionA.color === 'blanco' ? '#ccc' : '#444'}`,
                                 fontFamily: 'DM Mono, monospace',
                               }}>
-                                {rotacionA.color === 'blanco' ? '⬜ BLANCO' : '⬛ NEGRO'}
+                                {rotacionA.color === 'blanco' ? '🤍 BLANCO' : '🖤 NEGRO'}
                               </span>
                             </div>
 
@@ -1279,7 +1321,7 @@ export default function AdminPage() {
                                 border: `1px solid ${rotacionB.color === 'blanco' ? '#ccc' : '#444'}`,
                                 fontFamily: 'DM Mono, monospace',
                               }}>
-                                {rotacionB.color === 'blanco' ? '⬜ BLANCO' : '⬛ NEGRO'}
+                                {rotacionB.color === 'blanco' ? '🤍 BLANCO' : '🖤 NEGRO'}
                               </span>
                             </div>
 
@@ -1440,9 +1482,38 @@ export default function AdminPage() {
                 {/* Resultado */}
                 <div id="admin-resultado" style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginBottom: 24 }}>
                   <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>RESULTADO DEL PARTIDO</div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <input id="input-resultado" type="text" value={equiposResultado} onChange={e => setEquiposResultado(e.target.value)} placeholder="Ej: 7-5" style={{ width: 100 }} />
-                    <button onClick={guardarResultadoAction} disabled={!equiposResultado.trim()} className="btn btn-ghost" style={{ fontSize: 12, padding: '8px 14px' }}>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span className="mono" style={{ fontSize: 10, color: 'var(--green)' }}>
+                        {rotacionA ? (rotacionA.color === 'blanco' ? '🤍' : '🖤') : 'A'}
+                      </span>
+                      <input
+                        type="number" min={0} max={99}
+                        value={golesA}
+                        onChange={e => setGolesA(e.target.value)}
+                        placeholder="0"
+                        style={{ width: 56, textAlign: 'center' }}
+                      />
+                    </div>
+                    <span className="mono" style={{ fontSize: 14, color: 'var(--text-dim)' }}>—</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input
+                        type="number" min={0} max={99}
+                        value={golesB}
+                        onChange={e => setGolesB(e.target.value)}
+                        placeholder="0"
+                        style={{ width: 56, textAlign: 'center' }}
+                      />
+                      <span className="mono" style={{ fontSize: 10, color: 'var(--amber)' }}>
+                        {rotacionB ? (rotacionB.color === 'blanco' ? '🤍' : '🖤') : 'B'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={guardarResultadoAction}
+                      disabled={golesA === '' || golesB === ''}
+                      className="btn btn-ghost"
+                      style={{ fontSize: 12, padding: '8px 14px' }}
+                    >
                       Guardar resultado
                     </button>
                     {equiposPartido.resultado && (

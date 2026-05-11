@@ -351,13 +351,39 @@ export async function POST(req: NextRequest) {
 
   // ── Registrar resultado del partido ───────────────────────────────────────
   if (accion === 'registrar_resultado') {
-    const { partido_id, resultado } = body
+    const { partido_id, goles_a, goles_b } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
-    if (!isString(resultado, 1, 20)) return NextResponse.json({ error: 'Resultado inválido (máx 20 chars)' }, { status: 400 })
-    const { error } = await admin.from('partidos').update({ resultado: (resultado as string).trim() }).eq('id', partido_id as string)
+    const gA = typeof goles_a === 'number' ? goles_a : parseInt(String(goles_a))
+    const gB = typeof goles_b === 'number' ? goles_b : parseInt(String(goles_b))
+    if (isNaN(gA) || isNaN(gB) || gA < 0 || gB < 0) return NextResponse.json({ error: 'Goles inválidos' }, { status: 400 })
+    const resultado = `${gA}-${gB}`
+    const { error } = await admin.from('partidos').update({ resultado, goles_a: gA, goles_b: gB }).eq('id', partido_id as string)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
-    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'registrar_resultado', detalles: { partido_id, resultado }, ip })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'registrar_resultado', detalles: { partido_id, resultado, goles_a: gA, goles_b: gB }, ip })
     return NextResponse.json({ ok: true, mensaje: `Resultado registrado: ${resultado}` })
+  }
+
+  // ── Forzar notif apertura (debug) ────────────────────────────────────────
+  if (accion === 'forzar_notif_apertura') {
+    const { partido_id } = body
+    if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
+    const { data: partido } = await admin.from('partidos').select('dia_semana').eq('id', partido_id as string).single()
+    const { data: subs } = await admin.from('push_subscriptions').select('endpoint, p256dh, auth')
+    const { sendPush } = await import('@/lib/push')
+    let enviados = 0
+    for (const sub of subs ?? []) {
+      try {
+        await sendPush(sub, {
+          title: '⚽ ¡Inscripciones abiertas!',
+          body: `Ya puedes anotarte para el partido del ${(partido as { dia_semana?: string })?.dia_semana ?? ''}. ¡Entra ahora!`,
+          url: '/',
+        })
+        enviados++
+      } catch { /* ignore dead subs */ }
+    }
+    await admin.from('partidos').update({ notif_apertura_sent: true }).eq('id', partido_id as string)
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'forzar_notif_apertura', detalles: { partido_id, enviados }, ip })
+    return NextResponse.json({ ok: true, mensaje: `Notificación apertura enviada a ${enviados} dispositivos.` })
   }
 
   // ── Abrir evaluaciones (+ push a jugadores confirmados) ───────────────────

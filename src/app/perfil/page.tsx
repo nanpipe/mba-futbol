@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
 import { posicionEmoji } from '@/lib/teamBalancer'
+import { FifaCard } from '@/components/FifaCard'
+import { PlayerAvatar } from '@/components/PlayerAvatar'
 
 const POSICIONES = ['portero', 'defensa', 'medio', 'delantero', 'cualquiera'] as const
 type Posicion = typeof POSICIONES[number]
@@ -45,6 +47,7 @@ export default function PerfilPage() {
   const [badges, setBadges] = useState<Badge[]>([])
   const [totalMatches, setTotalMatches] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [carta, setCarta] = useState<Record<string, unknown> | null>(null)
 
   // Position
   const [posicion, setPosicion] = useState<Posicion>('cualquiera')
@@ -96,6 +99,14 @@ export default function PerfilPage() {
     }
     setBadges((badgesData as Badge[]) ?? [])
     setTotalMatches(count ?? 0)
+
+    // Load FIFA card (own)
+    const cartaRes = await fetch('/api/carta')
+    if (cartaRes.ok) {
+      const cartaData = await cartaRes.json()
+      setCarta(cartaData.carta ?? null)
+    }
+
     setLoading(false)
   }, [supabase])
 
@@ -211,17 +222,12 @@ export default function PerfilPage() {
 
         {/* Avatar + identity */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 40, gap: 10 }}>
-          <div style={{
-            width: 96, height: 96, borderRadius: '50%',
-            background: profile?.avatar_url ? 'transparent' : '#0f2d1a',
-            border: '2px solid var(--border)', overflow: 'hidden',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            {profile?.avatar_url
-              ? <img src={profile.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : <span className="display" style={{ fontSize: 38, color: 'var(--green)', lineHeight: 1 }}>{profile?.username?.[0]?.toUpperCase() ?? '?'}</span>
-            }
-          </div>
+          <PlayerAvatar
+            url={profile?.avatar_url ?? null}
+            username={profile?.username ?? ''}
+            size={96}
+            borderColor="var(--border)"
+          />
 
           <div style={{ textAlign: 'center' }}>
             <div className="display" style={{ fontSize: 22, letterSpacing: '0.05em' }}>{profile?.username}</div>
@@ -249,6 +255,49 @@ export default function PerfilPage() {
             <div className="display" style={{ fontSize: 28, color: 'var(--amber)' }}>{badges.length}</div>
             <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>RECONOCIMIENTOS</div>
           </div>
+        </div>
+
+        {/* FIFA Card */}
+        <div style={{ marginBottom: 28 }}>
+          <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 12 }}>
+            MI CARTA FIFA
+          </div>
+          {carta?.aprobado ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+              <FifaCard size="md" s={{
+                stat_res: carta.stat_res as number,
+                stat_fis: carta.stat_fis as number,
+                stat_def: carta.stat_def as number,
+                stat_ata: carta.stat_ata as number,
+                stat_tec: carta.stat_tec as number,
+                stat_dis: carta.stat_dis as number,
+                ovr: carta.ovr as number,
+                tier: carta.tier as string,
+                posicion_carta: carta.posicion_carta as string,
+                username: profile?.username ?? '',
+                avatar_url: profile?.avatar_url,
+              }} />
+              <Link href="/mi-carta" className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', textDecoration: 'none', letterSpacing: '0.05em' }}>
+                Ver detalles →
+              </Link>
+            </div>
+          ) : carta && !carta.aprobado && !carta.rechazado ? (
+            <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>⏳</div>
+              <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Carta en revisión</div>
+              <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>OVR estimado: <strong style={{ color: 'var(--amber)' }}>{carta.ovr as number}</strong></div>
+            </div>
+          ) : (
+            <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>🃏</div>
+              <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
+                {carta?.rechazado ? 'Carta rechazada — puedes volver a enviar' : 'Aún no tienes carta FIFA'}
+              </div>
+              <Link href="/mi-carta" className="btn btn-ghost" style={{ fontSize: 12, padding: '8px 20px' }}>
+                {carta?.rechazado ? 'Volver a evaluar →' : 'Crear mi carta →'}
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* Badges */}

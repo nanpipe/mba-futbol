@@ -17,6 +17,8 @@ import {
 } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { posicionEmoji } from '@/lib/teamBalancer'
+import { PlayerAvatar } from '@/components/PlayerAvatar'
+import { colorLabel, MSG } from '@/lib/design'
 
 interface Player {
   id: string
@@ -31,27 +33,6 @@ interface Player {
   ip_registro: string | null
   created_at: string
   avatar_url: string | null
-}
-
-function PlayerAvatar({ url, username, size = 32 }: { url: string | null; username: string; size?: number }) {
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%',
-      background: url ? 'transparent' : '#0f2d1a',
-      border: '1px solid var(--border)',
-      overflow: 'hidden',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      flexShrink: 0,
-    }}>
-      {url ? (
-        <img src={url} alt={username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-      ) : (
-        <span className="display" style={{ fontSize: size * 0.4, color: 'var(--green)', lineHeight: 1 }}>
-          {username?.[0]?.toUpperCase() ?? '?'}
-        </span>
-      )}
-    </div>
-  )
 }
 
 function DraggablePlayerCard({ jugador, equipo, confirmado }: { jugador: JugadorEquipo; equipo: 'A' | 'B'; confirmado: boolean }) {
@@ -156,11 +137,19 @@ interface Partido {
   evaluaciones_abiertas?: boolean
   equipos_confirmados?: boolean
   resultado?: string | null
+  goles_a?: number | null
+  goles_b?: number | null
+  notif_apertura_sent?: boolean
 }
 
 export default function AdminPage() {
   const supabase = createClient()
-  const [tab, setTab] = useState<'partidos' | 'equipos' | 'jugadores' | 'notifs' | 'log'>('partidos')
+  const [tab, setTab] = useState<'partidos' | 'equipos' | 'jugadores' | 'notifs' | 'cartas' | 'log'>('partidos')
+  const [cartas, setCartas] = useState<Record<string, unknown>[]>([])
+  const [cartasLoading, setCartasLoading] = useState(false)
+  const [cartaNotas, setCartaNotas] = useState<Record<string, string>>({})
+  const [cartaOverrides, setCartaOverrides] = useState<Record<string, Record<string, number>>>({})
+  const [cartaActioning, setCartaActioning] = useState<string | null>(null)
   const [authed, setAuthed] = useState<boolean | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
   const [playerIdsWithPush, setPlayerIdsWithPush] = useState<Set<string>>(new Set())
@@ -203,6 +192,8 @@ export default function AdminPage() {
   const [equiposLoading, setEquiposLoading] = useState(false)
   const [equiposDraft, setEquiposDraft] = useState(false)
   const [equiposResultado, setEquiposResultado] = useState('')
+  const [golesA, setGolesA] = useState('')
+  const [golesB, setGolesB] = useState('')
   const [evaluacionesAbiertas, setEvaluacionesAbiertas] = useState(false)
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   // Rotation state
@@ -253,7 +244,7 @@ export default function AdminPage() {
 
     const { data: pts } = await supabase
       .from('partidos')
-      .select('id, fecha, dia_semana, cupos_total, inscripciones(estado), invitados(estado), evaluaciones_abiertas, equipos_confirmados, resultado')
+      .select('id, fecha, dia_semana, cupos_total, inscripciones(estado), invitados(estado), evaluaciones_abiertas, equipos_confirmados, resultado, goles_a, goles_b, notif_apertura_sent')
       .gte('fecha', new Date().toISOString().split('T')[0])
       .order('fecha', { ascending: true })
       .limit(8)
@@ -278,6 +269,16 @@ export default function AdminPage() {
     setInvitados((inv as unknown as Invitado[]) ?? [])
   }, [supabase])
 
+  const cargarCartas = useCallback(async () => {
+    setCartasLoading(true)
+    const { data } = await supabase
+      .from('evaluaciones_carta')
+      .select('*, profiles(username, avatar_url)')
+      .order('created_at', { ascending: false })
+    setCartas((data as unknown as Record<string, unknown>[]) ?? [])
+    setCartasLoading(false)
+  }, [supabase])
+
   const cargarLogs = useCallback(async () => {
     setLogsLoading(true)
     const res = await fetch('/api/admin?accion=logs')
@@ -294,6 +295,15 @@ export default function AdminPage() {
     setEquiposConfirmado(partido.equipos_confirmados ?? false)
     setEvaluacionesAbiertas(partido.evaluaciones_abiertas ?? false)
     setEquiposResultado(partido.resultado ?? '')
+    // Pre-fill goles inputs from existing goles_a / goles_b or parse resultado "N-M"
+    if (partido.goles_a != null && partido.goles_b != null) {
+      setGolesA(String(partido.goles_a))
+      setGolesB(String(partido.goles_b))
+    } else if (partido.resultado) {
+      const m = partido.resultado.match(/^(\d+)-(\d+)$/)
+      if (m) { setGolesA(m[1]); setGolesB(m[2]) }
+      else { setGolesA(''); setGolesB('') }
+    } else { setGolesA(''); setGolesB('') }
     setEquiposDraft(false)
     const res = await fetch(`/api/equipos?partido_id=${partido.id}`)
     const data = await res.json()
@@ -517,9 +527,16 @@ export default function AdminPage() {
   }
 
   const guardarResultadoAction = async () => {
-    if (!equiposPartido || !equiposResultado.trim()) return
-    const ok = await accionAdmin('registrar_resultado', { partido_id: equiposPartido.id, resultado: equiposResultado.trim() })
-    if (ok) setEquiposPartido(prev => prev ? { ...prev, resultado: equiposResultado.trim() } : prev)
+    if (!equiposPartido) return
+    const gA = parseInt(golesA)
+    const gB = parseInt(golesB)
+    if (isNaN(gA) || isNaN(gB) || gA < 0 || gB < 0) return
+    const resultado = `${gA}-${gB}`
+    const ok = await accionAdmin('registrar_resultado', { partido_id: equiposPartido.id, goles_a: String(gA), goles_b: String(gB) })
+    if (ok) {
+      setEquiposPartido(prev => prev ? { ...prev, resultado, goles_a: gA, goles_b: gB } : prev)
+      setEquiposResultado(resultado)
+    }
   }
 
   useEffect(() => {
@@ -540,6 +557,10 @@ export default function AdminPage() {
   useEffect(() => {
     if (tab === 'log') cargarLogs()
   }, [tab, cargarLogs])
+
+  useEffect(() => {
+    if (tab === 'cartas') cargarCartas()
+  }, [tab, cargarCartas])
 
   useEffect(() => {
     if (tab === 'equipos') cargarFeedback()
@@ -726,9 +747,7 @@ export default function AdminPage() {
         {mensaje && (
           <div className="mono fade-in" style={{
             fontSize: 13, padding: '12px 16px', borderRadius: 3, marginBottom: 24,
-            background: mensaje.startsWith('Error') ? '#2d0a0a' : '#0f2d1a',
-            color: mensaje.startsWith('Error') ? 'var(--red)' : 'var(--green)',
-            border: `1px solid ${mensaje.startsWith('Error') ? '#7f1d1d' : '#16a34a'}`
+            ...(mensaje.startsWith('Error') ? MSG.error : MSG.ok),
           }}>
             {mensaje}
           </div>
@@ -792,7 +811,7 @@ export default function AdminPage() {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 0, marginBottom: 40, borderBottom: '1px solid var(--border)', overflowX: 'auto', overflowY: 'hidden' }}>
-          {(['partidos', 'equipos', 'jugadores', 'notifs', 'log'] as const).map(t => (
+          {(['partidos', 'equipos', 'jugadores', 'notifs', 'cartas', 'log'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)} className="mono" style={{
               padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer',
               fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap',
@@ -801,7 +820,9 @@ export default function AdminPage() {
               marginBottom: -1,
               position: 'relative',
             }}>
-              {t}
+              {t === 'cartas' && cartas.filter(c => !c.aprobado && !c.rechazado).length > 0
+                ? `${t} (${cartas.filter(c => !c.aprobado && !c.rechazado).length})`
+                : t}
             </button>
           ))}
         </div>
@@ -866,6 +887,9 @@ export default function AdminPage() {
                           {espera > 0 && (
                             <div className="mono" style={{ fontSize: 11, color: 'var(--amber)' }}>+{espera} espera</div>
                           )}
+                          <div className="mono" style={{ fontSize: 9, color: p.notif_apertura_sent ? 'var(--green)' : 'var(--text-dim)', marginTop: 2 }}>
+                            {p.notif_apertura_sent ? '🔔 notif ✓' : '🔕 notif pendiente'}
+                          </div>
                         </div>
                       </button>
                     )
@@ -877,8 +901,26 @@ export default function AdminPage() {
               <div>
                 {selectedPartido ? (
                   <>
-                    <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 16 }}>
-                      INSCRITOS
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+                      <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
+                        INSCRITOS
+                      </div>
+                      {(() => {
+                        const p = partidos.find(x => x.id === selectedPartido)
+                        if (!p || p.notif_apertura_sent) return null
+                        return (
+                          <button
+                            className="btn btn-ghost"
+                            style={{ fontSize: 10, padding: '4px 10px', color: 'var(--amber)', borderColor: '#92400e' }}
+                            onClick={async () => {
+                              const ok = await accionAdmin('forzar_notif_apertura', { partido_id: selectedPartido })
+                              if (ok) setPartidos(prev => prev.map(x => x.id === selectedPartido ? { ...x, notif_apertura_sent: true } : x))
+                            }}
+                          >
+                            🔔 Forzar notif apertura
+                          </button>
+                        )
+                      })()}
                     </div>
                     {inscripciones.length === 0 ? (
                       <div className="card" style={{ textAlign: 'center', padding: 32 }}>
@@ -1160,7 +1202,7 @@ export default function AdminPage() {
                                 border: `1px solid ${rotacionA.color === 'blanco' ? '#ccc' : '#444'}`,
                                 fontFamily: 'DM Mono, monospace',
                               }}>
-                                {rotacionA.color === 'blanco' ? '⬜ BLANCO' : '⬛ NEGRO'}
+                                {colorLabel(rotacionA.color)}
                               </span>
                             </div>
 
@@ -1258,7 +1300,7 @@ export default function AdminPage() {
                                 border: `1px solid ${rotacionB.color === 'blanco' ? '#ccc' : '#444'}`,
                                 fontFamily: 'DM Mono, monospace',
                               }}>
-                                {rotacionB.color === 'blanco' ? '⬜ BLANCO' : '⬛ NEGRO'}
+                                {colorLabel(rotacionB.color)}
                               </span>
                             </div>
 
@@ -1419,9 +1461,38 @@ export default function AdminPage() {
                 {/* Resultado */}
                 <div id="admin-resultado" style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginBottom: 24 }}>
                   <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>RESULTADO DEL PARTIDO</div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <input id="input-resultado" type="text" value={equiposResultado} onChange={e => setEquiposResultado(e.target.value)} placeholder="Ej: 7-5" style={{ width: 100 }} />
-                    <button onClick={guardarResultadoAction} disabled={!equiposResultado.trim()} className="btn btn-ghost" style={{ fontSize: 12, padding: '8px 14px' }}>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span className="mono" style={{ fontSize: 10, color: 'var(--green)' }}>
+                        {rotacionA ? (rotacionA.color === 'blanco' ? '🤍' : '🖤') : 'A'}
+                      </span>
+                      <input
+                        type="number" min={0} max={99}
+                        value={golesA}
+                        onChange={e => setGolesA(e.target.value)}
+                        placeholder="0"
+                        style={{ width: 56, textAlign: 'center' }}
+                      />
+                    </div>
+                    <span className="mono" style={{ fontSize: 14, color: 'var(--text-dim)' }}>—</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input
+                        type="number" min={0} max={99}
+                        value={golesB}
+                        onChange={e => setGolesB(e.target.value)}
+                        placeholder="0"
+                        style={{ width: 56, textAlign: 'center' }}
+                      />
+                      <span className="mono" style={{ fontSize: 10, color: 'var(--amber)' }}>
+                        {rotacionB ? (rotacionB.color === 'blanco' ? '🤍' : '🖤') : 'B'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={guardarResultadoAction}
+                      disabled={golesA === '' || golesB === ''}
+                      className="btn btn-ghost"
+                      style={{ fontSize: 12, padding: '8px 14px' }}
+                    >
                       Guardar resultado
                     </button>
                     {equiposPartido.resultado && (
@@ -1723,7 +1794,245 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* TAB: LOG */}
+        {/* TAB: CARTAS */}
+        {tab === 'cartas' && (
+          <div id="tab-cartas" className="fade-in">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
+                FIFA CARTAS — {cartas.length} enviadas
+              </div>
+              <button onClick={cargarCartas} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>
+                ↻ Refrescar
+              </button>
+            </div>
+            {cartasLoading ? (
+              <div className="mono pulsing" style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: 48 }}>Cargando...</div>
+            ) : cartas.length === 0 ? (
+              <div className="card" style={{ textAlign: 'center', padding: 48 }}>
+                <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>Ningún jugador ha enviado su evaluación aún.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+                {/* PENDING */}
+                {cartas.filter(c => !c.aprobado && !c.rechazado).length > 0 && (
+                  <div>
+                    <div className="mono" style={{ fontSize: 10, letterSpacing: '0.15em', color: 'var(--amber)', marginBottom: 12 }}>
+                      ⏳ PENDIENTES ({cartas.filter(c => !c.aprobado && !c.rechazado).length})
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {cartas.filter(c => !c.aprobado && !c.rechazado).map(carta => {
+                        const pid = carta.player_id as string
+                        const profile = carta.profiles as { username: string; avatar_url: string | null } | null
+                        const overrides = cartaOverrides[pid] ?? {}
+                        const STATS = ['res', 'fis', 'def', 'ata', 'tec', 'dis'] as const
+                        return (
+                          <div key={pid} className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            {/* Header */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                              <PlayerAvatar url={profile?.avatar_url ?? null} username={profile?.username ?? '?'} size={40} />
+                              <div>
+                                <div style={{ fontWeight: 700, fontSize: 15 }}>{profile?.username ?? pid}</div>
+                                <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>
+                                  OVR {carta.ovr as number} · {String(carta.tier).toUpperCase()} · {(carta.posicion_carta as string | null) ?? '—'} · {(carta.pierna as string | null) ?? '—'}
+                                </div>
+                              </div>
+                              <div style={{ marginLeft: 'auto' }}>
+                                <span className="mono" style={{
+                                  fontSize: 22, fontWeight: 900, color:
+                                    (carta.ovr as number) >= 88 ? '#9f7aea' :
+                                    (carta.ovr as number) >= 81 ? '#f6993f' :
+                                    (carta.ovr as number) >= 74 ? '#f6c90e' :
+                                    (carta.ovr as number) >= 67 ? '#a0aec0' :
+                                    '#a0856b'
+                                }}>
+                                  {carta.ovr as number}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Stats with override inputs */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                              {STATS.map(stat => {
+                                const key = `stat_${stat}` as string
+                                const original = carta[key] as number
+                                const override = overrides[key]
+                                const display = override ?? original
+                                return (
+                                  <div key={stat} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.1em' }}>
+                                      {stat.toUpperCase()}
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                      <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: override ? 'var(--amber)' : 'var(--text)', minWidth: 28 }}>
+                                        {display}
+                                      </span>
+                                      <input
+                                        type="number"
+                                        min={45} max={99}
+                                        placeholder="—"
+                                        value={override ?? ''}
+                                        onChange={e => {
+                                          const val = parseInt(e.target.value)
+                                          setCartaOverrides(prev => {
+                                            const next = { ...prev, [pid]: { ...prev[pid] } }
+                                            if (isNaN(val)) {
+                                              delete next[pid][key]
+                                            } else {
+                                              next[pid][key] = Math.min(99, Math.max(45, val))
+                                            }
+                                            return next
+                                          })
+                                        }}
+                                        style={{
+                                          width: 50, padding: '2px 6px', fontSize: 12,
+                                          background: 'var(--bg)', border: '1px solid var(--border)',
+                                          borderRadius: 3, color: 'var(--text)',
+                                          fontFamily: 'monospace',
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                            {Object.keys(overrides).length > 0 && (
+                              <div className="mono" style={{ fontSize: 10, color: 'var(--amber)' }}>
+                                ⚠ Overrides activos — OVR se recalcula al aprobar
+                              </div>
+                            )}
+
+                            {/* Notes */}
+                            <textarea
+                              placeholder="Notas para el jugador (opcional)..."
+                              value={cartaNotas[pid] ?? ''}
+                              onChange={e => setCartaNotas(prev => ({ ...prev, [pid]: e.target.value }))}
+                              rows={2}
+                              style={{
+                                width: '100%', padding: 10, fontSize: 13,
+                                background: 'var(--bg)', border: '1px solid var(--border)',
+                                borderRadius: 3, color: 'var(--text)', resize: 'vertical',
+                                fontFamily: 'inherit', boxSizing: 'border-box',
+                              }}
+                            />
+
+                            {/* Actions */}
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button
+                                disabled={cartaActioning === pid}
+                                onClick={async () => {
+                                  setCartaActioning(pid)
+                                  const body: Record<string, unknown> = {
+                                    player_id: pid,
+                                    accion: 'aprobar',
+                                    notas_admin: cartaNotas[pid] ?? null,
+                                  }
+                                  if (Object.keys(overrides).length > 0) body.stat_overrides = overrides
+                                  const res = await fetch('/api/carta', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+                                  if (res.ok) {
+                                    setCartaNotas(prev => { const n = { ...prev }; delete n[pid]; return n })
+                                    setCartaOverrides(prev => { const n = { ...prev }; delete n[pid]; return n })
+                                    await cargarCartas()
+                                  }
+                                  setCartaActioning(null)
+                                }}
+                                className="btn btn-primary"
+                                style={{ flex: 1, fontSize: 13 }}
+                              >
+                                {cartaActioning === pid ? '...' : '✓ Aprobar'}
+                              </button>
+                              <button
+                                disabled={cartaActioning === pid}
+                                onClick={async () => {
+                                  setCartaActioning(pid)
+                                  const res = await fetch('/api/carta', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player_id: pid, accion: 'rechazar', notas_admin: cartaNotas[pid] ?? null }) })
+                                  if (res.ok) {
+                                    setCartaNotas(prev => { const n = { ...prev }; delete n[pid]; return n })
+                                    await cargarCartas()
+                                  }
+                                  setCartaActioning(null)
+                                }}
+                                className="btn btn-danger"
+                                style={{ flex: 1, fontSize: 13 }}
+                              >
+                                ✕ Rechazar
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* APPROVED */}
+                {cartas.filter(c => c.aprobado).length > 0 && (
+                  <div>
+                    <div className="mono" style={{ fontSize: 10, letterSpacing: '0.15em', color: 'var(--green)', marginBottom: 12 }}>
+                      ✓ APROBADAS ({cartas.filter(c => c.aprobado).length})
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {cartas.filter(c => c.aprobado).map(carta => {
+                        const pid = carta.player_id as string
+                        const profile = carta.profiles as { username: string; avatar_url: string | null } | null
+                        const STATS = ['res', 'fis', 'def', 'ata', 'tec', 'dis'] as const
+                        return (
+                          <div key={pid} className="card" style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                            <PlayerAvatar url={profile?.avatar_url ?? null} username={profile?.username ?? '?'} size={32} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 600, fontSize: 13 }}>{profile?.username ?? pid}</div>
+                              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>
+                                {STATS.map(s => `${s.toUpperCase()} ${carta[`stat_${s}` as keyof typeof carta] as number}`).join(' · ')}
+                              </div>
+                              {(carta.notas_admin as string | null) && (
+                                <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                                  📝 {carta.notas_admin as string}
+                                </div>
+                              )}
+                            </div>
+                            <div className="mono" style={{ fontSize: 20, fontWeight: 900, color: 'var(--green)' }}>{carta.ovr as number}</div>
+                            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>
+                              {String(carta.tier).toUpperCase()}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* REJECTED */}
+                {cartas.filter(c => c.rechazado && !c.aprobado).length > 0 && (
+                  <div>
+                    <div className="mono" style={{ fontSize: 10, letterSpacing: '0.15em', color: 'var(--red)', marginBottom: 12 }}>
+                      ✕ RECHAZADAS ({cartas.filter(c => c.rechazado && !c.aprobado).length})
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {cartas.filter(c => c.rechazado && !c.aprobado).map(carta => {
+                        const pid = carta.player_id as string
+                        const profile = carta.profiles as { username: string; avatar_url: string | null } | null
+                        return (
+                          <div key={pid} className="card" style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 16, opacity: 0.7 }}>
+                            <PlayerAvatar url={profile?.avatar_url ?? null} username={profile?.username ?? '?'} size={32} />
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: 600, fontSize: 13 }}>{profile?.username ?? pid}</div>
+                              {(carta.notas_admin as string | null) && (
+                                <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                                  📝 {carta.notas_admin as string}
+                                </div>
+                              )}
+                            </div>
+                            <div className="mono" style={{ fontSize: 10, color: 'var(--red)' }}>RECHAZADO</div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {tab === 'log' && (
           <div id="tab-log" className="fade-in">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>

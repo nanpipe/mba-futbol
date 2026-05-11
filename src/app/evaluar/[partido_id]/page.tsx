@@ -4,6 +4,7 @@ import { useState, useEffect, use } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { CATEGORIAS } from '@/lib/categorias'
+import { PlayerAvatar } from '@/components/PlayerAvatar'
 
 interface Compañero {
   id: string
@@ -39,20 +40,7 @@ function PlayerChip({
         transition: 'all 0.15s',
       }}
     >
-      <div style={{
-        width: 20, height: 20, borderRadius: '50%',
-        background: p.avatar_url ? 'transparent' : '#0f2d1a',
-        border: '1px solid rgba(255,255,255,0.1)',
-        overflow: 'hidden', flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        {p.avatar_url
-          ? <img src={p.avatar_url} alt={p.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          : <span style={{ fontSize: 9, color: selected ? '#000' : 'var(--green)', lineHeight: 1 }}>
-              {p.username[0].toUpperCase()}
-            </span>
-        }
-      </div>
+      <PlayerAvatar url={p.avatar_url} username={p.username} size={20} borderColor="rgba(255,255,255,0.1)" />
       {p.username}
     </button>
   )

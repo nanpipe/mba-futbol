@@ -46,10 +46,32 @@ export async function GET(req: NextRequest) {
 
   const { data: partidos } = await admin
     .from('partidos')
-    .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_apertura_sent, notif_recordatorio_sent, cupos_total')
+    .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_apertura_sent, notif_recordatorio_sent, cupos_total, evaluaciones_abiertas, equipos_confirmados')
     .gte('fecha', hoy)
     .order('fecha', { ascending: true })
     .limit(10)
+
+  // ── Auto-open evaluaciones day after match, auto-close after 2 days ─────────
+  const ayer = new Date(now); ayer.setDate(now.getDate() - 1)
+  const ayerStr = ayer.toISOString().split('T')[0]
+  const dosDiasAtras = new Date(now); dosDiasAtras.setDate(now.getDate() - 2)
+  const dosDiasAtrasStr = dosDiasAtras.toISOString().split('T')[0]
+
+  const { data: pasados } = await admin
+    .from('partidos')
+    .select('id, fecha, evaluaciones_abiertas, equipos_confirmados')
+    .in('fecha', [ayerStr, dosDiasAtrasStr])
+
+  for (const p of pasados ?? []) {
+    if (p.fecha === ayerStr && (p.equipos_confirmados as boolean) && !(p.evaluaciones_abiertas as boolean)) {
+      await admin.from('partidos').update({ evaluaciones_abiertas: true }).eq('id', p.id)
+      await logActivity({ accion: 'auto_abrir_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha } })
+    }
+    if (p.fecha === dosDiasAtrasStr && (p.evaluaciones_abiertas as boolean)) {
+      await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', p.id)
+      await logActivity({ accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha } })
+    }
+  }
 
   for (const partido of partidos ?? []) {
     const { abierta, cierra } = calcularVentanaPartido(partido)

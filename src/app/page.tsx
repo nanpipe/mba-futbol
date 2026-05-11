@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import Link from 'next/link'
 import { calcularVentanaPartido } from '@/lib/partidos'
+import { PlayerAvatar } from '@/components/PlayerAvatar'
+import { colorLabel } from '@/lib/design'
 
 interface Partido {
   id: string
@@ -148,7 +150,7 @@ export default function HomePage() {
     const cargarUltimo = async () => {
       const { data: ultimo } = await supabase
         .from('partidos')
-        .select('id, fecha, dia_semana')
+        .select('id, fecha, dia_semana, evaluaciones_abiertas')
         .lt('fecha', hoy)
         .order('fecha', { ascending: false })
         .limit(1)
@@ -687,7 +689,6 @@ export default function HomePage() {
             {/* Teams display when confirmed */}
             {misEquipos && (() => {
               const myUsername = profile?.username ?? ''
-              const colorLabel = (c: string) => c === 'blanco' ? '🤍 BLANCO' : '🖤 NEGRO'
               const colorAccent = (eq: Equipo) => eq.nombre === 'A' ? 'var(--green)' : 'var(--amber)'
               const colorBorder = (eq: Equipo) => eq.nombre === 'A' ? '#16a34a' : '#92400e'
               const colorBg = (eq: Equipo) => eq.nombre === 'A' ? '#0a1f0a' : '#1a0e00'
@@ -772,12 +773,7 @@ export default function HomePage() {
                                 display: 'flex', alignItems: 'center', gap: 12,
                                 padding: '9px 16px', background: isMe ? bg : 'transparent',
                               }}>
-                                <div style={{ width: 28, height: 28, borderRadius: '50%', background: j.avatar_url ? 'transparent' : '#0f2d1a', border: `1px solid ${isMe ? border : 'var(--border)'}`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                  {j.avatar_url
-                                    ? <img src={j.avatar_url} alt={j.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                    : <span className="display" style={{ fontSize: 11, color: 'var(--green)', lineHeight: 1 }}>{j.username[0].toUpperCase()}</span>
-                                  }
-                                </div>
+                                <PlayerAvatar url={j.avatar_url} username={j.username} size={28} borderColor={isMe ? border : 'var(--border)'} />
                                 <span style={{ fontSize: 14, flex: 1, color: isMe ? 'var(--text)' : 'var(--text-muted)' }}>{j.username}</span>
                                 {isPorteroFijo && <span style={{ fontSize: 13 }}>🧤</span>}
                                 {isMe && <span className="mono" style={{ fontSize: 10, color: accent, letterSpacing: '0.1em' }}>TÚ</span>}
@@ -845,6 +841,32 @@ export default function HomePage() {
                   </div>
                   <Link
                     href={`/evaluar/${ventana.partido.id}`}
+                    className="btn btn-ghost"
+                    style={{ fontSize: 12, padding: '10px 20px', color: 'var(--amber)', borderColor: '#92400e', whiteSpace: 'nowrap' }}
+                  >
+                    Evaluar ahora →
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {/* Evaluation CTA — last match (after match day, 24h window) */}
+            {ultimoPartido?.partido?.evaluaciones_abiertas &&
+              user &&
+              ultimoPartido.inscripciones.some(i => i.player_id === user.id) && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ background: '#1a1500', border: '1px solid #92400e', borderRadius: 6, padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontSize: 20 }}>📊</span>
+                      <span className="display" style={{ fontSize: 18, letterSpacing: '0.05em' }}>Evalúa el último partido</span>
+                    </div>
+                    <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                      {ultimoPartido.partido.dia_semana} · Anónimo · Solo toma 2 minutos
+                    </div>
+                  </div>
+                  <Link
+                    href={`/evaluar/${ultimoPartido.partido.id}`}
                     className="btn btn-ghost"
                     style={{ fontSize: 12, padding: '10px 20px', color: 'var(--amber)', borderColor: '#92400e', whiteSpace: 'nowrap' }}
                   >

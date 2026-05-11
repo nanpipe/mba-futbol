@@ -17,6 +17,8 @@ import {
 } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { posicionEmoji } from '@/lib/teamBalancer'
+import { PlayerAvatar } from '@/components/PlayerAvatar'
+import { colorLabel, MSG } from '@/lib/design'
 
 interface Player {
   id: string
@@ -31,27 +33,6 @@ interface Player {
   ip_registro: string | null
   created_at: string
   avatar_url: string | null
-}
-
-function PlayerAvatar({ url, username, size = 32 }: { url: string | null; username: string; size?: number }) {
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%',
-      background: url ? 'transparent' : '#0f2d1a',
-      border: '1px solid var(--border)',
-      overflow: 'hidden',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      flexShrink: 0,
-    }}>
-      {url ? (
-        <img src={url} alt={username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-      ) : (
-        <span className="display" style={{ fontSize: size * 0.4, color: 'var(--green)', lineHeight: 1 }}>
-          {username?.[0]?.toUpperCase() ?? '?'}
-        </span>
-      )}
-    </div>
-  )
 }
 
 function DraggablePlayerCard({ jugador, equipo, confirmado }: { jugador: JugadorEquipo; equipo: 'A' | 'B'; confirmado: boolean }) {
@@ -766,9 +747,7 @@ export default function AdminPage() {
         {mensaje && (
           <div className="mono fade-in" style={{
             fontSize: 13, padding: '12px 16px', borderRadius: 3, marginBottom: 24,
-            background: mensaje.startsWith('Error') ? '#2d0a0a' : '#0f2d1a',
-            color: mensaje.startsWith('Error') ? 'var(--red)' : 'var(--green)',
-            border: `1px solid ${mensaje.startsWith('Error') ? '#7f1d1d' : '#16a34a'}`
+            ...(mensaje.startsWith('Error') ? MSG.error : MSG.ok),
           }}>
             {mensaje}
           </div>
@@ -1223,7 +1202,7 @@ export default function AdminPage() {
                                 border: `1px solid ${rotacionA.color === 'blanco' ? '#ccc' : '#444'}`,
                                 fontFamily: 'DM Mono, monospace',
                               }}>
-                                {rotacionA.color === 'blanco' ? '🤍 BLANCO' : '🖤 NEGRO'}
+                                {colorLabel(rotacionA.color)}
                               </span>
                             </div>
 
@@ -1321,7 +1300,7 @@ export default function AdminPage() {
                                 border: `1px solid ${rotacionB.color === 'blanco' ? '#ccc' : '#444'}`,
                                 fontFamily: 'DM Mono, monospace',
                               }}>
-                                {rotacionB.color === 'blanco' ? '🤍 BLANCO' : '🖤 NEGRO'}
+                                {colorLabel(rotacionB.color)}
                               </span>
                             </div>
 

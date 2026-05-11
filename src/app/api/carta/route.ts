@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logActivity } from '@/lib/activityLog'
+import { calcTier } from '@/lib/tier'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,15 +15,6 @@ function calcStat(answers: number[]): number {
   const score = answers.reduce((sum, a) => sum + Math.min(5, Math.max(1, Math.round(a))), 0)
   // Formula: 45 + (score * 2), score range 5–25 → FIFA range 55–95
   return Math.round(45 + score * 2)
-}
-
-function calcTier(ovr: number): string {
-  if (ovr >= 88) return 'leyenda'
-  if (ovr >= 81) return 'crack'
-  if (ovr >= 74) return 'oro'
-  if (ovr >= 67) return 'plata'
-  if (ovr >= 60) return 'bronce_alto'
-  return 'bronce_bajo'
 }
 
 // GET /api/carta?player_id=xxx — fetch card

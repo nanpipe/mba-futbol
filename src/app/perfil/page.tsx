@@ -5,7 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
 import { posicionEmoji } from '@/lib/teamBalancer'
-import { FifaCard } from '@/app/mi-carta/page'
+import { FifaCard } from '@/components/FifaCard'
+import { PlayerAvatar } from '@/components/PlayerAvatar'
 
 const POSICIONES = ['portero', 'defensa', 'medio', 'delantero', 'cualquiera'] as const
 type Posicion = typeof POSICIONES[number]
@@ -221,17 +222,12 @@ export default function PerfilPage() {
 
         {/* Avatar + identity */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 40, gap: 10 }}>
-          <div style={{
-            width: 96, height: 96, borderRadius: '50%',
-            background: profile?.avatar_url ? 'transparent' : '#0f2d1a',
-            border: '2px solid var(--border)', overflow: 'hidden',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            {profile?.avatar_url
-              ? <img src={profile.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : <span className="display" style={{ fontSize: 38, color: 'var(--green)', lineHeight: 1 }}>{profile?.username?.[0]?.toUpperCase() ?? '?'}</span>
-            }
-          </div>
+          <PlayerAvatar
+            url={profile?.avatar_url ?? null}
+            username={profile?.username ?? ''}
+            size={96}
+            borderColor="var(--border)"
+          />
 
           <div style={{ textAlign: 'center' }}>
             <div className="display" style={{ fontSize: 22, letterSpacing: '0.05em' }}>{profile?.username}</div>

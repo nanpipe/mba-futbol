@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import Link from 'next/link'
 import { calcularVentanaPartido } from '@/lib/partidos'
+import { PlayerAvatar } from '@/components/PlayerAvatar'
+import { colorLabel } from '@/lib/design'
 
 interface Partido {
   id: string
@@ -687,7 +689,6 @@ export default function HomePage() {
             {/* Teams display when confirmed */}
             {misEquipos && (() => {
               const myUsername = profile?.username ?? ''
-              const colorLabel = (c: string) => c === 'blanco' ? '🤍 BLANCO' : '🖤 NEGRO'
               const colorAccent = (eq: Equipo) => eq.nombre === 'A' ? 'var(--green)' : 'var(--amber)'
               const colorBorder = (eq: Equipo) => eq.nombre === 'A' ? '#16a34a' : '#92400e'
               const colorBg = (eq: Equipo) => eq.nombre === 'A' ? '#0a1f0a' : '#1a0e00'
@@ -772,12 +773,7 @@ export default function HomePage() {
                                 display: 'flex', alignItems: 'center', gap: 12,
                                 padding: '9px 16px', background: isMe ? bg : 'transparent',
                               }}>
-                                <div style={{ width: 28, height: 28, borderRadius: '50%', background: j.avatar_url ? 'transparent' : '#0f2d1a', border: `1px solid ${isMe ? border : 'var(--border)'}`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                  {j.avatar_url
-                                    ? <img src={j.avatar_url} alt={j.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                    : <span className="display" style={{ fontSize: 11, color: 'var(--green)', lineHeight: 1 }}>{j.username[0].toUpperCase()}</span>
-                                  }
-                                </div>
+                                <PlayerAvatar url={j.avatar_url} username={j.username} size={28} borderColor={isMe ? border : 'var(--border)'} />
                                 <span style={{ fontSize: 14, flex: 1, color: isMe ? 'var(--text)' : 'var(--text-muted)' }}>{j.username}</span>
                                 {isPorteroFijo && <span style={{ fontSize: 13 }}>🧤</span>}
                                 {isMe && <span className="mono" style={{ fontSize: 10, color: accent, letterSpacing: '0.1em' }}>TÚ</span>}

@@ -271,13 +271,13 @@ export default function AdminPage() {
 
   const cargarCartas = useCallback(async () => {
     setCartasLoading(true)
-    const { data } = await supabase
-      .from('evaluaciones_carta')
-      .select('*, profiles(username, avatar_url)')
-      .order('created_at', { ascending: false })
-    setCartas((data as unknown as Record<string, unknown>[]) ?? [])
+    const res = await fetch('/api/admin?accion=cartas')
+    if (res.ok) {
+      const json = await res.json()
+      setCartas((json.cartas as Record<string, unknown>[]) ?? [])
+    }
     setCartasLoading(false)
-  }, [supabase])
+  }, [])
 
   const cargarLogs = useCallback(async () => {
     setLogsLoading(true)

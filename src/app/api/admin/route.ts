@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
   if (accion === 'cartas') {
     const { data, error } = await admin
       .from('evaluaciones_carta')
-      .select('*, profiles(username, avatar_url)')
+      .select('*, profiles!evaluaciones_carta_player_id_fkey(username, avatar_url)')
       .order('created_at', { ascending: false })
     if (error) return NextResponse.json({ error: error.message, detail: error.details, hint: error.hint }, { status: 500 })
     return NextResponse.json({ ok: true, cartas: data ?? [], count: data?.length ?? 0 })

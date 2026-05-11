@@ -52,6 +52,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, pendientes: data ?? [] })
   }
 
+  if (accion === 'cartas') {
+    const { data } = await admin
+      .from('evaluaciones_carta')
+      .select('*, profiles(username, avatar_url)')
+      .order('created_at', { ascending: false })
+    return NextResponse.json({ ok: true, cartas: data ?? [] })
+  }
+
   return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 })
 }
 

@@ -147,6 +147,7 @@ export default function AdminPage() {
   const [tab, setTab] = useState<'partidos' | 'equipos' | 'jugadores' | 'notifs' | 'cartas' | 'log'>('partidos')
   const [cartas, setCartas] = useState<Record<string, unknown>[]>([])
   const [cartasLoading, setCartasLoading] = useState(false)
+  const [cartasError, setCartasError] = useState<string | null>(null)
   const [cartaNotas, setCartaNotas] = useState<Record<string, string>>({})
   const [cartaOverrides, setCartaOverrides] = useState<Record<string, Record<string, number>>>({})
   const [cartaActioning, setCartaActioning] = useState<string | null>(null)
@@ -271,10 +272,17 @@ export default function AdminPage() {
 
   const cargarCartas = useCallback(async () => {
     setCartasLoading(true)
-    const res = await fetch('/api/admin?accion=cartas')
-    if (res.ok) {
+    setCartasError(null)
+    try {
+      const res = await fetch('/api/admin?accion=cartas')
       const json = await res.json()
-      setCartas((json.cartas as Record<string, unknown>[]) ?? [])
+      if (res.ok) {
+        setCartas((json.cartas as Record<string, unknown>[]) ?? [])
+      } else {
+        setCartasError(`Error ${res.status}: ${json.error ?? 'desconocido'}`)
+      }
+    } catch (e) {
+      setCartasError(String(e))
     }
     setCartasLoading(false)
   }, [])
@@ -1807,6 +1815,11 @@ export default function AdminPage() {
             </div>
             {cartasLoading ? (
               <div className="mono pulsing" style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: 48 }}>Cargando...</div>
+            ) : cartasError ? (
+              <div className="card" style={{ padding: 24, border: '1px solid var(--red)' }}>
+                <p className="mono" style={{ fontSize: 12, color: 'var(--red)' }}>⚠ Error cargando cartas: {cartasError}</p>
+                <p className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>Revisa la consola del navegador para más detalles.</p>
+              </div>
             ) : cartas.length === 0 ? (
               <div className="card" style={{ textAlign: 'center', padding: 48 }}>
                 <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>Ningún jugador ha enviado su evaluación aún.</p>

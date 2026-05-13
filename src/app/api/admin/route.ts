@@ -61,6 +61,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, cartas: data ?? [], count: data?.length ?? 0 })
   }
 
+  if (accion === 'settings') {
+    const { data } = await admin.from('app_settings').select('key, value, updated_at')
+    const settings: Record<string, unknown> = {}
+    for (const row of (data ?? [])) {
+      settings[(row as { key: string; value: unknown }).key] = (row as { key: string; value: unknown }).value
+    }
+    return NextResponse.json({ ok: true, settings })
+  }
+
   return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 })
 }
 
@@ -462,6 +471,24 @@ export async function POST(req: NextRequest) {
 
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'abrir_evaluaciones', detalles: { partido_id, push_enviados: pushEnviados, jugadores_confirmados: playerIds.length }, ip })
     return NextResponse.json({ ok: true, mensaje: 'Evaluaciones abiertas y jugadores notificados.' })
+  }
+
+  // ── Guardar setting ────────────────────────────────────────────────────────
+  if (accion === 'guardar_setting') {
+    const { key, value } = body
+    const ALLOWED_KEYS = ['notif_apertura', 'notif_recordatorio', 'notif_cupos', 'notif_invitados']
+    if (typeof key !== 'string' || !ALLOWED_KEYS.includes(key)) {
+      return NextResponse.json({ error: 'Clave inválida' }, { status: 400 })
+    }
+    const { error } = await admin.from('app_settings').upsert({
+      key,
+      value: value === true || value === 'true' ? true : false,
+      updated_at: new Date().toISOString(),
+      updated_by: adminUser.id,
+    }, { onConflict: 'key' })
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'guardar_setting', detalles: { key, value }, ip })
+    return NextResponse.json({ ok: true, mensaje: `${key} → ${value}` })
   }
 
   return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 })

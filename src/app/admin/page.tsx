@@ -131,7 +131,10 @@ interface Partido {
   id: string
   fecha: string
   dia_semana: string
+  hora?: string
   cupos_total: number
+  hora_apertura?: string
+  dias_antes_apertura?: number
   inscripciones: { estado: string }[]
   invitados: { estado: string }[]
   evaluaciones_abiertas?: boolean
@@ -142,9 +145,22 @@ interface Partido {
   notif_apertura_sent?: boolean
 }
 
+interface HistorialPartido {
+  id: string
+  fecha: string
+  dia_semana: string
+  resultado: string | null
+  goles_a: number | null
+  goles_b: number | null
+  equipos_confirmados: boolean
+  cupos_total: number
+  inscripciones: { estado: string }[]
+  player_badges: { badge_emoji: string; badge_nombre: string; profiles: { username: string } | null }[]
+}
+
 export default function AdminPage() {
   const supabase = createClient()
-  const [tab, setTab] = useState<'partidos' | 'equipos' | 'jugadores' | 'notifs' | 'cartas' | 'log'>('partidos')
+  const [tab, setTab] = useState<'partidos' | 'equipos' | 'jugadores' | 'notifs' | 'cartas' | 'log' | 'historial'>('partidos')
   const [cartas, setCartas] = useState<Record<string, unknown>[]>([])
   const [cartasLoading, setCartasLoading] = useState(false)
   const [cartasError, setCartasError] = useState<string | null>(null)
@@ -166,13 +182,18 @@ export default function AdminPage() {
   const [logs, setLogs] = useState<ActivityLog[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
 
-  // Modal crear partido
+  // Modal crear/editar partido
   const [crearModal, setCrearModal] = useState(false)
+  const [editPartidoModal, setEditPartidoModal] = useState<Partido | null>(null)
   const [nuevaFecha, setNuevaFecha] = useState('')
   const [nuevaHora, setNuevaHora] = useState('19:00')
   const [nuevosCupos, setNuevosCupos] = useState('14')
   const [nuevaHoraApertura, setNuevaHoraApertura] = useState('10:00')
   const [nuevosDiasAntes, setNuevosDiasAntes] = useState('2')
+
+  // Historial tab
+  const [historial, setHistorial] = useState<HistorialPartido[]>([])
+  const [historialLoading, setHistorialLoading] = useState(false)
 
   // Modal editar jugador (also handles suspend + delete)
   const [editModal, setEditModal] = useState<Player | null>(null)
@@ -245,7 +266,7 @@ export default function AdminPage() {
 
     const { data: pts } = await supabase
       .from('partidos')
-      .select('id, fecha, dia_semana, cupos_total, inscripciones(estado), invitados(estado), evaluaciones_abiertas, equipos_confirmados, resultado, goles_a, goles_b, notif_apertura_sent')
+      .select('id, fecha, dia_semana, hora, cupos_total, hora_apertura, dias_antes_apertura, inscripciones(estado), invitados(estado), evaluaciones_abiertas, equipos_confirmados, resultado, goles_a, goles_b, notif_apertura_sent')
       .gte('fecha', new Date().toISOString().split('T')[0])
       .order('fecha', { ascending: true })
       .limit(8)
@@ -695,6 +716,57 @@ export default function AdminPage() {
     setNuevosDiasAntes('2')
   }
 
+  const abrirEditPartido = (p: Partido) => {
+    setEditPartidoModal(p)
+    setNuevaFecha(p.fecha)
+    setNuevaHora(p.hora?.substring(0, 5) ?? '19:00')
+    setNuevosCupos(String(p.cupos_total))
+    setNuevaHoraApertura(p.hora_apertura?.substring(0, 5) ?? '10:00')
+    setNuevosDiasAntes(String(p.dias_antes_apertura ?? 2))
+  }
+
+  const editarPartido = async () => {
+    if (!editPartidoModal || !nuevaFecha) return
+    const ok = await accionAdmin('editar_partido', {
+      partido_id: editPartidoModal.id,
+      fecha: nuevaFecha,
+      hora: nuevaHora + ':00',
+      cupos_total: nuevosCupos,
+      hora_apertura: nuevaHoraApertura + ':00',
+      dias_antes_apertura: nuevosDiasAntes,
+    })
+    if (ok) {
+      setEditPartidoModal(null)
+      await cargarDatos()
+    }
+  }
+
+  const eliminarPartido = async (partidoId: string) => {
+    const ok = await accionAdmin('eliminar_partido', { partido_id: partidoId })
+    if (ok) {
+      setPartidos(prev => prev.filter(p => p.id !== partidoId))
+      if (selectedPartido === partidoId) setSelectedPartido(null)
+    }
+  }
+
+  const cargarHistorial = useCallback(async () => {
+    setHistorialLoading(true)
+    const hoy = new Date().toISOString().split('T')[0]
+    const { data } = await supabase
+      .from('partidos')
+      .select('id, fecha, dia_semana, resultado, goles_a, goles_b, equipos_confirmados, cupos_total, inscripciones(estado), player_badges(badge_emoji, badge_nombre, profiles!player_badges_player_id_fkey(username))')
+      .lt('fecha', hoy)
+      .order('fecha', { ascending: false })
+      .limit(30)
+    setHistorial((data as unknown as HistorialPartido[]) ?? [])
+    setHistorialLoading(false)
+  }, [supabase])
+
+  // Must be after cargarHistorial is declared
+  useEffect(() => {
+    if (tab === 'historial') cargarHistorial()
+  }, [tab, cargarHistorial])
+
   const enviarPushTest = async () => {
     setPushSending(true)
     const { data: { session } } = await supabase.auth.getSession()
@@ -819,7 +891,7 @@ export default function AdminPage() {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 0, marginBottom: 40, borderBottom: '1px solid var(--border)', overflowX: 'auto', overflowY: 'hidden' }}>
-          {(['partidos', 'equipos', 'jugadores', 'notifs', 'cartas', 'log'] as const).map(t => (
+          {(['partidos', 'historial', 'equipos', 'jugadores', 'notifs', 'cartas', 'log'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)} className="mono" style={{
               padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer',
               fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap',
@@ -873,33 +945,47 @@ export default function AdminPage() {
                       espera = rows.filter((r: { estado: string }) => r.estado === 'espera').length
                     }
                     return (
-                      <button key={p.id} onClick={() => setSelectedPartido(p.id)} style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '12px 16px', background: selectedPartido === p.id ? 'var(--bg-elevated)' : 'var(--bg-card)',
-                        border: `1px solid ${selectedPartido === p.id ? 'var(--green)' : 'var(--border)'}`,
-                        borderRadius: 3, cursor: 'pointer', textAlign: 'left'
-                      }}>
-                        <div>
-                          <div className="display" style={{ fontSize: 18, letterSpacing: '0.05em', color: selectedPartido === p.id ? 'var(--green)' : 'var(--text)' }}>
-                            {p.dia_semana.toUpperCase()}
+                      <div key={p.id} style={{ display: 'flex', gap: 4, alignItems: 'stretch' }}>
+                        <button onClick={() => setSelectedPartido(p.id)} style={{
+                          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '12px 16px', background: selectedPartido === p.id ? 'var(--bg-elevated)' : 'var(--bg-card)',
+                          border: `1px solid ${selectedPartido === p.id ? 'var(--green)' : 'var(--border)'}`,
+                          borderRadius: 3, cursor: 'pointer', textAlign: 'left'
+                        }}>
+                          <div>
+                            <div className="display" style={{ fontSize: 18, letterSpacing: '0.05em', color: selectedPartido === p.id ? 'var(--green)' : 'var(--text)' }}>
+                              {p.dia_semana.toUpperCase()}
+                            </div>
+                            <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                              {new Date(p.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}
+                            </div>
                           </div>
-                          <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                            {new Date(p.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}
+                          <div style={{ textAlign: 'right' }}>
+                            <div className="mono" style={{ fontSize: 13 }}>
+                              <span style={{ color: confirmados >= cupos ? 'var(--red)' : 'var(--green)' }}>{confirmados}</span>
+                              <span style={{ color: 'var(--text-dim)' }}>/{cupos}</span>
+                            </div>
+                            {espera > 0 && (
+                              <div className="mono" style={{ fontSize: 11, color: 'var(--amber)' }}>+{espera} espera</div>
+                            )}
+                            <div className="mono" style={{ fontSize: 9, color: p.notif_apertura_sent ? 'var(--green)' : 'var(--text-dim)', marginTop: 2 }}>
+                              {p.notif_apertura_sent ? '🔔 notif ✓' : '🔕 notif pendiente'}
+                            </div>
                           </div>
+                        </button>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <button
+                            onClick={() => abrirEditPartido(p)}
+                            title="Editar partido"
+                            style={{ flex: 1, padding: '0 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14 }}
+                          >✏</button>
+                          <button
+                            onClick={() => { if (window.confirm(`¿Eliminar partido del ${p.dia_semana} ${p.fecha}? Esta acción no se puede deshacer.`)) eliminarPartido(p.id) }}
+                            title="Eliminar partido"
+                            style={{ flex: 1, padding: '0 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--red)', fontSize: 14 }}
+                          >✕</button>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div className="mono" style={{ fontSize: 13 }}>
-                            <span style={{ color: confirmados >= cupos ? 'var(--red)' : 'var(--green)' }}>{confirmados}</span>
-                            <span style={{ color: 'var(--text-dim)' }}>/{cupos}</span>
-                          </div>
-                          {espera > 0 && (
-                            <div className="mono" style={{ fontSize: 11, color: 'var(--amber)' }}>+{espera} espera</div>
-                          )}
-                          <div className="mono" style={{ fontSize: 9, color: p.notif_apertura_sent ? 'var(--green)' : 'var(--text-dim)', marginTop: 2 }}>
-                            {p.notif_apertura_sent ? '🔔 notif ✓' : '🔕 notif pendiente'}
-                          </div>
-                        </div>
-                      </button>
+                      </div>
                     )
                   })}
                 </div>
@@ -2046,6 +2132,69 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* TAB: HISTORIAL */}
+        {tab === 'historial' && (
+          <div id="tab-historial" className="fade-in">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
+                HISTORIAL — {historial.length} partidos pasados
+              </div>
+              <button onClick={cargarHistorial} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>↻ Refrescar</button>
+            </div>
+            {historialLoading ? (
+              <div className="mono pulsing" style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: 48 }}>Cargando...</div>
+            ) : historial.length === 0 ? (
+              <div className="card" style={{ textAlign: 'center', padding: 48 }}>
+                <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>No hay partidos pasados registrados.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {historial.map(p => {
+                  const confirmados = (p.inscripciones ?? []).filter((i: { estado: string }) => i.estado === 'confirmado').length
+                  const badges = p.player_badges ?? []
+                  const score = p.goles_a != null && p.goles_b != null
+                    ? `${p.goles_a} – ${p.goles_b}`
+                    : p.resultado ?? null
+                  return (
+                    <div key={p.id} className="card" style={{ padding: '16px 20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                        <div>
+                          <div className="display" style={{ fontSize: 20, letterSpacing: '0.05em' }}>
+                            {p.dia_semana.toUpperCase()}
+                            <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 10 }}>
+                              {new Date(p.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </span>
+                          </div>
+                          <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                            {confirmados} jugadores
+                            {score && <span style={{ color: 'var(--text)', fontWeight: 600, marginLeft: 12 }}>🤍 {score} 🖤</span>}
+                            {!score && <span style={{ color: 'var(--text-dim)', marginLeft: 12 }}>sin resultado</span>}
+                          </div>
+                        </div>
+                        {p.equipos_confirmados && (
+                          <div className="mono" style={{ fontSize: 10, color: 'var(--green)', border: '1px solid #16a34a', padding: '2px 8px', borderRadius: 2 }}>
+                            CONFIRMADO
+                          </div>
+                        )}
+                      </div>
+                      {badges.length > 0 && (
+                        <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {badges.map((b, i) => (
+                            <div key={i} className="mono" style={{ fontSize: 11, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 2, padding: '3px 8px' }}>
+                              {b.badge_emoji} {b.badge_nombre}
+                              {b.profiles && <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>· {b.profiles.username}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {tab === 'log' && (
           <div id="tab-log" className="fade-in">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
@@ -2148,6 +2297,52 @@ export default function AdminPage() {
                 Crear partido
               </button>
               <button onClick={() => setCrearModal(false)} className="btn btn-ghost">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Partido */}
+      {editPartidoModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 20, zIndex: 100
+        }}>
+          <div className="card fade-in" style={{ width: '100%', maxWidth: 400 }}>
+            <h3 className="display" style={{ fontSize: 24, marginBottom: 8 }}>Editar partido</h3>
+            <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 24 }}>
+              {editPartidoModal.dia_semana.toUpperCase()} · {editPartidoModal.fecha}
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>FECHA</label>
+                <input type="date" value={nuevaFecha} onChange={e => setNuevaFecha(e.target.value)} />
+              </div>
+              <div>
+                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>HORA DEL PARTIDO</label>
+                <input type="time" value={nuevaHora} onChange={e => setNuevaHora(e.target.value)} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>HORA APERTURA</label>
+                  <input type="time" value={nuevaHoraApertura} onChange={e => setNuevaHoraApertura(e.target.value)} />
+                </div>
+                <div>
+                  <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>DÍAS ANTES</label>
+                  <input type="number" min="0" max="7" value={nuevosDiasAntes} onChange={e => setNuevosDiasAntes(e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>CUPOS</label>
+                <input type="number" min="1" max="30" value={nuevosCupos} onChange={e => setNuevosCupos(e.target.value)} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+              <button onClick={editarPartido} disabled={!nuevaFecha} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
+                Guardar cambios
+              </button>
+              <button onClick={() => setEditPartidoModal(null)} className="btn btn-ghost">Cancelar</button>
             </div>
           </div>
         </div>

@@ -290,6 +290,45 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, mensaje: `Partido del ${dia_semana} ${fecha} creado.` })
   }
 
+  // ── Editar partido ─────────────────────────────────────────────────────────
+  if (accion === 'editar_partido') {
+    const { partido_id, fecha, hora, cupos_total, hora_apertura, dias_antes_apertura } = body
+    if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
+    if (!isDate(fecha)) return NextResponse.json({ error: 'Fecha inválida' }, { status: 400 })
+    if (!isIntInRange(cupos_total, 2, 30)) return NextResponse.json({ error: 'Cupos debe ser entre 2 y 30' }, { status: 400 })
+    if (!isIntInRange(dias_antes_apertura, 0, 14)) return NextResponse.json({ error: 'Días antes debe ser entre 0 y 14' }, { status: 400 })
+
+    const date = new Date((fecha as string) + 'T12:00:00')
+    const dias = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+    const dia_semana = dias[date.getDay()]
+
+    const { error } = await admin.from('partidos').update({
+      fecha: fecha as string,
+      dia_semana,
+      hora: isString(hora, 4, 8) ? (hora as string) : '19:00:00',
+      cupos_total: parseInt(String(cupos_total), 10),
+      hora_apertura: isString(hora_apertura, 4, 8) ? (hora_apertura as string) : '10:00:00',
+      dias_antes_apertura: parseInt(String(dias_antes_apertura), 10),
+    }).eq('id', partido_id as string)
+
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'editar_partido', detalles: { partido_id, fecha, dia_semana, hora, cupos_total }, ip })
+    return NextResponse.json({ ok: true, mensaje: `Partido del ${dia_semana} ${fecha} actualizado.` })
+  }
+
+  // ── Eliminar partido ───────────────────────────────────────────────────────
+  if (accion === 'eliminar_partido') {
+    const { partido_id } = body
+    if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
+
+    const { data: p } = await admin.from('partidos').select('fecha, dia_semana').eq('id', partido_id as string).single()
+    const { error } = await admin.from('partidos').delete().eq('id', partido_id as string)
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'eliminar_partido', detalles: { partido_id, fecha: (p as { fecha?: string })?.fecha, dia_semana: (p as { dia_semana?: string })?.dia_semana }, ip })
+    return NextResponse.json({ ok: true, mensaje: 'Partido eliminado.' })
+  }
+
   // ── Editar jugador ─────────────────────────────────────────────────────────
   if (accion === 'editar_jugador') {
     const { player_id, email } = body

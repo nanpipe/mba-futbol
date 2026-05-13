@@ -44,6 +44,17 @@ export async function GET(req: NextRequest) {
   const hoy = now.toISOString().split('T')[0]
   const results = { apertura: 0, recordatorio: 0, cupos: 0, invitados: 0 }
 
+  // ── Load notification toggles from app_settings ──────────────────────────
+  const { data: settingsRows } = await admin.from('app_settings').select('key, value')
+  const settings: Record<string, boolean> = {}
+  for (const row of (settingsRows ?? [])) {
+    settings[(row as { key: string; value: unknown }).key] = (row as { key: string; value: unknown }).value === true
+  }
+  const sendApertura    = settings['notif_apertura']    !== false
+  const sendRecordatorio = settings['notif_recordatorio'] !== false
+  const sendCupos       = settings['notif_cupos']       !== false
+  const sendInvitados   = settings['notif_invitados']   !== false
+
   const { data: partidos } = await admin
     .from('partidos')
     .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_apertura_sent, notif_recordatorio_sent, cupos_total, evaluaciones_abiertas, equipos_confirmados')
@@ -79,7 +90,7 @@ export async function GET(req: NextRequest) {
     const matchHora = partido.hora?.substring(0, 5) ?? '19:00'
 
     // ── 1. Apertura: window just opened, not yet notified ────────────────────
-    if (!partido.notif_apertura_sent && abierta) {
+    if (sendApertura && !partido.notif_apertura_sent && abierta) {
       const { data: subs } = await admin.from('push_subscriptions').select('endpoint, p256dh, auth')
       results.apertura += await sendToMany(admin, subs ?? [], {
         title: '⚽ ¡Inscripciones abiertas!',
@@ -90,7 +101,7 @@ export async function GET(req: NextRequest) {
     }
 
     // ── 2. Recordatorio: match in <8h, not yet notified ──────────────────────
-    if (!partido.notif_recordatorio_sent && hoursToMatch > 0 && hoursToMatch <= 8) {
+    if (sendRecordatorio && !partido.notif_recordatorio_sent && hoursToMatch > 0 && hoursToMatch <= 8) {
       const { data: inscripciones } = await admin
         .from('inscripciones')
         .select('player_id')
@@ -114,7 +125,7 @@ export async function GET(req: NextRequest) {
     }
 
     // ── 3. Cupos disponibles ──────────────────────────────────────────────────
-    if (abierta) {
+    if (sendCupos && abierta) {
       const { count: confirmados } = await admin
         .from('inscripciones')
         .select('id', { count: 'exact', head: true })
@@ -145,7 +156,7 @@ export async function GET(req: NextRequest) {
     }
 
     // ── 4. Invitee promotion: today's match at 2pm ────────────────────────────
-    if (partido.fecha === hoy) {
+    if (sendInvitados && partido.fecha === hoy) {
       const { count: confirmados } = await admin
         .from('inscripciones')
         .select('id', { count: 'exact', head: true })

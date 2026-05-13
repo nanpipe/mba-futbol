@@ -160,7 +160,7 @@ interface HistorialPartido {
 
 export default function AdminPage() {
   const supabase = createClient()
-  const [tab, setTab] = useState<'partidos' | 'equipos' | 'jugadores' | 'notifs' | 'cartas' | 'log' | 'historial'>('partidos')
+  const [tab, setTab] = useState<'partidos' | 'equipos' | 'jugadores' | 'notifs' | 'cartas' | 'log' | 'historial' | 'ajustes'>('partidos')
   const [cartas, setCartas] = useState<Record<string, unknown>[]>([])
   const [cartasLoading, setCartasLoading] = useState(false)
   const [cartasError, setCartasError] = useState<string | null>(null)
@@ -168,6 +168,14 @@ export default function AdminPage() {
   const [cartaOverrides, setCartaOverrides] = useState<Record<string, Record<string, number>>>({})
   const [cartaActioning, setCartaActioning] = useState<string | null>(null)
   const [authed, setAuthed] = useState<boolean | null>(null)
+  // App settings (ajustes tab)
+  const [settings, setSettings] = useState<Record<string, boolean>>({
+    notif_apertura: true,
+    notif_recordatorio: true,
+    notif_cupos: true,
+    notif_invitados: true,
+  })
+  const [settingsLoading, setSettingsLoading] = useState(false)
   const [players, setPlayers] = useState<Player[]>([])
   const [playerIdsWithPush, setPlayerIdsWithPush] = useState<Set<string>>(new Set())
   const [partidos, setPartidos] = useState<Partido[]>([])
@@ -307,6 +315,25 @@ export default function AdminPage() {
     }
     setCartasLoading(false)
   }, [])
+
+  const cargarSettings = useCallback(async () => {
+    setSettingsLoading(true)
+    const res = await fetch('/api/admin?accion=settings')
+    if (res.ok) {
+      const json = await res.json()
+      setSettings(json.settings ?? {})
+    }
+    setSettingsLoading(false)
+  }, [])
+
+  const toggleSetting = async (key: string, value: boolean) => {
+    setSettings(prev => ({ ...prev, [key]: value }))
+    await fetch('/api/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion: 'guardar_setting', key, value }),
+    })
+  }
 
   const cargarLogs = useCallback(async () => {
     setLogsLoading(true)
@@ -767,6 +794,10 @@ export default function AdminPage() {
     if (tab === 'historial') cargarHistorial()
   }, [tab, cargarHistorial])
 
+  useEffect(() => {
+    if (tab === 'ajustes') cargarSettings()
+  }, [tab, cargarSettings])
+
   const enviarPushTest = async () => {
     setPushSending(true)
     const { data: { session } } = await supabase.auth.getSession()
@@ -890,21 +921,39 @@ export default function AdminPage() {
         )}
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 0, marginBottom: 40, borderBottom: '1px solid var(--border)', overflowX: 'auto', overflowY: 'hidden' }}>
-          {(['partidos', 'historial', 'equipos', 'jugadores', 'notifs', 'cartas', 'log'] as const).map(t => (
-            <button key={t} onClick={() => setTab(t)} className="mono" style={{
-              padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer',
-              fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap',
-              color: tab === t ? 'var(--text)' : 'var(--text-muted)',
-              borderBottom: tab === t ? '2px solid var(--green)' : '2px solid transparent',
-              marginBottom: -1,
-              position: 'relative',
-            }}>
-              {t === 'cartas' && cartas.filter(c => !c.aprobado && !c.rechazado).length > 0
-                ? `${t} (${cartas.filter(c => !c.aprobado && !c.rechazado).length})`
-                : t}
-            </button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'flex-end', marginBottom: 40, borderBottom: '1px solid var(--border)' }}>
+          {/* Main text tabs */}
+          <div style={{ display: 'flex', flex: 1, gap: 0, overflowX: 'auto', overflowY: 'hidden' }}>
+            {(['partidos', 'equipos', 'jugadores', 'cartas', 'ajustes', 'log'] as const).map(t => (
+              <button key={t} onClick={() => setTab(t)} className="mono" style={{
+                padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                color: tab === t ? 'var(--text)' : 'var(--text-muted)',
+                borderBottom: tab === t ? '2px solid var(--green)' : '2px solid transparent',
+                marginBottom: -1, position: 'relative',
+              }}>
+                {t === 'cartas' && cartas.filter(c => !c.aprobado && !c.rechazado).length > 0
+                  ? `cartas (${cartas.filter(c => !c.aprobado && !c.rechazado).length})`
+                  : t === 'ajustes' ? '⚙' : t}
+              </button>
+            ))}
+          </div>
+          {/* Icon-only utility tabs */}
+          <div style={{ display: 'flex', gap: 0, flexShrink: 0 }}>
+            {([
+              { id: 'historial', icon: '🕐', title: 'Historial' },
+              { id: 'notifs', icon: '🔔', title: 'Notificaciones' },
+            ] as const).map(({ id, icon, title }) => (
+              <button key={id} onClick={() => setTab(id)} title={title} className="mono" style={{
+                padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 16, marginBottom: -1,
+                borderBottom: tab === id ? '2px solid var(--green)' : '2px solid transparent',
+                opacity: tab === id ? 1 : 0.45,
+              }}>
+                {icon}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* TAB: PARTIDOS */}
@@ -2190,6 +2239,68 @@ export default function AdminPage() {
                     </div>
                   )
                 })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB: AJUSTES */}
+        {tab === 'ajustes' && (
+          <div id="tab-ajustes" className="fade-in">
+            <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 32 }}>CONFIGURACIÓN</div>
+
+            {settingsLoading ? (
+              <div className="mono pulsing" style={{ fontSize: 13, color: 'var(--text-muted)', padding: 48, textAlign: 'center' }}>Cargando...</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 560 }}>
+
+                {/* Push notifications */}
+                <div className="card" style={{ padding: '20px 24px' }}>
+                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--amber)', marginBottom: 20 }}>🔔 NOTIFICACIONES PUSH</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {([
+                      { key: 'notif_apertura',      label: 'Inscripciones abiertas',    desc: 'Cuando abre la ventana de inscripción para un partido' },
+                      { key: 'notif_recordatorio',  label: 'Recordatorio de partido',   desc: 'A los confirmados, 8h antes del partido' },
+                      { key: 'notif_cupos',         label: 'Cupos disponibles',         desc: 'A no-inscritos cuando quedan cupos libres' },
+                      { key: 'notif_invitados',     label: 'Promoción de invitados',    desc: 'Mueve invitados de espera a confirmado el día del partido' },
+                    ] as const).map(({ key, label, desc }) => (
+                      <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 500 }}>{label}</div>
+                          <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{desc}</div>
+                        </div>
+                        <button
+                          onClick={() => toggleSetting(key, !settings[key])}
+                          style={{
+                            flexShrink: 0,
+                            width: 44, height: 24, borderRadius: 12,
+                            background: settings[key] !== false ? 'var(--green)' : 'var(--border)',
+                            border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s',
+                          }}
+                        >
+                          <div style={{
+                            position: 'absolute', top: 3, left: settings[key] !== false ? 23 : 3,
+                            width: 18, height: 18, borderRadius: '50%', background: '#fff',
+                            transition: 'left 0.2s',
+                          }} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Cron info */}
+                <div className="card" style={{ padding: '16px 24px' }}>
+                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>⏱ CRON SCHEDULE</div>
+                  <div className="mono" style={{ fontSize: 13 }}>
+                    <span style={{ color: 'var(--green)' }}>0 19 * * *</span>
+                    <span style={{ color: 'var(--text-muted)', marginLeft: 12 }}>→ 2:00 PM Colombia (19:00 UTC)</span>
+                  </div>
+                  <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8 }}>
+                    Corre diariamente. Verifica apertura, recordatorio, cupos y promoción de invitados en un solo pase.
+                  </div>
+                </div>
+
               </div>
             )}
           </div>

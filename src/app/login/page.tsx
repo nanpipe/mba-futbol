@@ -4,10 +4,9 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 
-
 export default function LoginPage() {
   const supabase = createClient()
-  const [username, setUsername] = useState('')
+  const [identifier, setIdentifier] = useState('')  // username or email
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -17,15 +16,17 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    // Buscar email + estado por username (single query)
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('email, aprobado')
-      .eq('username', username.trim().toLowerCase())
-      .single()
+    const raw = identifier.trim().toLowerCase()
+    const isEmail = raw.includes('@')
+
+    // Resolve email + aprobado — by email or by username
+    const query = isEmail
+      ? supabase.from('profiles').select('email, aprobado').eq('email', raw).single()
+      : supabase.from('profiles').select('email, aprobado').eq('username', raw).single()
+
+    const { data: profile, error: profileError } = await query
 
     if (profileError || !profile) {
-      // Generic error to avoid username enumeration
       setError('Usuario o contraseña incorrectos.')
       setLoading(false)
       return
@@ -37,13 +38,11 @@ export default function LoginPage() {
     })
 
     if (authError) {
-      // Generic error — don't reveal whether username or password was wrong
       setError('Usuario o contraseña incorrectos.')
       setLoading(false)
       return
     }
 
-    // Check approval after successful auth
     if (!profile.aprobado) {
       await supabase.auth.signOut()
       setError('Tu cuenta está pendiente de aprobación por el administrador. Te avisaremos cuando esté lista.')
@@ -51,9 +50,7 @@ export default function LoginPage() {
       return
     }
 
-    // Log login event (fire-and-forget, don't block navigation)
     fetch('/api/auth/log-login', { method: 'POST' }).catch(() => {})
-
     window.location.href = '/'
   }
 
@@ -73,15 +70,16 @@ export default function LoginPage() {
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
             <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>
-              USUARIO
+              USUARIO O EMAIL
             </label>
             <input
               type="text"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              placeholder="tu_usuario"
+              value={identifier}
+              onChange={e => setIdentifier(e.target.value)}
+              placeholder="tu_usuario o correo@ejemplo.com"
               required
               autoComplete="username"
+              inputMode="email"
             />
           </div>
 
@@ -114,7 +112,7 @@ export default function LoginPage() {
         </form>
 
         <p className="mono" style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginTop: 24 }}>
-          <Link href="/recuperar" style={{ color: 'var(--text-dim)', textDecoration: 'none' }}>¿Olvidaste tu contraseña?</Link>
+          <Link href="/recuperar" style={{ color: 'var(--text-dim)', textDecoration: 'none' }}>¿Olvidaste tu contraseña o usuario?</Link>
         </p>
 
         <p className="mono" style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginTop: 12 }}>

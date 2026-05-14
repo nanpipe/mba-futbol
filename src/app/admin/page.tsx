@@ -115,6 +115,7 @@ interface Inscripcion {
   estado: 'confirmado' | 'espera'
   posicion_espera: number | null
   partido_id: string
+  created_at: string
   profiles: { username: string; id: string }
   partidos: { fecha: string; dia_semana: string }
 }
@@ -189,6 +190,8 @@ export default function AdminPage() {
   // Log tab
   const [logs, setLogs] = useState<ActivityLog[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
+  const [logFilter, setLogFilter] = useState<string>('todos')
+  const [logSearch, setLogSearch] = useState('')
 
   // Modal crear/editar partido
   const [crearModal, setCrearModal] = useState(false)
@@ -287,7 +290,7 @@ export default function AdminPage() {
   const cargarInscripciones = useCallback(async (partidoId: string) => {
     const { data } = await supabase
       .from('inscripciones')
-      .select('id, estado, posicion_espera, partido_id, profiles(username, id), partidos(fecha, dia_semana)')
+      .select('id, estado, posicion_espera, partido_id, created_at, profiles(username, id), partidos(fecha, dia_semana)')
       .eq('partido_id', partidoId)
       .order('estado', { ascending: true })
       .order('posicion_espera', { ascending: true, nullsFirst: false })
@@ -940,9 +943,9 @@ export default function AdminPage() {
         {/* Utility icon bar — separate from main tabs */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4, marginBottom: 8 }}>
           {([
-            { id: 'ajustes',  icon: '⚙',  title: 'Configuración' },
+            { id: 'ajustes',   icon: '⚙',  title: 'Configuración' },
             { id: 'historial', icon: '🕐', title: 'Historial' },
-            { id: 'notifs',   icon: '🔔', title: 'Notificaciones' },
+            { id: 'notifs',    icon: '🔔', title: 'Notificaciones' },
           ] as const).map(({ id, icon, title }) => (
             <button
               key={id}
@@ -953,8 +956,8 @@ export default function AdminPage() {
                 padding: '7px 13px', borderRadius: 6,
                 background: tab === id ? 'var(--bg-card)' : 'none',
                 border: tab === id ? '1px solid var(--border)' : '1px solid transparent',
-                cursor: 'pointer', fontSize: 16,
-                opacity: tab === id ? 1 : 0.4,
+                cursor: 'pointer', fontSize: 16, color: '#fff',
+                opacity: tab === id ? 1 : 0.55,
                 transition: 'opacity 0.15s, background 0.15s',
               }}
             >
@@ -963,21 +966,24 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {/* Main text tabs */}
-        <div style={{ display: 'flex', alignItems: 'flex-end', marginBottom: 40, borderBottom: '1px solid var(--border)' }}>
-          {(['partidos', 'equipos', 'jugadores', 'cartas', 'log'] as const).map(t => (
-            <button key={t} onClick={() => setTab(t)} className="mono" style={{
-              padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer',
-              fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap',
-              color: tab === t ? 'var(--text)' : 'var(--text-muted)',
-              borderBottom: tab === t ? '2px solid var(--green)' : '2px solid transparent',
-              marginBottom: -1, position: 'relative',
-            }}>
-              {t === 'cartas' && cartas.filter(c => !c.aprobado && !c.rechazado).length > 0
-                ? `cartas (${cartas.filter(c => !c.aprobado && !c.rechazado).length})`
-                : t}
-            </button>
-          ))}
+        {/* Main text tabs — scrollable on mobile */}
+        <div style={{ marginBottom: 40, borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
+            {(['partidos', 'equipos', 'jugadores', 'cartas', 'log'] as const).map(t => (
+              <button key={t} onClick={() => setTab(t)} className="mono" style={{
+                padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase',
+                whiteSpace: 'nowrap', flexShrink: 0,
+                color: tab === t ? 'var(--text)' : 'var(--text-muted)',
+                borderBottom: tab === t ? '2px solid var(--green)' : '2px solid transparent',
+                marginBottom: -1, position: 'relative',
+              }}>
+                {t === 'cartas' && cartas.filter(c => !c.aprobado && !c.rechazado).length > 0
+                  ? `cartas (${cartas.filter(c => !c.aprobado && !c.rechazado).length})`
+                  : t}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* TAB: PARTIDOS */}
@@ -1107,7 +1113,14 @@ export default function AdminPage() {
                               <span className={`badge ${ins.estado === 'confirmado' ? 'badge-green' : 'badge-amber'}`}>
                                 {ins.estado === 'confirmado' ? '✓' : `#${ins.posicion_espera}`}
                               </span>
-                              <span style={{ fontSize: 15 }}>{ins.profiles.username}</span>
+                              <div>
+                                <div style={{ fontSize: 15 }}>{ins.profiles.username}</div>
+                                <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 1 }}>
+                                  {new Date(ins.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', timeZone: 'America/Bogota' })}
+                                  {' · '}
+                                  {new Date(ins.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' })}
+                                </div>
+                              </div>
                             </div>
                             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                               {ins.estado === 'confirmado' && (
@@ -2391,63 +2404,118 @@ export default function AdminPage() {
           </div>
         )}
 
-        {tab === 'log' && (
-          <div id="tab-log" className="fade-in">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-              <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
-                ACTIVIDAD RECIENTE — {logs.length}
+        {tab === 'log' && (() => {
+          const LOG_FILTERS = [
+            { id: 'todos',        label: 'Todos' },
+            { id: 'login',        label: 'Login',         match: ['login'] },
+            { id: 'inscripcion',  label: 'Inscripción',   match: ['inscribirse', 'cancelar_inscripcion', 'promover_espera', 'confirmar_invitado'] },
+            { id: 'carta',        label: 'Carta',         match: ['enviar_carta', 'aprobar_carta', 'rechazar_carta'] },
+            { id: 'partido',      label: 'Partido',       match: ['crear_partido', 'editar_partido', 'eliminar_partido', 'registrar_resultado', 'forzar_notif_apertura', 'abrir_evaluaciones'] },
+            { id: 'jugador',      label: 'Jugador',       match: ['aprobar_jugador', 'rechazar_jugador', 'banear', 'liberar_ban', 'eliminar_jugador', 'editar_jugador', 'cambiar_password', 'actualizar_posicion', 'toggle_uniform', 'mover_espera', 'remover_partido'] },
+            { id: 'perfil',       label: 'Perfil',        match: ['actualizar_perfil', 'actualizar_posicion', 'subir_avatar'] },
+            { id: 'notif',        label: 'Notif',         match: ['cron_notificaciones', 'guardar_setting', 'enviar_email_prueba'] },
+          ] as const
+          const filteredLogs = logs.filter(log => {
+            const matchesFilter = logFilter === 'todos' ||
+              (LOG_FILTERS.find(f => f.id === logFilter) as { match?: readonly string[] } | undefined)?.match?.some(m => log.accion.includes(m))
+            const matchesSearch = !logSearch || log.username?.toLowerCase().includes(logSearch.toLowerCase()) || log.accion.toLowerCase().includes(logSearch.toLowerCase())
+            return matchesFilter && matchesSearch
+          })
+          return (
+            <div id="tab-log" className="fade-in">
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
+                  ACTIVIDAD — {filteredLogs.length}{logFilter !== 'todos' ? ` de ${logs.length}` : ''}
+                </div>
+                <button onClick={cargarLogs} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>
+                  ↻ Refrescar
+                </button>
               </div>
-              <button onClick={cargarLogs} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>
-                ↻ Refrescar
-              </button>
-            </div>
-            {logsLoading ? (
-              <div className="mono pulsing" style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: 48 }}>Cargando...</div>
-            ) : logs.length === 0 ? (
-              <div className="card" style={{ textAlign: 'center', padding: 48 }}>
-                <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>Sin actividad registrada aún.</p>
+
+              {/* Search */}
+              <input
+                type="text"
+                placeholder="Buscar por usuario o acción..."
+                value={logSearch}
+                onChange={e => setLogSearch(e.target.value)}
+                style={{ marginBottom: 12 }}
+              />
+
+              {/* Filter chips */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
+                {LOG_FILTERS.map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => setLogFilter(f.id)}
+                    className="mono"
+                    style={{
+                      fontSize: 11, padding: '5px 12px', borderRadius: 20, cursor: 'pointer',
+                      background: logFilter === f.id ? 'var(--green)' : 'var(--bg-card)',
+                      color: logFilter === f.id ? '#000' : 'var(--text-muted)',
+                      border: `1px solid ${logFilter === f.id ? 'var(--green)' : 'var(--border)'}`,
+                      letterSpacing: '0.06em',
+                    }}
+                  >
+                    {f.label}
+                  </button>
+                ))}
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {logs.map(log => (
-                  <div key={log.id} style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 16,
-                    padding: '10px 14px', background: 'var(--bg-card)',
-                    border: '1px solid var(--border)', borderRadius: 3,
-                    flexWrap: 'wrap',
-                  }}>
-                    <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', whiteSpace: 'nowrap', minWidth: 110 }}>
-                      {new Date(log.created_at).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
-                      {' '}
-                      {new Date(log.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                    <div className="mono" style={{ fontSize: 11, color: 'var(--amber)', minWidth: 80 }}>
-                      {log.username ?? '—'}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <span className="mono" style={{ fontSize: 12, color: 'var(--text)', letterSpacing: '0.05em' }}>
-                        {log.accion}
-                      </span>
+
+              {logsLoading ? (
+                <div className="mono pulsing" style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: 48 }}>Cargando...</div>
+              ) : filteredLogs.length === 0 ? (
+                <div className="card" style={{ textAlign: 'center', padding: 48 }}>
+                  <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>Sin registros.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {filteredLogs.map(log => (
+                    <div key={log.id} className="card" style={{ padding: '14px 16px' }}>
+                      {/* Top row: timestamp + user + IP */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+                        <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>
+                          {new Date(log.created_at).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', timeZone: 'America/Bogota' })}
+                          {' '}
+                          {new Date(log.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' })}
+                        </span>
+                        <span className="mono" style={{ fontSize: 11, color: 'var(--amber)', fontWeight: 600 }}>
+                          {log.username ?? '—'}
+                        </span>
+                        {log.ip && (
+                          <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 'auto' }}>
+                            {log.ip}
+                          </span>
+                        )}
+                      </div>
+                      {/* Action badge */}
+                      <div style={{ marginBottom: log.detalles && Object.keys(log.detalles).length > 0 ? 8 : 0 }}>
+                        <span className="mono" style={{
+                          fontSize: 12, letterSpacing: '0.06em', color: 'var(--text)',
+                          background: 'var(--bg)', padding: '3px 8px', borderRadius: 3, border: '1px solid var(--border)',
+                        }}>
+                          {log.accion}
+                        </span>
+                      </div>
+                      {/* Details */}
                       {log.detalles && Object.keys(log.detalles).length > 0 && (
-                        <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
                           {Object.entries(log.detalles)
-                            .filter(([k]) => !['player_id'].includes(k))
-                            .map(([k, v]) => `${k}: ${v}`)
-                            .join(' · ')}
+                            .filter(([k]) => !['player_id', 'partido_id'].includes(k))
+                            .map(([k, v]) => (
+                              <span key={k} className="mono" style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                                <span style={{ color: 'var(--text-dim)' }}>{k}:</span> {String(v)}
+                              </span>
+                            ))}
                         </div>
                       )}
                     </div>
-                    {log.ip && (
-                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
-                        {log.ip}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })()}
       </div>
 
       {/* Modal Crear Partido */}

@@ -14,13 +14,30 @@ export default function ActualizarPasswordPage() {
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    // Supabase puts the session tokens in the URL hash after password reset link
-    // The client SDK picks them up automatically on page load via onAuthStateChange
+    // Register listener FIRST — event may fire immediately on SDK init
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setReady(true)
-      }
+      if (event === 'PASSWORD_RECOVERY') setReady(true)
     })
+
+    // Handle PKCE flow: token_hash arrives as query param, must be exchanged explicitly
+    const params = new URLSearchParams(window.location.search)
+    const tokenHash = params.get('token_hash')
+    const type = params.get('type')
+    if (tokenHash && type === 'recovery') {
+      supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+        .then(({ error }) => {
+          if (error) setError('Enlace inválido o expirado.')
+          else setReady(true)
+        })
+      return () => subscription.unsubscribe()
+    }
+
+    // Implicit flow fallback: event may have already fired before listener registered
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const isRecovery = window.location.hash.includes('type=recovery')
+      if (session && isRecovery) setReady(true)
+    })
+
     return () => subscription.unsubscribe()
   }, [supabase])
 

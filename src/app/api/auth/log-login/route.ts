@@ -68,15 +68,20 @@ export async function POST(req: NextRequest) {
 
     if (conflict) {
       await supabase.auth.signOut()
+      // Fetch conflicting username for display
+      const { data: conflictProfile } = await admin
+        .from('profiles').select('username').eq('id', conflict.data!.user_id).single()
+      const conflictingUsername = (conflictProfile as { username?: string })?.username ?? null
+
       await logActivity({
         user_id: user.id,
         username,
         accion: 'login_bloqueado_ip',
-        detalles: { ip, device_id: deviceId, conflicting_user_id: conflict.data!.user_id },
+        detalles: { ip, device_id: deviceId, conflicting_user_id: conflict.data!.user_id, conflicting_username: conflictingUsername },
         ip,
       })
       return NextResponse.json(
-        { error: '🚨 NO PUEDES REGISTRAR A NADIE QUE NO SEAS TÚ MISMO. 👀 YA SABEMOS QUIÉN ERES Y LO QUE QUERÍAS HACER. 🍺 VAS A PAGAR CERVEZAS POR ESTO.' },
+        { blocked: true, conflicting_username: conflictingUsername },
         { status: 429 }
       )
     }

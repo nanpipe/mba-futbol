@@ -10,6 +10,11 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // Bloqueo dramático
+  const [bloqueado, setBloqueado] = useState<{ conflictingUsername: string | null } | null>(null)
+  const [countdown, setCountdown] = useState<number | null>(null)
+  const [sapeado, setSapeado] = useState(false)
+  const [pagarRespuesta, setPagarRespuesta] = useState<'si' | 'no' | null>(null)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -66,8 +71,21 @@ export default function LoginPage() {
     if (logRes.status === 429) {
       const logData = await logRes.json()
       await supabase.auth.signOut()
-      setError(logData.error ?? '🚨 NO PUEDES REGISTRAR A NADIE QUE NO SEAS TÚ MISMO. 👀 YA SABEMOS QUIÉN ERES Y LO QUE QUERÍAS HACER. 🍺 VAS A PAGAR CERVEZAS POR ESTO.')
+      setBloqueado({ conflictingUsername: logData.conflicting_username ?? null })
       setLoading(false)
+      // Start countdown
+      let c = 5
+      setCountdown(c)
+      const iv = setInterval(() => {
+        c--
+        if (c <= 0) {
+          clearInterval(iv)
+          setCountdown(0)
+          setSapeado(true)
+        } else {
+          setCountdown(c)
+        }
+      }, 1000)
       return
     }
 
@@ -75,6 +93,7 @@ export default function LoginPage() {
   }
 
   return (
+    <>
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
       <div style={{ width: '100%', maxWidth: 400 }}>
         {/* Logo */}
@@ -141,5 +160,108 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+
+    {/* ── Modal dramático de bloqueo ── */}
+    {bloqueado && (
+      <div style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.96)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 24, zIndex: 999, flexDirection: 'column', gap: 0,
+      }}>
+        <div style={{ maxWidth: 420, width: '100%', textAlign: 'center' }}>
+          {/* Mensaje principal */}
+          <div style={{
+            background: '#1a0000', border: '2px solid #7f1d1d',
+            borderRadius: 6, padding: '28px 24px', marginBottom: 24,
+          }}>
+            <div style={{ fontSize: 36, marginBottom: 16 }}>🚨🍺🍺🍺🚨</div>
+            <p className="mono" style={{ color: '#f87171', fontSize: 15, fontWeight: 700, lineHeight: 1.8, margin: 0 }}>
+              NO PUEDES REGISTRAR<br />
+              A NADIE QUE NO SEAS TÚ MISMO.<br />
+              <br />
+              {bloqueado.conflictingUsername && (
+                <>
+                  <span style={{ color: '#fca5a5' }}>YA ESTABA LOGUEADO: </span>
+                  <span style={{ color: '#fff', letterSpacing: '0.1em' }}>{bloqueado.conflictingUsername.toUpperCase()}</span>
+                  <br /><br />
+                </>
+              )}
+              👀 YA SABEMOS QUIÉN ERES<br />
+              Y LO QUE QUERÍAS HACER.<br />
+              <br />
+              🍺🍺🍺 VAS A PAGAR CERVEZAS 🍺🍺🍺<br />
+              POR ESTO.
+            </p>
+          </div>
+
+          {/* Countdown */}
+          {!sapeado && countdown !== null && (
+            <div className="mono" style={{ fontSize: 13, color: '#fca5a5', letterSpacing: '0.1em', marginBottom: 8 }}>
+              📡 Enviando notificación a los Admin en{' '}
+              <span style={{ color: '#fff', fontSize: 18, fontWeight: 700 }}>{countdown}</span>
+              {'...'}
+            </div>
+          )}
+
+          {/* Post-countdown */}
+          {sapeado && (
+            <div style={{ animation: 'fadeIn 0.4s ease' }}>
+              <div className="mono" style={{ fontSize: 14, color: '#4ade80', marginBottom: 20, lineHeight: 1.8 }}>
+                ✅ TE HEMOS SAPIADO.<br />
+                <br />
+                <span style={{ color: '#fbbf24' }}>¿Quisieras pagar $5.000 a Nequi</span><br />
+                <span style={{ color: '#fbbf24' }}>por nuestro silencio?</span>
+              </div>
+
+              {pagarRespuesta === null && (
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                  <button
+                    onClick={() => setPagarRespuesta('si')}
+                    className="btn btn-primary"
+                    style={{ flex: 1, maxWidth: 140, padding: '12px', fontSize: 15 }}
+                  >
+                    Sí 🍺
+                  </button>
+                  <button
+                    onClick={() => setPagarRespuesta('no')}
+                    className="btn btn-ghost"
+                    style={{ flex: 1, maxWidth: 140, padding: '12px', fontSize: 15 }}
+                  >
+                    No 😤
+                  </button>
+                </div>
+              )}
+
+              {pagarRespuesta === 'si' && (
+                <div style={{ background: '#0f2d1a', border: '1px solid #16a34a', borderRadius: 6, padding: '20px 24px' }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>🍺💚</div>
+                  <div className="mono" style={{ fontSize: 13, color: '#4ade80', lineHeight: 1.8 }}>
+                    Nequi: <strong style={{ fontSize: 18, color: '#fff' }}>318 810 9368</strong><br />
+                    <br />
+                    Envía tu comprobante<br />
+                    por interno.<br />
+                    <br />
+                    <span style={{ color: '#86efac' }}>Gracias por tu aporte voluntario. 🙏</span>
+                  </div>
+                </div>
+              )}
+
+              {pagarRespuesta === 'no' && (
+                <div style={{ background: '#1a0a00', border: '1px solid #92400e', borderRadius: 6, padding: '20px 24px' }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>😤🍺</div>
+                  <div className="mono" style={{ fontSize: 13, color: '#fbbf24', lineHeight: 1.8 }}>
+                    Decisión anotada.<br />
+                    Los admins ya fueron notificados.<br />
+                    <br />
+                    <span style={{ color: '#fca5a5' }}>Prepara las cervezas de todas formas.</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   )
 }

@@ -35,7 +35,7 @@ interface Player {
   avatar_url: string | null
 }
 
-function DraggablePlayerCard({ jugador, equipo, confirmado }: { jugador: JugadorEquipo; equipo: 'A' | 'B'; confirmado: boolean }) {
+function DraggablePlayerCard({ jugador, equipo, confirmado }: { jugador: JugadorEquipo; equipo: 'A' | 'B' | 'C'; confirmado: boolean }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: jugador.id,
     data: { equipo },
@@ -70,10 +70,10 @@ function DraggablePlayerCard({ jugador, equipo, confirmado }: { jugador: Jugador
   )
 }
 
-function DroppableZone({ equipo, children, isConfirmado }: { equipo: 'A' | 'B'; children: React.ReactNode; isConfirmado: boolean }) {
+function DroppableZone({ equipo, children, isConfirmado }: { equipo: 'A' | 'B' | 'C'; children: React.ReactNode; isConfirmado: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: `equipo-${equipo}`, disabled: isConfirmado })
-  const color = equipo === 'A' ? 'var(--green)' : 'var(--amber)'
-  const bgOver = equipo === 'A' ? '#0a1f0f' : '#1a1500'
+  const color = equipo === 'A' ? 'var(--green)' : equipo === 'C' ? '#7c3aed' : 'var(--amber)'
+  const bgOver = equipo === 'A' ? '#0a1f0f' : equipo === 'C' ? '#1a0f2e' : '#1a1500'
   return (
     <div
       ref={setNodeRef}
@@ -145,6 +145,10 @@ interface Partido {
   goles_a?: number | null
   goles_b?: number | null
   notif_apertura_sent?: boolean
+  tipo?: 'normal' | 'minitorneo'
+  puntos_blanco?: number | null
+  puntos_negro?: number | null
+  puntos_morado?: number | null
 }
 
 interface HistorialPartido {
@@ -156,6 +160,7 @@ interface HistorialPartido {
   goles_b: number | null
   equipos_confirmados: boolean
   cupos_total: number
+  tipo?: 'normal' | 'minitorneo'
   inscripciones: { estado: string }[]
   player_badges: { badge_emoji: string; badge_nombre: string; profiles: { username: string } | null }[]
 }
@@ -202,6 +207,7 @@ export default function AdminPage() {
   const [nuevosCupos, setNuevosCupos] = useState('14')
   const [nuevaHoraApertura, setNuevaHoraApertura] = useState('10:00')
   const [nuevosDiasAntes, setNuevosDiasAntes] = useState('2')
+  const [nuevoTipo, setNuevoTipo] = useState<'normal' | 'minitorneo'>('normal')
 
   // Historial tab
   const [historial, setHistorial] = useState<HistorialPartido[]>([])
@@ -230,18 +236,22 @@ export default function AdminPage() {
   const [equiposPartido, setEquiposPartido] = useState<Partido | null>(null)
   const [equipoA, setEquipoA] = useState<JugadorEquipo[]>([])
   const [equipoB, setEquipoB] = useState<JugadorEquipo[]>([])
+  const [equipoC, setEquipoC] = useState<JugadorEquipo[]>([])  // minitorneo
   const [equiposConfirmado, setEquiposConfirmado] = useState(false)
   const [equiposLoading, setEquiposLoading] = useState(false)
   const [equiposDraft, setEquiposDraft] = useState(false)
   const [equiposResultado, setEquiposResultado] = useState('')
   const [golesA, setGolesA] = useState('')
   const [golesB, setGolesB] = useState('')
+  const [puntosBlanco, setPuntosBlanco] = useState('')
+  const [puntosNegro, setPuntosNegro] = useState('')
+  const [puntosMoredo, setPuntosMoredo] = useState('')
   const [evaluacionesAbiertas, setEvaluacionesAbiertas] = useState(false)
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   // Rotation state
   interface RotacionEquipo {
     equipo_id: string
-    color: 'blanco' | 'negro'
+    color: 'blanco' | 'negro' | 'morado'
     porteroFijo: boolean
     porteroFijoId: string   // username of fixed goalie (empty = not selected)
     rotacionBanca: string[]
@@ -289,7 +299,7 @@ export default function AdminPage() {
 
     const { data: pts } = await supabase
       .from('partidos')
-      .select('id, fecha, dia_semana, hora, cupos_total, hora_apertura, dias_antes_apertura, inscripciones(estado), invitados(estado), evaluaciones_abiertas, equipos_confirmados, resultado, goles_a, goles_b, notif_apertura_sent')
+      .select('id, fecha, dia_semana, hora, cupos_total, hora_apertura, dias_antes_apertura, inscripciones(estado), invitados(estado), evaluaciones_abiertas, equipos_confirmados, resultado, goles_a, goles_b, notif_apertura_sent, tipo, puntos_blanco, puntos_negro, puntos_morado')
       .gte('fecha', new Date().toISOString().split('T')[0])
       .order('fecha', { ascending: true })
       .limit(8)
@@ -366,23 +376,34 @@ export default function AdminPage() {
     setEquiposConfirmado(partido.equipos_confirmados ?? false)
     setEvaluacionesAbiertas(partido.evaluaciones_abiertas ?? false)
     setEquiposResultado(partido.resultado ?? '')
-    // Pre-fill goles inputs from existing goles_a / goles_b or parse resultado "N-M"
-    if (partido.goles_a != null && partido.goles_b != null) {
-      setGolesA(String(partido.goles_a))
-      setGolesB(String(partido.goles_b))
-    } else if (partido.resultado) {
-      const m = partido.resultado.match(/^(\d+)-(\d+)$/)
-      if (m) { setGolesA(m[1]); setGolesB(m[2]) }
-      else { setGolesA(''); setGolesB('') }
-    } else { setGolesA(''); setGolesB('') }
+    if (partido.tipo === 'minitorneo') {
+      // Pre-fill puntos for minitorneo
+      setPuntosBlanco(partido.puntos_blanco != null ? String(partido.puntos_blanco) : '')
+      setPuntosNegro(partido.puntos_negro != null ? String(partido.puntos_negro) : '')
+      setPuntosMoredo(partido.puntos_morado != null ? String(partido.puntos_morado) : '')
+      setGolesA(''); setGolesB('')
+    } else {
+      // Pre-fill goles inputs from existing goles_a / goles_b or parse resultado "N-M"
+      if (partido.goles_a != null && partido.goles_b != null) {
+        setGolesA(String(partido.goles_a))
+        setGolesB(String(partido.goles_b))
+      } else if (partido.resultado) {
+        const m = partido.resultado.match(/^(\d+)-(\d+)$/)
+        if (m) { setGolesA(m[1]); setGolesB(m[2]) }
+        else { setGolesA(''); setGolesB('') }
+      } else { setGolesA(''); setGolesB('') }
+      setPuntosBlanco(''); setPuntosNegro(''); setPuntosMoredo('')
+    }
     setEquiposDraft(false)
     const res = await fetch(`/api/equipos?partido_id=${partido.id}`)
     const data = await res.json()
     if (data.equipos) {
       const ea = data.equipos.find((e: { nombre: string }) => e.nombre === 'A')
       const eb = data.equipos.find((e: { nombre: string }) => e.nombre === 'B')
+      const ec = data.equipos.find((e: { nombre: string }) => e.nombre === 'C')
       setEquipoA(ea?.jugadores ?? [])
       setEquipoB(eb?.jugadores ?? [])
+      setEquipoC(ec?.jugadores ?? [])
       setRotacionA(ea ? {
         equipo_id: ea.id,
         color: ea.color ?? 'blanco',
@@ -402,6 +423,7 @@ export default function AdminPage() {
     } else {
       setEquipoA([])
       setEquipoB([])
+      setEquipoC([])
       setRotacionA(null)
       setRotacionB(null)
     }
@@ -501,17 +523,20 @@ export default function AdminPage() {
     setActiveDragId(null)
     const { active, over } = event
     if (!over) return
-    const fromEquipo = active.data.current?.equipo as 'A' | 'B'
-    const toEquipo = (over.id as string) === 'equipo-A' ? 'A' : 'B'
+    const fromEquipo = active.data.current?.equipo as 'A' | 'B' | 'C'
+    const overId = over.id as string
+    const toEquipo: 'A' | 'B' | 'C' = overId === 'equipo-A' ? 'A' : overId === 'equipo-C' ? 'C' : 'B'
     if (fromEquipo === toEquipo) return
     const playerId = active.id as string
-    if (fromEquipo === 'A') {
-      const player = equipoA.find(p => p.id === playerId)
-      if (player) { setEquipoA(equipoA.filter(p => p.id !== playerId)); setEquipoB([...equipoB, player]); setEquiposDraft(true) }
-    } else {
-      const player = equipoB.find(p => p.id === playerId)
-      if (player) { setEquipoB(equipoB.filter(p => p.id !== playerId)); setEquipoA([...equipoA, player]); setEquiposDraft(true) }
-    }
+
+    const getSet = (t: 'A' | 'B' | 'C') => t === 'A' ? equipoA : t === 'B' ? equipoB : equipoC
+    const setSet = (t: 'A' | 'B' | 'C') => t === 'A' ? setEquipoA : t === 'B' ? setEquipoB : setEquipoC
+
+    const player = getSet(fromEquipo).find(p => p.id === playerId)
+    if (!player) return
+    setSet(fromEquipo)(getSet(fromEquipo).filter(p => p.id !== playerId))
+    setSet(toEquipo)([...getSet(toEquipo), player])
+    setEquiposDraft(true)
   }
 
   const balancearAutomatico = async () => {
@@ -525,6 +550,7 @@ export default function AdminPage() {
     if (res.ok) {
       setEquipoA(data.equipoA ?? [])
       setEquipoB(data.equipoB ?? [])
+      setEquipoC(data.equipoC ?? [])
       setEquiposDraft(true)
       setBalancerRazon(data.razon ?? '')
       setBalancerSource(data.source ?? 'fallback')
@@ -538,7 +564,11 @@ export default function AdminPage() {
   const guardarEquiposAction = async () => {
     if (!equiposPartido) return
     setEquiposLoading(true)
-    const res = await fetch('/api/equipos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'guardar', partido_id: equiposPartido.id, equipoA, equipoB }) })
+    const esMinitorneo = equiposPartido.tipo === 'minitorneo'
+    const body = esMinitorneo
+      ? { accion: 'guardar', partido_id: equiposPartido.id, equipoA, equipoB, equipoC }
+      : { accion: 'guardar', partido_id: equiposPartido.id, equipoA, equipoB }
+    const res = await fetch('/api/equipos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     const data = await res.json()
     if (res.ok) {
       flash(data.mensaje ?? 'Guardado.')
@@ -599,6 +629,24 @@ export default function AdminPage() {
 
   const guardarResultadoAction = async () => {
     if (!equiposPartido) return
+
+    if (equiposPartido.tipo === 'minitorneo') {
+      const pB = parseInt(puntosBlanco)
+      const pN = parseInt(puntosNegro)
+      const pM = parseInt(puntosMoredo)
+      if ([pB, pN, pM].some(p => isNaN(p) || p < 0)) return
+      const resultado = `B${pB}-N${pN}-M${pM}`
+      const ok = await accionAdmin('registrar_resultado', {
+        partido_id: equiposPartido.id,
+        puntos_blanco: String(pB), puntos_negro: String(pN), puntos_morado: String(pM),
+      })
+      if (ok) {
+        setEquiposPartido(prev => prev ? { ...prev, resultado, puntos_blanco: pB, puntos_negro: pN, puntos_morado: pM } : prev)
+        setEquiposResultado(resultado)
+      }
+      return
+    }
+
     const gA = parseInt(golesA)
     const gB = parseInt(golesB)
     if (isNaN(gA) || isNaN(gB) || gA < 0 || gB < 0) return
@@ -749,6 +797,7 @@ export default function AdminPage() {
       cupos_total: nuevosCupos,
       hora_apertura: nuevaHoraApertura + ':00',
       dias_antes_apertura: nuevosDiasAntes,
+      tipo: nuevoTipo,
     })
     setCrearModal(false)
     setNuevaFecha('')
@@ -756,6 +805,7 @@ export default function AdminPage() {
     setNuevosCupos('14')
     setNuevaHoraApertura('10:00')
     setNuevosDiasAntes('2')
+    setNuevoTipo('normal')
   }
 
   const abrirEditPartido = (p: Partido) => {
@@ -765,6 +815,7 @@ export default function AdminPage() {
     setNuevosCupos(String(p.cupos_total))
     setNuevaHoraApertura(p.hora_apertura?.substring(0, 5) ?? '10:00')
     setNuevosDiasAntes(String(p.dias_antes_apertura ?? 2))
+    setNuevoTipo(p.tipo ?? 'normal')
   }
 
   const editarPartido = async () => {
@@ -796,7 +847,7 @@ export default function AdminPage() {
     const hoy = new Date().toISOString().split('T')[0]
     const { data } = await supabase
       .from('partidos')
-      .select('id, fecha, dia_semana, resultado, goles_a, goles_b, equipos_confirmados, cupos_total, inscripciones(estado), player_badges(badge_emoji, badge_nombre, profiles!player_badges_player_id_fkey(username))')
+      .select('id, fecha, dia_semana, resultado, goles_a, goles_b, equipos_confirmados, cupos_total, tipo, inscripciones(estado), player_badges(badge_emoji, badge_nombre, profiles!player_badges_player_id_fkey(username))')
       .lt('fecha', hoy)
       .order('fecha', { ascending: false })
       .limit(30)
@@ -1043,6 +1094,7 @@ export default function AdminPage() {
                           <div>
                             <div className="display" style={{ fontSize: 18, letterSpacing: '0.05em', color: selectedPartido === p.id ? 'var(--green)' : 'var(--text)' }}>
                               {p.dia_semana.toUpperCase()}
+                              {p.tipo === 'minitorneo' && <span style={{ fontSize: 12, marginLeft: 6, verticalAlign: 'middle' }}>🟣</span>}
                             </div>
                             <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                               {new Date(p.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}
@@ -1337,9 +1389,9 @@ export default function AdminPage() {
 
                 {/* DnD columns */}
                 <DndContext sensors={sensors} measuring={{ draggable: { measure: (node) => node.getBoundingClientRect() }, droppable: { strategy: MeasuringStrategy.Always } }} onDragStart={e => setActiveDragId(e.active.id as string)} onDragEnd={handleDragEnd}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: equiposPartido?.tipo === 'minitorneo' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 16, marginBottom: 24 }}>
                     <div>
-                      <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--green)', marginBottom: 8 }}>EQUIPO A — {equipoA.length}</div>
+                      <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--green)', marginBottom: 8 }}>🤍 BLANCO — {equipoA.length}</div>
                       <DroppableZone equipo="A" isConfirmado={equiposConfirmado}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                           {equipoA.map(p => <DraggablePlayerCard key={p.id} jugador={p} equipo="A" confirmado={equiposConfirmado} />)}
@@ -1348,7 +1400,7 @@ export default function AdminPage() {
                       </DroppableZone>
                     </div>
                     <div>
-                      <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--amber)', marginBottom: 8 }}>EQUIPO B — {equipoB.length}</div>
+                      <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--amber)', marginBottom: 8 }}>🖤 NEGRO — {equipoB.length}</div>
                       <DroppableZone equipo="B" isConfirmado={equiposConfirmado}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                           {equipoB.map(p => <DraggablePlayerCard key={p.id} jugador={p} equipo="B" confirmado={equiposConfirmado} />)}
@@ -1356,6 +1408,17 @@ export default function AdminPage() {
                         </div>
                       </DroppableZone>
                     </div>
+                    {equiposPartido?.tipo === 'minitorneo' && (
+                      <div>
+                        <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: '#a78bfa', marginBottom: 8 }}>🟣 MORADO — {equipoC.length}</div>
+                        <DroppableZone equipo="C" isConfirmado={equiposConfirmado}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {equipoC.map(p => <DraggablePlayerCard key={p.id} jugador={p} equipo="C" confirmado={equiposConfirmado} />)}
+                            {equipoC.length === 0 && <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', textAlign: 'center', padding: '24px 0' }}>Arrastra jugadores aquí</div>}
+                          </div>
+                        </DroppableZone>
+                      </div>
+                    )}
                   </div>
                   <DragOverlay>
                     {activeDragPlayer ? (
@@ -1376,10 +1439,10 @@ export default function AdminPage() {
                     <button id="btn-balancear" onClick={balancearAutomatico} disabled={equiposLoading} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px' }}>
                       ⚖️ Balancear automáticamente
                     </button>
-                    <button id="btn-guardar-borrador" onClick={guardarEquiposAction} disabled={equiposLoading || !equiposDraft || (equipoA.length + equipoB.length === 0)} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px', color: 'var(--green)', borderColor: '#16a34a' }}>
+                    <button id="btn-guardar-borrador" onClick={guardarEquiposAction} disabled={equiposLoading || !equiposDraft || (equipoA.length + equipoB.length + equipoC.length === 0)} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px', color: 'var(--green)', borderColor: '#16a34a' }}>
                       💾 Guardar borrador
                     </button>
-                    <button id="btn-confirmar-equipos" onClick={confirmarEquiposAction} disabled={equiposLoading || equiposDraft || (equipoA.length + equipoB.length === 0)} className="btn btn-primary" style={{ fontSize: 12, padding: '10px 16px' }}>
+                    <button id="btn-confirmar-equipos" onClick={confirmarEquiposAction} disabled={equiposLoading || equiposDraft || (equipoA.length + equipoB.length + equipoC.length === 0)} className="btn btn-primary" style={{ fontSize: 12, padding: '10px 16px' }}>
                       ✓ Confirmar y notificar
                     </button>
                   </div>
@@ -1695,46 +1758,80 @@ export default function AdminPage() {
                 {/* Resultado */}
                 <div id="admin-resultado" style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginBottom: 24 }}>
                   <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>RESULTADO DEL PARTIDO</div>
-                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span className="mono" style={{ fontSize: 10, color: 'var(--green)' }}>
-                        {rotacionA ? (rotacionA.color === 'blanco' ? '🤍' : '🖤') : 'A'}
-                      </span>
-                      <input
-                        type="number" min={0} max={99}
-                        value={golesA}
-                        onChange={e => setGolesA(e.target.value)}
-                        placeholder="0"
-                        style={{ width: 56, textAlign: 'center' }}
-                      />
+                  {equiposPartido.tipo === 'minitorneo' ? (
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                      {([
+                        { label: '🤍 Blanco', val: puntosBlanco, set: setPuntosBlanco },
+                        { label: '🖤 Negro',  val: puntosNegro,  set: setPuntosNegro },
+                        { label: '🟣 Morado', val: puntosMoredo, set: setPuntosMoredo },
+                      ] as { label: string; val: string; set: (v: string) => void }[]).map(({ label, val, set }) => (
+                        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>{label}</span>
+                          <input
+                            type="number" min={0} max={999}
+                            value={val}
+                            onChange={e => set(e.target.value)}
+                            placeholder="0"
+                            style={{ width: 64, textAlign: 'center' }}
+                          />
+                        </div>
+                      ))}
+                      <button
+                        onClick={guardarResultadoAction}
+                        disabled={puntosBlanco === '' || puntosNegro === '' || puntosMoredo === ''}
+                        className="btn btn-ghost"
+                        style={{ fontSize: 12, padding: '8px 14px' }}
+                      >
+                        Guardar puntos
+                      </button>
+                      {equiposPartido.resultado && (
+                        <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                          Guardado: <strong style={{ color: 'var(--text)' }}>{equiposPartido.resultado}</strong>
+                        </div>
+                      )}
                     </div>
-                    <span className="mono" style={{ fontSize: 14, color: 'var(--text-dim)' }}>—</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <input
-                        type="number" min={0} max={99}
-                        value={golesB}
-                        onChange={e => setGolesB(e.target.value)}
-                        placeholder="0"
-                        style={{ width: 56, textAlign: 'center' }}
-                      />
-                      <span className="mono" style={{ fontSize: 10, color: 'var(--amber)' }}>
-                        {rotacionB ? (rotacionB.color === 'blanco' ? '🤍' : '🖤') : 'B'}
-                      </span>
-                    </div>
-                    <button
-                      onClick={guardarResultadoAction}
-                      disabled={golesA === '' || golesB === ''}
-                      className="btn btn-ghost"
-                      style={{ fontSize: 12, padding: '8px 14px' }}
-                    >
-                      Guardar resultado
-                    </button>
-                    {equiposPartido.resultado && (
-                      <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-                        Guardado: <strong style={{ color: 'var(--text)' }}>{equiposPartido.resultado}</strong>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span className="mono" style={{ fontSize: 10, color: 'var(--green)' }}>
+                          {rotacionA ? (rotacionA.color === 'blanco' ? '🤍' : '🖤') : 'A'}
+                        </span>
+                        <input
+                          type="number" min={0} max={99}
+                          value={golesA}
+                          onChange={e => setGolesA(e.target.value)}
+                          placeholder="0"
+                          style={{ width: 56, textAlign: 'center' }}
+                        />
                       </div>
-                    )}
-                  </div>
+                      <span className="mono" style={{ fontSize: 14, color: 'var(--text-dim)' }}>—</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <input
+                          type="number" min={0} max={99}
+                          value={golesB}
+                          onChange={e => setGolesB(e.target.value)}
+                          placeholder="0"
+                          style={{ width: 56, textAlign: 'center' }}
+                        />
+                        <span className="mono" style={{ fontSize: 10, color: 'var(--amber)' }}>
+                          {rotacionB ? (rotacionB.color === 'blanco' ? '🤍' : '🖤') : 'B'}
+                        </span>
+                      </div>
+                      <button
+                        onClick={guardarResultadoAction}
+                        disabled={golesA === '' || golesB === ''}
+                        className="btn btn-ghost"
+                        style={{ fontSize: 12, padding: '8px 14px' }}
+                      >
+                        Guardar resultado
+                      </button>
+                      {equiposPartido.resultado && (
+                        <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                          Guardado: <strong style={{ color: 'var(--text)' }}>{equiposPartido.resultado}</strong>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Evaluaciones */}
@@ -2696,6 +2793,26 @@ export default function AdminPage() {
               El día de la semana se detecta automáticamente de la fecha.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Tipo toggle */}
+              <div>
+                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>TIPO</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {(['normal', 'minitorneo'] as const).map(t => (
+                    <button
+                      key={t}
+                      onClick={() => { setNuevoTipo(t); if (t === 'minitorneo') setNuevosCupos('21'); else setNuevosCupos('14') }}
+                      className="btn btn-ghost mono"
+                      style={{
+                        flex: 1, fontSize: 11, padding: '8px',
+                        borderColor: nuevoTipo === t ? (t === 'minitorneo' ? '#7c3aed' : 'var(--green)') : undefined,
+                        color: nuevoTipo === t ? (t === 'minitorneo' ? '#a78bfa' : 'var(--green)') : undefined,
+                      }}
+                    >
+                      {t === 'minitorneo' ? '🟣 Minitorneo' : '⚽ Normal'}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div>
                 <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>FECHA</label>
                 <input type="date" value={nuevaFecha} onChange={e => setNuevaFecha(e.target.value)} />
@@ -2717,15 +2834,17 @@ export default function AdminPage() {
                 </div>
               </div>
               <div>
-                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>CUPOS</label>
+                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>
+                  CUPOS {nuevoTipo === 'minitorneo' && <span style={{ color: '#a78bfa' }}>(3 × 7)</span>}
+                </label>
                 <input type="number" min="1" max="30" value={nuevosCupos} onChange={e => setNuevosCupos(e.target.value)} />
               </div>
             </div>
             <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
               <button onClick={crearPartido} disabled={!nuevaFecha} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
-                Crear partido
+                {nuevoTipo === 'minitorneo' ? '🟣 Crear minitorneo' : 'Crear partido'}
               </button>
-              <button onClick={() => setCrearModal(false)} className="btn btn-ghost">Cancelar</button>
+              <button onClick={() => { setCrearModal(false); setNuevoTipo('normal') }} className="btn btn-ghost">Cancelar</button>
             </div>
           </div>
         </div>

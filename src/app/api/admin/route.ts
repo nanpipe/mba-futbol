@@ -409,12 +409,13 @@ export async function POST(req: NextRequest) {
 
   // ── Crear partido ──────────────────────────────────────────────────────────
   if (accion === 'crear_partido') {
-    const { fecha, hora, cupos_total, hora_apertura, dias_antes_apertura } = body
+    const { fecha, hora, cupos_total, hora_apertura, dias_antes_apertura, tipo } = body
 
     if (!isDate(fecha)) return NextResponse.json({ error: 'Fecha inválida' }, { status: 400 })
     if (!isIntInRange(cupos_total, 2, 30)) return NextResponse.json({ error: 'Cupos debe ser entre 2 y 30' }, { status: 400 })
     if (!isIntInRange(dias_antes_apertura, 0, 14)) return NextResponse.json({ error: 'Días antes debe ser entre 0 y 14' }, { status: 400 })
 
+    const tipoPartido = tipo === 'minitorneo' ? 'minitorneo' : 'normal'
     const date = new Date((fecha as string) + 'T12:00:00')
     const dias = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
     const dia_semana = dias[date.getDay()]
@@ -429,11 +430,12 @@ export async function POST(req: NextRequest) {
         hora_apertura: isString(hora_apertura, 4, 8) ? (hora_apertura as string) : '10:00:00',
         dias_antes_apertura: parseInt(String(dias_antes_apertura), 10),
         inscripcion_abierta: false,
+        tipo: tipoPartido,
       })
 
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
-    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'crear_partido', detalles: { fecha, dia_semana, hora, cupos_total }, ip })
-    return NextResponse.json({ ok: true, mensaje: `Partido del ${dia_semana} ${fecha} creado.` })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'crear_partido', detalles: { fecha, dia_semana, hora, cupos_total, tipo: tipoPartido }, ip })
+    return NextResponse.json({ ok: true, mensaje: `${tipoPartido === 'minitorneo' ? '🟣 Minitorneo' : 'Partido'} del ${dia_semana} ${fecha} creado.` })
   }
 
   // ── Editar partido ─────────────────────────────────────────────────────────
@@ -545,8 +547,36 @@ export async function POST(req: NextRequest) {
 
   // ── Registrar resultado del partido ───────────────────────────────────────
   if (accion === 'registrar_resultado') {
-    const { partido_id, goles_a, goles_b } = body
+    const { partido_id, goles_a, goles_b, puntos_blanco, puntos_negro, puntos_morado } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
+
+    // Fetch partido type to know which result format to apply
+    const { data: pInfo } = await admin.from('partidos').select('tipo').eq('id', partido_id as string).single()
+    const esMinitorneo = (pInfo as { tipo?: string })?.tipo === 'minitorneo'
+
+    if (esMinitorneo) {
+      const pB = typeof puntos_blanco === 'number' ? puntos_blanco : parseInt(String(puntos_blanco))
+      const pN = typeof puntos_negro  === 'number' ? puntos_negro  : parseInt(String(puntos_negro))
+      const pM = typeof puntos_morado === 'number' ? puntos_morado : parseInt(String(puntos_morado))
+      if ([pB, pN, pM].some(p => isNaN(p) || p < 0)) return NextResponse.json({ error: 'Puntos inválidos' }, { status: 400 })
+
+      const maxPts = Math.max(pB, pN, pM)
+      const ganador = pB === maxPts && pN === maxPts && pM === maxPts ? 'empate'
+        : pB === maxPts && pB > pN && pB > pM ? 'blanco'
+        : pN === maxPts && pN > pB && pN > pM ? 'negro'
+        : pM === maxPts && pM > pB && pM > pN ? 'morado'
+        : 'empate'
+
+      const resultado = `B${pB}-N${pN}-M${pM}`
+      const { error } = await admin.from('partidos').update({
+        resultado, puntos_blanco: pB, puntos_negro: pN, puntos_morado: pM,
+      }).eq('id', partido_id as string)
+      if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+      await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'registrar_resultado', detalles: { partido_id, resultado, ganador, tipo: 'minitorneo' }, ip })
+      return NextResponse.json({ ok: true, mensaje: `Resultado minitorneo: ${resultado} — Ganó ${ganador}` })
+    }
+
+    // Normal partido: goles
     const gA = typeof goles_a === 'number' ? goles_a : parseInt(String(goles_a))
     const gB = typeof goles_b === 'number' ? goles_b : parseInt(String(goles_b))
     if (isNaN(gA) || isNaN(gB) || gA < 0 || gB < 0) return NextResponse.json({ error: 'Goles inválidos' }, { status: 400 })

@@ -25,36 +25,56 @@ export async function POST(req: NextRequest) {
     req.headers.get('x-real-ip') ??
     null
 
-  // ── IP conflict check ─────────────────────────────────────────────────────
-  // Block if a DIFFERENT user already logged in from this IP within the last hour.
-  // Skip check for null IPs (dev/localhost) and admin users.
+  let body: { device_id?: string } = {}
+  try { body = await req.json() } catch { /* no body */ }
+  const deviceId = typeof body.device_id === 'string' && body.device_id.length > 0
+    ? body.device_id.slice(0, 128)
+    : null
+
   const role = (profile as { role?: string })?.role ?? 'player'
-  if (ip && role !== 'admin') {
+  const username = (profile as { username?: string })?.username ?? user.email ?? 'unknown'
+
+  // ── Conflict check (skip for admins) ─────────────────────────────────────
+  if (role !== 'admin') {
     const since = new Date(Date.now() - IP_BLOCK_WINDOW_MS).toISOString()
-    const { data: recentLogin } = await admin
-      .from('activity_log')
-      .select('user_id, username')
-      .eq('accion', 'login')
-      .eq('ip', ip)
-      .neq('user_id', user.id)
-      .gte('created_at', since)
-      .limit(1)
-      .maybeSingle()
 
-    if (recentLogin) {
-      // Sign them out immediately — session was briefly valid
+    // Build OR filter: block if same IP OR same device_id used by a different user
+    type ConflictResult = { data: { user_id: string } | null }
+    const checks: Promise<ConflictResult>[] = []
+
+    if (ip) {
+      checks.push(
+        (admin.from('activity_log').select('user_id')
+          .eq('accion', 'login').eq('ip', ip)
+          .neq('user_id', user.id).gte('created_at', since)
+          .limit(1).maybeSingle()) as unknown as Promise<ConflictResult>
+      )
+    }
+
+    if (deviceId) {
+      checks.push(
+        (admin.from('activity_log').select('user_id')
+          .eq('accion', 'login')
+          .contains('detalles', { device_id: deviceId })
+          .neq('user_id', user.id).gte('created_at', since)
+          .limit(1).maybeSingle()) as unknown as Promise<ConflictResult>
+      )
+    }
+
+    const results = await Promise.all(checks)
+    const conflict = results.find(r => r.data !== null)
+
+    if (conflict) {
       await supabase.auth.signOut()
-
       await logActivity({
         user_id: user.id,
-        username: (profile as { username?: string })?.username ?? 'unknown',
+        username,
         accion: 'login_bloqueado_ip',
-        detalles: { ip, conflicting_user_id: recentLogin.user_id },
+        detalles: { ip, device_id: deviceId, conflicting_user_id: conflict.data!.user_id },
         ip,
       })
-
       return NextResponse.json(
-        { error: 'Ya hay una sesión activa desde esta red. Espera 1 hora o usa datos móviles.' },
+        { error: 'Ya hay una sesión activa desde este dispositivo o red. Espera 1 hora o usa datos móviles.' },
         { status: 429 }
       )
     }
@@ -62,9 +82,9 @@ export async function POST(req: NextRequest) {
 
   await logActivity({
     user_id: user.id,
-    username: (profile as { username?: string })?.username ?? user.email ?? 'unknown',
+    username,
     accion: 'login',
-    detalles: { role },
+    detalles: { role, device_id: deviceId },
     ip,
   })
 

@@ -50,12 +50,23 @@ export default function LoginPage() {
       return
     }
 
-    // IP conflict check — awaited so we can block before redirecting
-    const logRes = await fetch('/api/auth/log-login', { method: 'POST' })
+    // Stable device ID — persists in localStorage across sessions
+    let deviceId = localStorage.getItem('mba_device_id')
+    if (!deviceId) {
+      deviceId = crypto.randomUUID()
+      localStorage.setItem('mba_device_id', deviceId)
+    }
+
+    // IP + device conflict check — awaited so we can block before redirecting
+    const logRes = await fetch('/api/auth/log-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_id: deviceId }),
+    })
     if (logRes.status === 429) {
       const logData = await logRes.json()
       await supabase.auth.signOut()
-      setError(logData.error ?? 'Ya hay una sesión activa desde esta red. Espera 1 hora o usa datos móviles.')
+      setError(logData.error ?? 'Ya hay una sesión activa desde este dispositivo o red. Espera 1 hora.')
       setLoading(false)
       return
     }

@@ -65,6 +65,7 @@ export default function PerfilPage() {
 
   // Avatar
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [avatarStatus, setAvatarStatus] = useState('')
 
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
 
@@ -167,30 +168,56 @@ export default function PerfilPage() {
     const file = e.target.files?.[0]
     if (!file || !user) return
     if (!file.type.startsWith('image/')) { flash('error', 'Solo se permiten imágenes.'); return }
-    if (file.size > 2 * 1024 * 1024) { flash('error', 'Máximo 2 MB.'); return }
+    if (file.size > 20 * 1024 * 1024) { flash('error', 'Máximo 20 MB.'); return }
+
     setUploadingAvatar(true)
-    const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-    const { error: uploadError } = await supabase.storage.from('avatars')
-      .upload(`${user.id}/avatar.${ext}`, file, { upsert: true, contentType: file.type })
-    if (uploadError) {
-      flash('error', 'Error subiendo imagen.')
-      setUploadingAvatar(false); e.target.value = ''; return
-    }
-    const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(`${user.id}/avatar.${ext}`)
-    const res = await fetch('/api/perfil', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ avatar_url: publicUrl }),
-    })
-    if (res.ok) {
-      const busted = `${publicUrl}?t=${Date.now()}`
-      setProfile(p => p ? { ...p, avatar_url: busted } : p)
-      flash('ok', 'Foto actualizada.')
-    } else {
-      flash('error', 'Error guardando la foto.')
-    }
     e.target.value = ''
-    setUploadingAvatar(false)
+
+    try {
+      // 1. Compress
+      setAvatarStatus('Comprimiendo...')
+      const { default: imageCompression } = await import('browser-image-compression')
+      const compressed = await imageCompression(file, {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 800,
+        useWebWorker: true,
+      })
+
+      // 2. Remove background → Blob (PNG transparente)
+      setAvatarStatus('Removiendo fondo...')
+      const { removeBackground } = await import('@imgly/background-removal')
+      const noBg: Blob = await removeBackground(compressed)
+
+      // 3. Upload PNG to Supabase Storage
+      setAvatarStatus('Subiendo...')
+      const { error: uploadError } = await supabase.storage.from('avatars')
+        .upload(`${user.id}/avatar.png`, noBg, { upsert: true, contentType: 'image/png' })
+
+      if (uploadError) {
+        flash('error', 'Error subiendo imagen.')
+        return
+      }
+
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(`${user.id}/avatar.png`)
+      const res = await fetch('/api/perfil', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatar_url: publicUrl }),
+      })
+      if (res.ok) {
+        const busted = `${publicUrl}?t=${Date.now()}`
+        setProfile(p => p ? { ...p, avatar_url: busted } : p)
+        flash('ok', 'Foto actualizada. Fondo removido automáticamente ✓')
+      } else {
+        flash('error', 'Error guardando la foto.')
+      }
+    } catch (err) {
+      console.error('Avatar upload error:', err)
+      flash('error', 'Error procesando la imagen. Intenta de nuevo.')
+    } finally {
+      setAvatarStatus('')
+      setUploadingAvatar(false)
+    }
   }
 
   if (loading) return (
@@ -239,10 +266,12 @@ export default function PerfilPage() {
           <label style={{ cursor: uploadingAvatar ? 'not-allowed' : 'pointer' }}>
             <input type="file" accept="image/jpeg,image/png,image/webp" onChange={subirAvatar} disabled={uploadingAvatar} style={{ display: 'none' }} />
             <span className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 16px', opacity: uploadingAvatar ? 0.5 : 1 }}>
-              {uploadingAvatar ? 'Subiendo...' : '📷 Cambiar foto'}
+              {uploadingAvatar ? (avatarStatus || 'Procesando...') : '📷 Cambiar foto'}
             </span>
           </label>
-          <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>Máximo 2 MB · JPG, PNG, WEBP</div>
+          <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', textAlign: 'center' }}>
+            Se comprime y se remueve el fondo automáticamente ✨
+          </div>
         </div>
 
         {/* Stats */}

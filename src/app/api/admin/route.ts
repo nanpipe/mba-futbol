@@ -271,6 +271,142 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, mensaje: `${username} movido a lista de espera.` })
   }
 
+  // ── Promover jugador específico de espera (con swap opcional) ───────────────
+  if (accion === 'promover_espera_manual') {
+    const { inscripcion_id, partido_id, swap_player_id } = body
+    if (!isUUID(inscripcion_id) || !isUUID(partido_id)) {
+      return NextResponse.json({ error: 'IDs inválidos' }, { status: 400 })
+    }
+
+    const { data: ins } = await admin
+      .from('inscripciones')
+      .select('id, estado, player_id, profiles!player_id(username)')
+      .eq('id', inscripcion_id as string)
+      .single()
+
+    if (!ins) return NextResponse.json({ error: 'Inscripción no encontrada' }, { status: 404 })
+    if ((ins as { estado: string }).estado !== 'espera') {
+      return NextResponse.json({ error: 'El jugador no está en espera' }, { status: 400 })
+    }
+
+    const { count: confirmados } = await admin
+      .from('inscripciones')
+      .select('id', { count: 'exact', head: true })
+      .eq('partido_id', partido_id as string)
+      .eq('estado', 'confirmado')
+
+    const { data: partidoData } = await admin.from('partidos').select('cupos_total').eq('id', partido_id as string).single()
+    const cupos = (partidoData as { cupos_total: number } | null)?.cupos_total ?? 14
+    const lleno = (confirmados ?? 0) >= cupos
+
+    if (lleno) {
+      if (!isUUID(swap_player_id)) {
+        return NextResponse.json({ error: 'Partido lleno. Debes elegir quién cede su cupo.' }, { status: 400 })
+      }
+      // Move swap player to end of espera queue
+      const { data: swapIns } = await admin
+        .from('inscripciones')
+        .select('id, profiles!player_id(username)')
+        .eq('partido_id', partido_id as string)
+        .eq('player_id', swap_player_id as string)
+        .eq('estado', 'confirmado')
+        .single()
+
+      if (!swapIns) return NextResponse.json({ error: 'Jugador a ceder no encontrado o no confirmado' }, { status: 404 })
+
+      const { data: swapPos } = await admin.rpc('siguiente_posicion_espera', { p_partido_id: partido_id })
+      await admin.from('inscripciones')
+        .update({ estado: 'espera', posicion_espera: swapPos })
+        .eq('id', swapIns.id)
+
+      const swapUsername = ((swapIns as unknown as { profiles: { username: string } }).profiles)?.username
+      await logActivity({
+        user_id: adminUser.id,
+        username: adminUser.username,
+        accion: 'mover_espera',
+        detalles: { player_id: swap_player_id, partido_id, username: swapUsername, forzado_por_promocion: true },
+        ip,
+      })
+    }
+
+    // Promote the espera player
+    await admin.from('inscripciones')
+      .update({ estado: 'confirmado', posicion_espera: null })
+      .eq('id', inscripcion_id as string)
+
+    // Renumber remaining espera queue
+    const { data: espera } = await admin
+      .from('inscripciones')
+      .select('id')
+      .eq('partido_id', partido_id as string)
+      .eq('estado', 'espera')
+      .order('posicion_espera', { ascending: true, nullsFirst: false })
+    for (let i = 0; i < (espera ?? []).length; i++) {
+      await admin.from('inscripciones').update({ posicion_espera: i + 1 }).eq('id', espera![i].id)
+    }
+
+    const promoted = ((ins as unknown as { profiles: { username: string } }).profiles)?.username
+    await logActivity({
+      user_id: adminUser.id,
+      username: adminUser.username,
+      accion: 'promover_espera_manual',
+      detalles: { inscripcion_id, partido_id, username: promoted, swap_player_id: swap_player_id ?? null },
+      ip,
+    })
+    return NextResponse.json({ ok: true, mensaje: `${promoted} promovido a confirmado.` })
+  }
+
+  // ── Admin agrega jugador manualmente ────────────────────────────────────────
+  if (accion === 'agregar_jugador_partido') {
+    const { player_id, partido_id, estado: estadoRaw } = body
+    if (!isUUID(player_id) || !isUUID(partido_id)) {
+      return NextResponse.json({ error: 'IDs inválidos' }, { status: 400 })
+    }
+    const estado = estadoRaw === 'espera' ? 'espera' : 'confirmado'
+
+    // Not already inscribed
+    const { data: existing } = await admin.from('inscripciones').select('id')
+      .eq('partido_id', partido_id as string).eq('player_id', player_id as string).maybeSingle()
+    if (existing) return NextResponse.json({ error: 'El jugador ya está inscrito en este partido' }, { status: 409 })
+
+    const { data: targetProfile } = await admin.from('profiles').select('username, aprobado').eq('id', player_id as string).single()
+    if (!targetProfile?.aprobado) return NextResponse.json({ error: 'El jugador no está aprobado' }, { status: 400 })
+
+    let posicion_espera: number | null = null
+    if (estado === 'espera') {
+      const { data: pos } = await admin.rpc('siguiente_posicion_espera', { p_partido_id: partido_id })
+      posicion_espera = pos
+    } else {
+      // Check cupos if confirming
+      const { count: confirmados } = await admin.from('inscripciones').select('id', { count: 'exact', head: true })
+        .eq('partido_id', partido_id as string).eq('estado', 'confirmado')
+      const { data: partidoData } = await admin.from('partidos').select('cupos_total').eq('id', partido_id as string).single()
+      const cupos = (partidoData as { cupos_total: number } | null)?.cupos_total ?? 14
+      if ((confirmados ?? 0) >= cupos) {
+        return NextResponse.json({ error: 'No hay cupos disponibles. Agrégalo a espera o libera un cupo primero.' }, { status: 400 })
+      }
+    }
+
+    const { error } = await admin.from('inscripciones').insert({
+      partido_id,
+      player_id,
+      estado,
+      posicion_espera,
+      added_by: adminUser.id,
+    })
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+
+    const targetUsername = (targetProfile as { username: string }).username
+    await logActivity({
+      user_id: adminUser.id,
+      username: adminUser.username,
+      accion: 'agregar_jugador_partido',
+      detalles: { player_id, partido_id, username: targetUsername, estado },
+      ip,
+    })
+    return NextResponse.json({ ok: true, mensaje: `${targetUsername} agregado como ${estado}.` })
+  }
+
   // ── Crear partido ──────────────────────────────────────────────────────────
   if (accion === 'crear_partido') {
     const { fecha, hora, cupos_total, hora_apertura, dias_antes_apertura } = body

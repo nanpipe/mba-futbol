@@ -15,7 +15,7 @@ create table public.profiles (
   username text unique not null,
   email text unique not null,
   ip_registro text,
-  role text not null default 'player' check (role in ('player', 'admin')),
+  role text not null default 'player' check (role in ('player', 'admin', 'superadmin')),
   baneado boolean not null default false,
   fecha_ban timestamptz,
   fecha_liberacion timestamptz,
@@ -35,7 +35,7 @@ create policy "Admin ve todos los perfiles"
   using (
     exists (
       select 1 from public.profiles
-      where id = auth.uid() and role = 'admin'
+      where id = auth.uid() and role in ('admin', 'superadmin')
     )
   );
 
@@ -44,7 +44,7 @@ create policy "Admin actualiza perfiles"
   using (
     exists (
       select 1 from public.profiles
-      where id = auth.uid() and role = 'admin'
+      where id = auth.uid() and role in ('admin', 'superadmin')
     )
   );
 
@@ -74,7 +74,7 @@ create policy "Solo admin modifica partidos"
   using (
     exists (
       select 1 from public.profiles
-      where id = auth.uid() and role = 'admin'
+      where id = auth.uid() and role in ('admin', 'superadmin')
     )
   );
 
@@ -107,7 +107,7 @@ create policy "Admin gestiona todas las inscripciones"
   using (
     exists (
       select 1 from public.profiles
-      where id = auth.uid() and role = 'admin'
+      where id = auth.uid() and role in ('admin', 'superadmin')
     )
   );
 

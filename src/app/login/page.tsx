@@ -179,13 +179,6 @@ export default function LoginPage() {
               NO PUEDES REGISTRAR<br />
               A NADIE QUE NO SEAS TÚ MISMO.<br />
               <br />
-              {bloqueado.conflictingUsername && (
-                <>
-                  <span style={{ color: '#fca5a5' }}>YA ESTABA LOGUEADO: </span>
-                  <span style={{ color: '#fff', letterSpacing: '0.1em' }}>{bloqueado.conflictingUsername.toUpperCase()}</span>
-                  <br /><br />
-                </>
-              )}
               👀 YA SABEMOS QUIÉN ERES<br />
               Y LO QUE QUERÍAS HACER.<br />
               <br />
@@ -207,7 +200,7 @@ export default function LoginPage() {
           {sapeado && (
             <div style={{ animation: 'fadeIn 0.4s ease' }}>
               <div className="mono" style={{ fontSize: 14, color: '#4ade80', marginBottom: 20, lineHeight: 1.8 }}>
-                ✅ TE HEMOS SAPIADO.<br />
+                PODRÍA NO DECIR NADA 🤫😶🤐<br />
                 <br />
                 <span style={{ color: '#fbbf24' }}>¿Quisieras pagar $5.000 a Nequi</span><br />
                 <span style={{ color: '#fbbf24' }}>por nuestro silencio?</span>

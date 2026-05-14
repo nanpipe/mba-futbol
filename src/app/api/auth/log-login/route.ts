@@ -34,11 +34,14 @@ export async function POST(req: NextRequest) {
   const role = (profile as { role?: string })?.role ?? 'player'
   const username = (profile as { username?: string })?.username ?? user.email ?? 'unknown'
 
-  // ── Conflict check (skip for admins) ─────────────────────────────────────
-  if (role !== 'admin') {
+  // ── Conflict check (skip for superuser) ──────────────────────────────────
+  const SUPERUSER = 'pipesolarte'
+  if (username.toLowerCase() !== SUPERUSER) {
     const since = new Date(Date.now() - IP_BLOCK_WINDOW_MS).toISOString()
 
-    // Build OR filter: block if same IP OR same device_id used by a different user
+    // Block if same IP OR same device_id was used by a different user in last hour.
+    // Applies to everyone (player→player, player→admin, admin→admin).
+    // Logins by SUPERUSER are also excluded as conflict signals.
     type ConflictResult = { data: { user_id: string } | null }
     const checks: Promise<ConflictResult>[] = []
 
@@ -47,7 +50,7 @@ export async function POST(req: NextRequest) {
         (admin.from('activity_log').select('user_id')
           .eq('accion', 'login').eq('ip', ip)
           .neq('user_id', user.id).gte('created_at', since)
-          .not('detalles', 'cs', '{"role":"admin"}')  // admin logins don't block players
+          .not('detalles', 'cs', `{"username":"${SUPERUSER}"}`)  // superuser logins don't block others
           .limit(1).maybeSingle()) as unknown as Promise<ConflictResult>
       )
     }
@@ -56,7 +59,7 @@ export async function POST(req: NextRequest) {
       checks.push(
         (admin.from('activity_log').select('user_id')
           .eq('accion', 'login')
-          .not('detalles', 'cs', '{"role":"admin"}')  // admin logins don't block players
+          .not('detalles', 'cs', `{"username":"${SUPERUSER}"}`)  // superuser logins don't block others
           .contains('detalles', { device_id: deviceId })
           .neq('user_id', user.id).gte('created_at', since)
           .limit(1).maybeSingle()) as unknown as Promise<ConflictResult>
@@ -68,7 +71,6 @@ export async function POST(req: NextRequest) {
 
     if (conflict) {
       await supabase.auth.signOut()
-      // Fetch conflicting username for display
       const { data: conflictProfile } = await admin
         .from('profiles').select('username').eq('id', conflict.data!.user_id).single()
       const conflictingUsername = (conflictProfile as { username?: string })?.username ?? null
@@ -77,7 +79,7 @@ export async function POST(req: NextRequest) {
         user_id: user.id,
         username,
         accion: 'login_bloqueado_ip',
-        detalles: { ip, device_id: deviceId, conflicting_user_id: conflict.data!.user_id, conflicting_username: conflictingUsername },
+        detalles: { ip, device_id: deviceId, conflicting_username: conflictingUsername },
         ip,
       })
       return NextResponse.json(

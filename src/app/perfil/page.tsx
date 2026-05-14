@@ -208,7 +208,7 @@ export default function PerfilPage() {
         })
       }
 
-      // 3. Upload PNG to Supabase Storage
+      // 3. Upload to Supabase Storage
       setAvatarStatus('Subiendo...')
       const { error: uploadError } = await supabase.storage.from('avatars')
         .upload(`${user.id}/avatar.png`, uploadBlob, { upsert: true, contentType: 'image/png' })

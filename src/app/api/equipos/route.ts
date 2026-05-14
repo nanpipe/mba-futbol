@@ -298,10 +298,10 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
       const snakeOrder = [0, 1, 2, 2, 1, 0]
       const teams = [eA, eB, eC]
       sorted.forEach((j, i) => teams[snakeOrder[i % 6]].push(j))
-      return NextResponse.json({ ok: true, equipoA: eA, equipoB: eB, equipoC: eC, razon: '', source: 'fallback', fallbackReason })
+      return NextResponse.json({ ok: true, equipoA: eA, equipoB: eB, equipoC: eC, razon: '', source: 'fallback' })
     }
     const { equipoA, equipoB } = balancearEquipos(jugadores)
-    return NextResponse.json({ ok: true, equipoA, equipoB, razon: '', source: 'fallback', fallbackReason })
+    return NextResponse.json({ ok: true, equipoA, equipoB, razon: '', source: 'fallback' })
   }
 
   // ── guardar: save (or overwrite) teams in DB ──────────────────────────────

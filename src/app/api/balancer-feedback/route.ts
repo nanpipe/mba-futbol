@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isUUID } from '@/lib/validation'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,7 +63,7 @@ export async function DELETE(req: NextRequest) {
   let body: { id: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON inválido' }, { status: 400 }) }
 
-  if (!body.id) return NextResponse.json({ error: 'id requerido' }, { status: 400 })
+  if (!isUUID(body.id)) return NextResponse.json({ error: 'id inválido' }, { status: 400 })
 
   await admin.from('balancer_feedback').delete().eq('id', body.id)
 

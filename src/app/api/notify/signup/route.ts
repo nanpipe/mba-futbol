@@ -16,6 +16,15 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient()
 
+  // Verify username actually exists and is pending approval — prevents spam from arbitrary callers
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('id, aprobado')
+    .eq('username', username)
+    .single()
+  if (!profile) return NextResponse.json({ ok: true }) // silent — don't reveal existence
+  if (profile.aprobado) return NextResponse.json({ ok: true }) // already approved, no notification needed
+
   const { data: adminProfiles } = await admin.from('profiles').select('id').eq('role', 'admin')
   const adminIds = (adminProfiles ?? []).map((p: { id: string }) => p.id)
   if (!adminIds.length) return NextResponse.json({ ok: true, enviados: 0 })

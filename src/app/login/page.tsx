@@ -51,6 +51,9 @@ export default function LoginPage() {
       return
     }
 
+    // Log login event (fire-and-forget, don't block navigation)
+    fetch('/api/auth/log-login', { method: 'POST' }).catch(() => {})
+
     window.location.href = '/'
   }
 

@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { safeError, isUUID, isString, isEmail, isDate, isIntInRange } from '@/lib/validation'
 import { internalFetch } from '@/lib/internalFetch'
 import { logActivity } from '@/lib/activityLog'
+import { sendTestEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 
@@ -476,7 +477,7 @@ export async function POST(req: NextRequest) {
   // ── Guardar setting ────────────────────────────────────────────────────────
   if (accion === 'guardar_setting') {
     const { key, value } = body
-    const ALLOWED_KEYS = ['notif_apertura', 'notif_recordatorio', 'notif_cupos', 'notif_invitados']
+    const ALLOWED_KEYS = ['notif_apertura', 'notif_recordatorio', 'notif_cupos', 'notif_invitados', 'email_apertura', 'email_recordatorio']
     if (typeof key !== 'string' || !ALLOWED_KEYS.includes(key)) {
       return NextResponse.json({ error: 'Clave inválida' }, { status: 400 })
     }
@@ -489,6 +490,16 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'guardar_setting', detalles: { key, value }, ip })
     return NextResponse.json({ ok: true, mensaje: `${key} → ${value}` })
+  }
+
+  // ── Enviar email de prueba ─────────────────────────────────────────────────
+  if (accion === 'enviar_email_prueba') {
+    const { email } = body
+    if (!isEmail(email)) return NextResponse.json({ error: 'Email inválido' }, { status: 400 })
+    const result = await sendTestEmail({ email: (email as string).trim().toLowerCase() })
+    if (!result.ok) return NextResponse.json({ error: result.error ?? 'Error enviando email' }, { status: 500 })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'enviar_email_prueba', detalles: { email }, ip })
+    return NextResponse.json({ ok: true, mensaje: `Email de prueba enviado a ${email}`, id: result.id })
   }
 
   return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 })

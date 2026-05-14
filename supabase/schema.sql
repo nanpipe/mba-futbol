@@ -30,24 +30,15 @@ create policy "Usuarios ven su propio perfil"
   on public.profiles for select
   using (auth.uid() = id);
 
-create policy "Admin ve todos los perfiles"
-  on public.profiles for select
-  to authenticated
-  using (
-    exists (
-      select 1 from public.profiles
-      where id = auth.uid() and role in ('admin', 'superadmin')
-    )
-  );
+-- Note: "Admin ve todos los perfiles" intentionally omitted.
+-- "Lectura de perfiles" (true) already exposes all rows.
+-- A self-referential SELECT policy causes infinite recursion → 500.
 
 create policy "Admin actualiza perfiles"
   on public.profiles for update
   to authenticated
   using (
-    exists (
-      select 1 from public.profiles
-      where id = auth.uid() and role in ('admin', 'superadmin')
-    )
+    (select role from public.profiles where id = auth.uid()) in ('admin', 'superadmin')
   );
 
 -- ============================================
@@ -73,11 +64,9 @@ create policy "Todos pueden ver partidos"
 
 create policy "Solo admin modifica partidos"
   on public.partidos for all
+  to authenticated
   using (
-    exists (
-      select 1 from public.profiles
-      where id = auth.uid() and role in ('admin', 'superadmin')
-    )
+    (select role from public.profiles where id = auth.uid()) in ('admin', 'superadmin')
   );
 
 -- ============================================
@@ -106,11 +95,9 @@ create policy "Jugador inscribe o cancela su propia"
 
 create policy "Admin gestiona todas las inscripciones"
   on public.inscripciones for all
+  to authenticated
   using (
-    exists (
-      select 1 from public.profiles
-      where id = auth.uid() and role in ('admin', 'superadmin')
-    )
+    (select role from public.profiles where id = auth.uid()) in ('admin', 'superadmin')
   );
 
 -- ============================================

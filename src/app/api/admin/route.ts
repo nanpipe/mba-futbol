@@ -220,7 +220,7 @@ export async function POST(req: NextRequest) {
 
     const { data: ins } = await admin
       .from('inscripciones')
-      .select('id, estado, profiles(username), partidos(fecha)')
+      .select('id, estado, profiles!player_id(username), partidos(fecha)')
       .eq('player_id', player_id)
       .eq('partido_id', partido_id)
       .single()
@@ -249,7 +249,7 @@ export async function POST(req: NextRequest) {
 
     const { data: ins } = await admin
       .from('inscripciones')
-      .select('id, estado, profiles(username)')
+      .select('id, estado, profiles!player_id(username)')
       .eq('player_id', player_id)
       .eq('partido_id', partido_id)
       .single()

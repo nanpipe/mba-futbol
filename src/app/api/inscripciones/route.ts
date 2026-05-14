@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     // Uniform + full → try to bump the most-recent non-uniform confirmed player
     const { data: confirmed } = await admin
       .from('inscripciones')
-      .select('id, player_id, profiles(uniform)')
+      .select('id, player_id, profiles!player_id(uniform)')
       .eq('partido_id', partido_id)
       .eq('estado', 'confirmado')
       .order('created_at', { ascending: false })

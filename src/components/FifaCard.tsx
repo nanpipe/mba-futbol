@@ -59,7 +59,7 @@ export function FifaCard({ s, size = 'md' }: { s: CartaStats; size?: 'sm' | 'md'
         overflow: 'hidden',
       }}>
         {s.avatar_url ? (
-          <img src={s.avatar_url} alt={s.username} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }} />
+          <img src={s.avatar_url} alt={s.username} style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'bottom' }} />
         ) : (
           <div style={{
             width: '100%', height: '100%',

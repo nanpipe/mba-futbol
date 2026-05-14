@@ -32,6 +32,7 @@ create policy "Usuarios ven su propio perfil"
 
 create policy "Admin ve todos los perfiles"
   on public.profiles for select
+  to authenticated
   using (
     exists (
       select 1 from public.profiles
@@ -41,6 +42,7 @@ create policy "Admin ve todos los perfiles"
 
 create policy "Admin actualiza perfiles"
   on public.profiles for update
+  to authenticated
   using (
     exists (
       select 1 from public.profiles

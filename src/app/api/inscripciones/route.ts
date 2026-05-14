@@ -19,9 +19,13 @@ export async function POST(req: NextRequest) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('baneado, fecha_liberacion, username, uniform')
+    .select('baneado, fecha_liberacion, username, uniform, aprobado')
     .eq('id', user.id)
     .single()
+
+  if (!profile?.aprobado) {
+    return NextResponse.json({ error: 'Tu cuenta aún no ha sido aprobada por el administrador.' }, { status: 403 })
+  }
 
   if (profile?.baneado) {
     const liberacion = profile.fecha_liberacion

@@ -162,7 +162,7 @@ export default function LoginPage() {
     </div>
 
     {/* ── Modal dramático de bloqueo ── */}
-    {bloqueado && (
+    {bloqueado && pagarRespuesta !=='si' && (
       <div style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.96)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -207,7 +207,7 @@ export default function LoginPage() {
           {sapeado && (
             <div style={{ animation: 'fadeIn 0.4s ease' }}>
               <div className="mono" style={{ fontSize: 14, color: '#4ade80', marginBottom: 20, lineHeight: 1.8 }}>
-                ✅ TE HEMOS SAPIADO.<br />
+                PODRÍA NO DECIR NADA 🤫😶🤐<br />
                 <br />
                 <span style={{ color: '#fbbf24' }}>¿Quisieras pagar $5.000 a Nequi</span><br />
                 <span style={{ color: '#fbbf24' }}>por nuestro silencio?</span>

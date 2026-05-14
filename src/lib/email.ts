@@ -171,3 +171,36 @@ export async function sendTestEmail({
     return { ok: false, error: msg }
   }
 }
+
+export async function sendUsernameEmail({
+  email,
+  username,
+}: {
+  email: string
+  username: string
+}): Promise<{ ok: boolean; error?: string; id?: string }> {
+  try {
+    const result = await resend.emails.send({
+      from: FROM,
+      to: email,
+      subject: '\u{1F464} Tu usuario — MBA Fútbol Club',
+      html: `
+        <div style="font-family: 'Georgia', serif; max-width: 480px; margin: 0 auto; background: #0a0a0a; color: #f0f0f0; padding: 40px 32px; border-radius: 8px;">
+          <div style="font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #888; margin-bottom: 32px;">MBA Fútbol Club</div>
+          <h1 style="font-size: 28px; font-weight: 400; margin: 0 0 16px 0; line-height: 1.2;">Tu nombre de usuario</h1>
+          <p style="color: #aaa; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">Solicitaste recuperar tu usuario. Aquí está:</p>
+          <div style="background: #1a1a1a; border-left: 3px solid #4ade80; padding: 20px 24px; border-radius: 4px; margin-bottom: 32px;">
+            <p style="margin: 0; font-size: 22px; color: #f0f0f0; font-family: 'DM Mono', monospace; letter-spacing: 0.05em;">${username}</p>
+          </div>
+          <p style="color: #aaa; font-size: 14px; line-height: 1.6; margin: 0 0 32px 0;">Si no solicitaste esto, puedes ignorar este correo.</p>
+          <hr style="border: none; border-top: 1px solid #222; margin: 32px 0;" />
+          <p style="color: #444; font-size: 12px; margin: 0; letter-spacing: 1px;">MBA FÚTBOL CLUB</p>
+        </div>
+      `,
+    })
+    return { ok: true, id: (result as { data?: { id?: string } }).data?.id }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { ok: false, error: msg }
+  }
+}

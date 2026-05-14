@@ -158,7 +158,7 @@ export default function HomePage() {
       if (ultimo) {
         const { data: ins } = await supabase
           .from('inscripciones')
-          .select('id, player_id, estado, posicion_espera, profiles(username)')
+          .select('id, player_id, estado, posicion_espera, profiles!player_id(username)')
           .eq('partido_id', ultimo.id)
           .eq('estado', 'confirmado')
         setUltimoPartido({ partido: ultimo, inscripciones: (ins as unknown as Inscripcion[]) ?? [] })
@@ -196,7 +196,7 @@ export default function HomePage() {
 
     const { data: ins } = await supabase
       .from('inscripciones')
-      .select('id, player_id, estado, posicion_espera, profiles(username)')
+      .select('id, player_id, estado, posicion_espera, profiles!player_id(username)')
       .eq('partido_id', partido.id)
       .order('estado', { ascending: true })
       .order('posicion_espera', { ascending: true, nullsFirst: false })

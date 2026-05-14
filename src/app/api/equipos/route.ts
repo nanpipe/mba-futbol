@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
     const [{ data: ins }, { data: invs }, { data: knowledge }, { data: feedbackRows }] = await Promise.all([
       admin
         .from('inscripciones')
-        .select('player_id, profiles(id, username, avatar_url, posicion, habilidad)')
+        .select('player_id, profiles!player_id(id, username, avatar_url, posicion, habilidad)')
         .eq('partido_id', partido_id as string)
         .eq('estado', 'confirmado'),
       admin

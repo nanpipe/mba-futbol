@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
   // Teammates to vote for
   const { data: compañeros } = await admin
     .from('inscripciones')
-    .select('player_id, profiles(id, username, avatar_url, posicion)')
+    .select('player_id, profiles!player_id(id, username, avatar_url, posicion)')
     .eq('partido_id', partido_id)
     .eq('estado', 'confirmado')
     .neq('player_id', user.id)

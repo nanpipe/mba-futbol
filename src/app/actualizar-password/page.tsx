@@ -14,18 +14,37 @@ export default function ActualizarPasswordPage() {
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
+    // DEBUG — remove after fixing
+    console.log('[recovery] search:', window.location.search)
+    console.log('[recovery] hash:', window.location.hash)
+
     // Register listener FIRST — event may fire immediately on SDK init
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[recovery] auth event:', event, !!session)
       if (event === 'PASSWORD_RECOVERY') setReady(true)
     })
 
-    // Handle PKCE flow: token_hash arrives as query param, must be exchanged explicitly
     const params = new URLSearchParams(window.location.search)
     const tokenHash = params.get('token_hash')
+    const code = params.get('code')
     const type = params.get('type')
+
+    // PKCE code flow (Supabase redirects with ?code=xxx)
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code)
+        .then(({ error }) => {
+          console.log('[recovery] exchangeCode error:', error)
+          if (error) setError('Enlace inválido o expirado.')
+          else setReady(true)
+        })
+      return () => subscription.unsubscribe()
+    }
+
+    // PKCE token_hash flow
     if (tokenHash && type === 'recovery') {
       supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
         .then(({ error }) => {
+          console.log('[recovery] verifyOtp error:', error)
           if (error) setError('Enlace inválido o expirado.')
           else setReady(true)
         })
@@ -34,6 +53,7 @@ export default function ActualizarPasswordPage() {
 
     // Implicit flow fallback: event may have already fired before listener registered
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('[recovery] getSession:', !!session, window.location.hash)
       const isRecovery = window.location.hash.includes('type=recovery')
       if (session && isRecovery) setReady(true)
     })

@@ -12,9 +12,16 @@ async function verificarAdmin(supabase: Awaited<ReturnType<typeof createClient>>
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
   const { data: profile } = await supabase.from('profiles').select('role, username').eq('id', user.id).single()
-  if (profile?.role !== 'admin') return null
-  return { ...user, username: (profile as { username?: string })?.username ?? 'admin' }
+  const role = (profile as { role?: string })?.role
+  if (role !== 'admin' && role !== 'superadmin') return null
+  return {
+    ...user,
+    username: (profile as { username?: string })?.username ?? 'admin',
+    role: role as 'admin' | 'superadmin',
+  }
 }
+
+const SUPERADMIN_ONLY = new Set(['eliminar_jugador', 'editar_jugador', 'cambiar_password'])
 
 function getIP(req: NextRequest) {
   return (
@@ -90,6 +97,11 @@ export async function POST(req: NextRequest) {
   }
   const { accion } = body
   const ip = getIP(req)
+
+  // Superadmin-only actions
+  if (SUPERADMIN_ONLY.has(accion as string) && adminUser.role !== 'superadmin') {
+    return NextResponse.json({ error: 'Acción reservada para superadmin' }, { status: 403 })
+  }
 
   // ── Aprobar jugador pendiente ───────────────────────────────────────────────
   if (accion === 'aprobar_jugador') {

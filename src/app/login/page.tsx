@@ -50,7 +50,16 @@ export default function LoginPage() {
       return
     }
 
-    fetch('/api/auth/log-login', { method: 'POST' }).catch(() => {})
+    // IP conflict check — awaited so we can block before redirecting
+    const logRes = await fetch('/api/auth/log-login', { method: 'POST' })
+    if (logRes.status === 429) {
+      const logData = await logRes.json()
+      await supabase.auth.signOut()
+      setError(logData.error ?? 'Ya hay una sesión activa desde esta red. Espera 1 hora o usa datos móviles.')
+      setLoading(false)
+      return
+    }
+
     window.location.href = '/'
   }
 

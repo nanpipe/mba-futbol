@@ -2461,7 +2461,7 @@ export default function AdminPage() {
         {tab === 'log' && (() => {
           const LOG_FILTERS = [
             { id: 'todos',        label: 'Todos' },
-            { id: 'login',        label: 'Login',         match: ['login'] },
+            { id: 'login',        label: 'Login',         match: ['login', 'login_bloqueado_ip'] },
             { id: 'inscripcion',  label: 'Inscripción',   match: ['inscribirse', 'cancelar_inscripcion', 'promover_espera', 'confirmar_invitado'] },
             { id: 'carta',        label: 'Carta',         match: ['enviar_carta', 'aprobar_carta', 'rechazar_carta'] },
             { id: 'partido',      label: 'Partido',       match: ['crear_partido', 'editar_partido', 'eliminar_partido', 'registrar_resultado', 'forzar_notif_apertura', 'abrir_evaluaciones'] },

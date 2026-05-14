@@ -46,7 +46,7 @@ export default function RecuperarPage() {
       resolvedEmail = profile.email
     }
 
-    const redirectTo = `${window.location.origin}/actualizar-password`
+    const redirectTo = `${window.location.origin}/api/auth/callback?next=/actualizar-password`
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(resolvedEmail, { redirectTo })
 
     if (resetError) {

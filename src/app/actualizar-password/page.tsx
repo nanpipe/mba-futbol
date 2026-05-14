@@ -14,49 +14,35 @@ export default function ActualizarPasswordPage() {
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    // DEBUG — remove after fixing
-    console.log('[recovery] search:', window.location.search)
-    console.log('[recovery] hash:', window.location.hash)
-
-    // Register listener FIRST — event may fire immediately on SDK init
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[recovery] auth event:', event, !!session)
-      if (event === 'PASSWORD_RECOVERY') setReady(true)
-    })
-
     const params = new URLSearchParams(window.location.search)
+    const isRecovery = params.get('recovery') === 'true'
     const tokenHash = params.get('token_hash')
-    const code = params.get('code')
     const type = params.get('type')
 
-    // PKCE code flow (Supabase redirects with ?code=xxx)
-    if (code) {
-      supabase.auth.exchangeCodeForSession(code)
-        .then(({ error }) => {
-          console.log('[recovery] exchangeCode error:', error)
-          if (error) setError('Enlace inválido o expirado.')
-          else setReady(true)
-        })
-      return () => subscription.unsubscribe()
-    }
+    // Register listener first — catches PASSWORD_RECOVERY and SIGNED_IN (post-callback)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') { setReady(true); return }
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session && isRecovery) {
+        setReady(true)
+      }
+    })
 
-    // PKCE token_hash flow
+    // PKCE token_hash flow (old direct link without callback)
     if (tokenHash && type === 'recovery') {
       supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
         .then(({ error }) => {
-          console.log('[recovery] verifyOtp error:', error)
           if (error) setError('Enlace inválido o expirado.')
           else setReady(true)
         })
       return () => subscription.unsubscribe()
     }
 
-    // Implicit flow fallback: event may have already fired before listener registered
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('[recovery] getSession:', !!session, window.location.hash)
-      const isRecovery = window.location.hash.includes('type=recovery')
-      if (session && isRecovery) setReady(true)
-    })
+    // Session already established by server-side callback — check immediately
+    if (isRecovery) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) setReady(true)
+      })
+    }
 
     return () => subscription.unsubscribe()
   }, [supabase])

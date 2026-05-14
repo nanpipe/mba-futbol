@@ -3,6 +3,16 @@ import { Resend } from 'resend'
 const resend = new Resend(process.env.RESEND_API_KEY)
 const FROM = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'
 
+/** Escape user-supplied strings before interpolating into HTML email bodies. */
+function esc(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 export async function sendPromovido({
   email,
   username,
@@ -23,11 +33,11 @@ export async function sendPromovido({
       <div style="font-family: 'Georgia', serif; max-width: 480px; margin: 0 auto; background: #0a0a0a; color: #f0f0f0; padding: 40px 32px; border-radius: 8px;">
         <div style="font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #888; margin-bottom: 32px;">MBA Fútbol Club</div>
         <h1 style="font-size: 28px; font-weight: 400; margin: 0 0 16px 0; line-height: 1.2;">
-          ¡Entraste al partido, <strong>${username}</strong>!
+          ¡Entraste al partido, <strong>${esc(username)}</strong>!
         </h1>
         <p style="color: #aaa; font-size: 16px; line-height: 1.6; margin: 0 0 32px 0;">
-          Se liberó un cupo y pasaste de la lista de espera al partido del 
-          <strong style="color: #f0f0f0;">${diaSemana} ${fechaPartido}</strong> a las 7:00 pm.
+          Se liberó un cupo y pasaste de la lista de espera al partido del
+          <strong style="color: #f0f0f0;">${esc(diaSemana)} ${esc(fechaPartido)}</strong> a las 7:00 pm.
         </p>
         <div style="background: #1a1a1a; border-left: 3px solid #4ade80; padding: 16px 20px; border-radius: 4px; margin-bottom: 32px;">
           <p style="margin: 0; font-size: 14px; color: #4ade80;">Estado: <strong>CONFIRMADO ✓</strong></p>
@@ -69,11 +79,11 @@ export async function sendAperturaEmail({
         <div style="font-family: 'Georgia', serif; max-width: 480px; margin: 0 auto; background: #0a0a0a; color: #f0f0f0; padding: 40px 32px; border-radius: 8px;">
           <div style="font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #888; margin-bottom: 32px;">MBA Fútbol Club</div>
           <h1 style="font-size: 28px; font-weight: 400; margin: 0 0 16px 0; line-height: 1.2;">
-            ¡Hola <strong>${username}</strong>! Ya están abiertas las inscripciones.
+            ¡Hola <strong>${esc(username)}</strong>! Ya están abiertas las inscripciones.
           </h1>
           <p style="color: #aaa; font-size: 16px; line-height: 1.6; margin: 0 0 32px 0;">
-            El partido del <strong style="color: #f0f0f0;">${diaSemana} ${fechaPartido}</strong> a las
-            <strong style="color: #f0f0f0;">${hora}</strong> ya tiene cupos disponibles. ¡Entra y anótate antes de que se llenen!
+            El partido del <strong style="color: #f0f0f0;">${esc(diaSemana)} ${esc(fechaPartido)}</strong> a las
+            <strong style="color: #f0f0f0;">${esc(hora)}</strong> ya tiene cupos disponibles. ¡Entra y anótate antes de que se llenen!
           </p>
           <div style="background: #1a1a1a; border-left: 3px solid #facc15; padding: 16px 20px; border-radius: 4px; margin-bottom: 32px;">
             <p style="margin: 0; font-size: 14px; color: #facc15;">⚽ Inscripciones ABIERTAS</p>
@@ -114,11 +124,11 @@ export async function sendRecordatorioEmail({
         <div style="font-family: 'Georgia', serif; max-width: 480px; margin: 0 auto; background: #0a0a0a; color: #f0f0f0; padding: 40px 32px; border-radius: 8px;">
           <div style="font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #888; margin-bottom: 32px;">MBA Fútbol Club</div>
           <h1 style="font-size: 28px; font-weight: 400; margin: 0 0 16px 0; line-height: 1.2;">
-            ¡Hoy es día de partido, <strong>${username}</strong>!
+            ¡Hoy es día de partido, <strong>${esc(username)}</strong>!
           </h1>
           <p style="color: #aaa; font-size: 16px; line-height: 1.6; margin: 0 0 32px 0;">
-            Hoy <strong style="color: #f0f0f0;">${diaSemana}</strong> a las
-            <strong style="color: #f0f0f0;">${hora}</strong> es el partido. Estás confirmado.
+            Hoy <strong style="color: #f0f0f0;">${esc(diaSemana)}</strong> a las
+            <strong style="color: #f0f0f0;">${esc(hora)}</strong> es el partido. Estás confirmado.
           </p>
           <div style="background: #1a1a1a; border-left: 3px solid #4ade80; padding: 16px 20px; border-radius: 4px; margin-bottom: 32px;">
             <p style="margin: 0; font-size: 14px; color: #4ade80;">Estado: <strong>CONFIRMADO ✓</strong></p>
@@ -190,7 +200,7 @@ export async function sendUsernameEmail({
           <h1 style="font-size: 28px; font-weight: 400; margin: 0 0 16px 0; line-height: 1.2;">Tu nombre de usuario</h1>
           <p style="color: #aaa; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">Solicitaste recuperar tu usuario. Aquí está:</p>
           <div style="background: #1a1a1a; border-left: 3px solid #4ade80; padding: 20px 24px; border-radius: 4px; margin-bottom: 32px;">
-            <p style="margin: 0; font-size: 22px; color: #f0f0f0; font-family: 'DM Mono', monospace; letter-spacing: 0.05em;">${username}</p>
+            <p style="margin: 0; font-size: 22px; color: #f0f0f0; font-family: 'DM Mono', monospace; letter-spacing: 0.05em;">${esc(username)}</p>
           </div>
           <p style="color: #aaa; font-size: 14px; line-height: 1.6; margin: 0 0 32px 0;">Si no solicitaste esto, puedes ignorar este correo.</p>
           <hr style="border: none; border-top: 1px solid #222; margin: 32px 0;" />

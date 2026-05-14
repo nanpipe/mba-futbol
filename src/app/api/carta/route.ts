@@ -51,6 +51,10 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient()
 
+  // Verify player is approved
+  const { data: playerProf } = await supabase.from('profiles').select('aprobado').eq('id', user.id).single()
+  if (!playerProf?.aprobado) return NextResponse.json({ error: 'Tu cuenta aún no ha sido aprobada.' }, { status: 403 })
+
   // Check if already approved — approved cards can't be re-submitted
   const { data: existing } = await admin
     .from('evaluaciones_carta')

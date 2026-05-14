@@ -18,6 +18,10 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
+  // Verify player is approved
+  const { data: playerProfile } = await supabase.from('profiles').select('aprobado').eq('id', user.id).single()
+  if (!playerProfile?.aprobado) return NextResponse.json({ error: 'Tu cuenta aún no ha sido aprobada.' }, { status: 403 })
+
   let body: { partido_id?: unknown; nombre?: unknown }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Cuerpo inválido' }, { status: 400 }) }
 

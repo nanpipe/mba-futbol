@@ -118,6 +118,7 @@ interface Inscripcion {
   created_at: string
   profiles: { username: string; id: string }
   partidos: { fecha: string; dia_semana: string }
+  added_by_profile: { username: string } | null
 }
 
 interface JugadorEquipo {
@@ -217,6 +218,14 @@ export default function AdminPage() {
   const [editDeleteOpen, setEditDeleteOpen] = useState(false)
   const [editDeleteConfirm, setEditDeleteConfirm] = useState('')
 
+  // Promover modal (swap when full)
+  const [promoverModal, setPromoverModal] = useState<Inscripcion | null>(null)
+  const [swapPlayerId, setSwapPlayerId] = useState('')
+  // Agregar jugador modal
+  const [agregarModal, setAgregarModal] = useState(false)
+  const [agregarPlayerId, setAgregarPlayerId] = useState('')
+  const [agregarEstado, setAgregarEstado] = useState<'confirmado' | 'espera'>('confirmado')
+
   // Equipos tab
   const [equiposPartido, setEquiposPartido] = useState<Partido | null>(null)
   const [equipoA, setEquipoA] = useState<JugadorEquipo[]>([])
@@ -290,7 +299,7 @@ export default function AdminPage() {
   const cargarInscripciones = useCallback(async (partidoId: string) => {
     const { data } = await supabase
       .from('inscripciones')
-      .select('id, estado, posicion_espera, partido_id, created_at, profiles(username, id), partidos(fecha, dia_semana)')
+      .select('id, estado, posicion_espera, partido_id, created_at, profiles!player_id(username, id), partidos(fecha, dia_semana), added_by_profile:profiles!added_by(username)')
       .eq('partido_id', partidoId)
       .order('estado', { ascending: true })
       .order('posicion_espera', { ascending: true, nullsFirst: false })
@@ -1078,22 +1087,31 @@ export default function AdminPage() {
                       <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
                         INSCRITOS
                       </div>
-                      {(() => {
-                        const p = partidos.find(x => x.id === selectedPartido)
-                        if (!p || p.notif_apertura_sent) return null
-                        return (
-                          <button
-                            className="btn btn-ghost"
-                            style={{ fontSize: 10, padding: '4px 10px', color: 'var(--amber)', borderColor: '#92400e' }}
-                            onClick={async () => {
-                              const ok = await accionAdmin('forzar_notif_apertura', { partido_id: selectedPartido })
-                              if (ok) setPartidos(prev => prev.map(x => x.id === selectedPartido ? { ...x, notif_apertura_sent: true } : x))
-                            }}
-                          >
-                            🔔 Forzar notif apertura
-                          </button>
-                        )
-                      })()}
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {(() => {
+                          const p = partidos.find(x => x.id === selectedPartido)
+                          if (!p || p.notif_apertura_sent) return null
+                          return (
+                            <button
+                              className="btn btn-ghost"
+                              style={{ fontSize: 10, padding: '4px 10px', color: 'var(--amber)', borderColor: '#92400e' }}
+                              onClick={async () => {
+                                const ok = await accionAdmin('forzar_notif_apertura', { partido_id: selectedPartido })
+                                if (ok) setPartidos(prev => prev.map(x => x.id === selectedPartido ? { ...x, notif_apertura_sent: true } : x))
+                              }}
+                            >
+                              🔔 Forzar notif apertura
+                            </button>
+                          )
+                        })()}
+                        <button
+                          className="btn btn-ghost"
+                          style={{ fontSize: 10, padding: '4px 10px', color: 'var(--green)', borderColor: '#14532d' }}
+                          onClick={() => { setAgregarPlayerId(''); setAgregarEstado('confirmado'); setAgregarModal(true) }}
+                        >
+                          + Agregar jugador
+                        </button>
+                      </div>
                     </div>
                     {inscripciones.length === 0 ? (
                       <div className="card" style={{ textAlign: 'center', padding: 32 }}>
@@ -1102,19 +1120,26 @@ export default function AdminPage() {
                     ) : (
                       <>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        {/* Confirmed players (inscripciones) */}
+                        {/* All inscripciones (confirmed first, then espera) */}
                         {inscripciones.map(ins => (
                           <div key={ins.id} style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                             padding: '10px 14px', background: 'var(--bg-card)',
-                            border: '1px solid var(--border)', borderRadius: 3
+                            border: `1px solid ${ins.estado === 'espera' ? '#1a2a1a' : 'var(--border)'}`, borderRadius: 3
                           }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
                               <span className={`badge ${ins.estado === 'confirmado' ? 'badge-green' : 'badge-amber'}`}>
                                 {ins.estado === 'confirmado' ? '✓' : `#${ins.posicion_espera}`}
                               </span>
-                              <div>
-                                <div style={{ fontSize: 15 }}>{ins.profiles.username}</div>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: 15, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                  {ins.profiles.username}
+                                  {ins.added_by_profile && (
+                                    <span className="mono" style={{ fontSize: 9, color: 'var(--amber)', background: '#1a1500', border: '1px solid #78350f', borderRadius: 2, padding: '1px 5px', letterSpacing: '0.05em' }}>
+                                      por {ins.added_by_profile.username}
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 1 }}>
                                   {new Date(ins.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', timeZone: 'America/Bogota' })}
                                   {' · '}
@@ -1122,18 +1147,47 @@ export default function AdminPage() {
                                 </div>
                               </div>
                             </div>
-                            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
                               {ins.estado === 'confirmado' && (
                                 <button
-                                  onClick={() => accionAdmin('mover_espera', { player_id: ins.profiles.id, partido_id: ins.partido_id })}
+                                  onClick={() => {
+                                    if (!window.confirm(`¿Mover a ${ins.profiles.username} a lista de espera?`)) return
+                                    accionAdmin('mover_espera', { player_id: ins.profiles.id, partido_id: ins.partido_id })
+                                  }}
                                   className="mono"
                                   style={{ fontSize: 11, color: 'var(--amber)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
                                 >
                                   EN ESPERA
                                 </button>
                               )}
+                              {ins.estado === 'espera' && (
+                                <button
+                                  onClick={() => {
+                                    const p = partidos.find(x => x.id === selectedPartido)
+                                    if (!p) return
+                                    // Count confirmed
+                                    const confirmados = inscripciones.filter(i => i.estado === 'confirmado').length
+                                      + invitados.filter(i => i.estado === 'confirmado').length
+                                    const lleno = confirmados >= p.cupos_total
+                                    if (lleno) {
+                                      setSwapPlayerId('')
+                                      setPromoverModal(ins)
+                                    } else {
+                                      if (!window.confirm(`¿Promover a ${ins.profiles.username} a confirmado?`)) return
+                                      accionAdmin('promover_espera_manual', { inscripcion_id: ins.id, partido_id: ins.partido_id })
+                                    }
+                                  }}
+                                  className="mono"
+                                  style={{ fontSize: 11, color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
+                                >
+                                  PROMOVER
+                                </button>
+                              )}
                               <button
-                                onClick={() => accionAdmin('remover_partido', { player_id: ins.profiles.id, partido_id: ins.partido_id })}
+                                onClick={() => {
+                                  if (!window.confirm(`¿Remover a ${ins.profiles.username} del partido?`)) return
+                                  accionAdmin('remover_partido', { player_id: ins.profiles.id, partido_id: ins.partido_id })
+                                }}
                                 className="mono"
                                 style={{ fontSize: 11, color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
                               >
@@ -2517,6 +2571,117 @@ export default function AdminPage() {
           )
         })()}
       </div>
+
+      {/* Modal Promover con Swap */}
+      {promoverModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100 }}>
+          <div className="card" style={{ width: '100%', maxWidth: 440 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Partido lleno — elegir swap</h3>
+            <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.6 }}>
+              Para promover a <strong style={{ color: 'var(--text)' }}>{promoverModal.profiles.username}</strong>, elige quién cede su cupo y pasa a espera:
+            </p>
+            <select
+              value={swapPlayerId}
+              onChange={e => setSwapPlayerId(e.target.value)}
+              style={{ width: '100%', marginBottom: 20, padding: '10px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text)', fontSize: 14 }}
+            >
+              <option value="">— Selecciona jugador —</option>
+              {inscripciones.filter(i => i.estado === 'confirmado').map(i => (
+                <option key={i.id} value={i.profiles.id}>{i.profiles.username}</option>
+              ))}
+            </select>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 1 }}
+                disabled={!swapPlayerId}
+                onClick={async () => {
+                  if (!swapPlayerId) return
+                  const swapUsername = inscripciones.find(i => i.profiles.id === swapPlayerId)?.profiles.username
+                  if (!window.confirm(`¿Promover a ${promoverModal.profiles.username} y mover a ${swapUsername} a espera?`)) return
+                  const ok = await accionAdmin('promover_espera_manual', {
+                    inscripcion_id: promoverModal.id,
+                    partido_id: promoverModal.partido_id,
+                    swap_player_id: swapPlayerId,
+                  })
+                  if (ok) setPromoverModal(null)
+                }}
+              >
+                Confirmar swap
+              </button>
+              <button className="btn btn-ghost" onClick={() => setPromoverModal(null)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Agregar Jugador */}
+      {agregarModal && selectedPartido && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100 }}>
+          <div className="card" style={{ width: '100%', maxWidth: 440 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Agregar jugador al partido</h3>
+            <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.6 }}>
+              Quedará registrado que fue añadido por ti como admin.
+            </p>
+            <div style={{ marginBottom: 16 }}>
+              <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>JUGADOR</label>
+              <select
+                value={agregarPlayerId}
+                onChange={e => setAgregarPlayerId(e.target.value)}
+                style={{ width: '100%', padding: '10px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text)', fontSize: 14 }}
+              >
+                <option value="">— Selecciona jugador —</option>
+                {players
+                  .filter(p => p.aprobado && !p.baneado && p.role !== 'admin' && !inscripciones.some(i => i.profiles.id === p.id))
+                  .map(p => (
+                    <option key={p.id} value={p.id}>{p.username}</option>
+                  ))}
+              </select>
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>ESTADO</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {(['confirmado', 'espera'] as const).map(e => (
+                  <button
+                    key={e}
+                    onClick={() => setAgregarEstado(e)}
+                    className="mono"
+                    style={{
+                      flex: 1, padding: '8px', border: `1px solid ${agregarEstado === e ? (e === 'confirmado' ? '#16a34a' : '#92400e') : 'var(--border)'}`,
+                      borderRadius: 3, background: agregarEstado === e ? (e === 'confirmado' ? '#0f2d1a' : '#1a1000') : 'none',
+                      color: agregarEstado === e ? (e === 'confirmado' ? 'var(--green)' : 'var(--amber)') : 'var(--text-muted)',
+                      cursor: 'pointer', fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase',
+                    }}
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 1 }}
+                disabled={!agregarPlayerId}
+                onClick={async () => {
+                  if (!agregarPlayerId) return
+                  const targetName = players.find(p => p.id === agregarPlayerId)?.username
+                  if (!window.confirm(`¿Agregar a ${targetName} como ${agregarEstado}?`)) return
+                  const ok = await accionAdmin('agregar_jugador_partido', {
+                    player_id: agregarPlayerId,
+                    partido_id: selectedPartido,
+                    estado: agregarEstado,
+                  })
+                  if (ok) setAgregarModal(false)
+                }}
+              >
+                Agregar
+              </button>
+              <button className="btn btn-ghost" onClick={() => setAgregarModal(false)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Crear Partido */}
       {crearModal && (

@@ -183,15 +183,23 @@ export default function PerfilPage() {
         useWebWorker: true,
       })
 
-      // 2. Remove background → Blob (PNG transparente)
-      setAvatarStatus('Removiendo fondo...')
-      const { removeBackground } = await import('@imgly/background-removal')
-      const noBg: Blob = await removeBackground(compressed)
+      // 2. Attempt background removal (optional — skip on failure)
+      let uploadBlob: Blob = compressed
+      let bgRemoved = false
+      try {
+        setAvatarStatus('Removiendo fondo...')
+        const { removeBackground } = await import('@imgly/background-removal')
+        uploadBlob = await removeBackground(compressed)
+        bgRemoved = true
+      } catch (bgErr) {
+        console.warn('BG removal failed, uploading without it:', bgErr)
+        // Continue with compressed image — not a fatal error
+      }
 
-      // 3. Upload PNG to Supabase Storage
+      // 3. Upload to Supabase Storage
       setAvatarStatus('Subiendo...')
       const { error: uploadError } = await supabase.storage.from('avatars')
-        .upload(`${user.id}/avatar.png`, noBg, { upsert: true, contentType: 'image/png' })
+        .upload(`${user.id}/avatar.png`, uploadBlob, { upsert: true, contentType: 'image/png' })
 
       if (uploadError) {
         flash('error', 'Error subiendo imagen.')
@@ -207,7 +215,7 @@ export default function PerfilPage() {
       if (res.ok) {
         const busted = `${publicUrl}?t=${Date.now()}`
         setProfile(p => p ? { ...p, avatar_url: busted } : p)
-        flash('ok', 'Foto actualizada. Fondo removido automáticamente ✓')
+        flash('ok', bgRemoved ? 'Foto actualizada. Fondo removido automáticamente ✓' : 'Foto actualizada ✓')
       } else {
         flash('error', 'Error guardando la foto.')
       }

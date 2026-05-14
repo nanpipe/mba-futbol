@@ -260,6 +260,9 @@ export default function AdminPage() {
   const [pushGroup, setPushGroup] = useState<'todos' | 'admins' | 'confirmados' | 'espera' | 'todos_partido' | 'individual'>('todos')
   const [pushPartidoId, setPushPartidoId] = useState('')
   const [pushSending, setPushSending] = useState(false)
+  const [testEmailAddr, setTestEmailAddr] = useState('')
+  const [testEmailSending, setTestEmailSending] = useState(false)
+  const [testEmailResult, setTestEmailResult] = useState<{ ok: boolean; msg: string } | null>(null)
 
   const cargarDatos = useCallback(async () => {
     const [{ data: ps }, { data: pushSubs }] = await Promise.all([
@@ -824,6 +827,20 @@ export default function AdminPage() {
     setPushSending(false)
   }
 
+  const enviarEmailPrueba = async () => {
+    if (!testEmailAddr) return
+    setTestEmailSending(true)
+    setTestEmailResult(null)
+    const res = await fetch('/api/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion: 'enviar_email_prueba', email: testEmailAddr }),
+    })
+    const data = await res.json()
+    setTestEmailResult({ ok: res.ok, msg: data.mensaje ?? data.error ?? 'Error desconocido' })
+    setTestEmailSending(false)
+  }
+
   if (authed === null || loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
@@ -920,40 +937,47 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Tabs */}
+        {/* Utility icon bar — separate from main tabs */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4, marginBottom: 8 }}>
+          {([
+            { id: 'ajustes',  icon: '⚙',  title: 'Configuración' },
+            { id: 'historial', icon: '🕐', title: 'Historial' },
+            { id: 'notifs',   icon: '🔔', title: 'Notificaciones' },
+          ] as const).map(({ id, icon, title }) => (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              title={title}
+              className="mono"
+              style={{
+                padding: '7px 13px', borderRadius: 6,
+                background: tab === id ? 'var(--bg-card)' : 'none',
+                border: tab === id ? '1px solid var(--border)' : '1px solid transparent',
+                cursor: 'pointer', fontSize: 16,
+                opacity: tab === id ? 1 : 0.4,
+                transition: 'opacity 0.15s, background 0.15s',
+              }}
+            >
+              {icon}
+            </button>
+          ))}
+        </div>
+
+        {/* Main text tabs */}
         <div style={{ display: 'flex', alignItems: 'flex-end', marginBottom: 40, borderBottom: '1px solid var(--border)' }}>
-          {/* Main text tabs */}
-          <div style={{ display: 'flex', flex: 1, gap: 0, overflowX: 'auto', overflowY: 'hidden' }}>
-            {(['partidos', 'equipos', 'jugadores', 'cartas', 'ajustes', 'log'] as const).map(t => (
-              <button key={t} onClick={() => setTab(t)} className="mono" style={{
-                padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap',
-                color: tab === t ? 'var(--text)' : 'var(--text-muted)',
-                borderBottom: tab === t ? '2px solid var(--green)' : '2px solid transparent',
-                marginBottom: -1, position: 'relative',
-              }}>
-                {t === 'cartas' && cartas.filter(c => !c.aprobado && !c.rechazado).length > 0
-                  ? `cartas (${cartas.filter(c => !c.aprobado && !c.rechazado).length})`
-                  : t === 'ajustes' ? '⚙' : t}
-              </button>
-            ))}
-          </div>
-          {/* Icon-only utility tabs */}
-          <div style={{ display: 'flex', gap: 0, flexShrink: 0 }}>
-            {([
-              { id: 'historial', icon: '🕐', title: 'Historial' },
-              { id: 'notifs', icon: '🔔', title: 'Notificaciones' },
-            ] as const).map(({ id, icon, title }) => (
-              <button key={id} onClick={() => setTab(id)} title={title} className="mono" style={{
-                padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: 16, marginBottom: -1,
-                borderBottom: tab === id ? '2px solid var(--green)' : '2px solid transparent',
-                opacity: tab === id ? 1 : 0.45,
-              }}>
-                {icon}
-              </button>
-            ))}
-          </div>
+          {(['partidos', 'equipos', 'jugadores', 'cartas', 'log'] as const).map(t => (
+            <button key={t} onClick={() => setTab(t)} className="mono" style={{
+              padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+              color: tab === t ? 'var(--text)' : 'var(--text-muted)',
+              borderBottom: tab === t ? '2px solid var(--green)' : '2px solid transparent',
+              marginBottom: -1, position: 'relative',
+            }}>
+              {t === 'cartas' && cartas.filter(c => !c.aprobado && !c.rechazado).length > 0
+                ? `cartas (${cartas.filter(c => !c.aprobado && !c.rechazado).length})`
+                : t}
+            </button>
+          ))}
         </div>
 
         {/* TAB: PARTIDOS */}
@@ -2259,10 +2283,10 @@ export default function AdminPage() {
                   <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--amber)', marginBottom: 20 }}>🔔 NOTIFICACIONES PUSH</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {([
-                      { key: 'notif_apertura',      label: 'Inscripciones abiertas',    desc: 'Cuando abre la ventana de inscripción para un partido' },
-                      { key: 'notif_recordatorio',  label: 'Recordatorio de partido',   desc: 'A los confirmados, 8h antes del partido' },
-                      { key: 'notif_cupos',         label: 'Cupos disponibles',         desc: 'A no-inscritos cuando quedan cupos libres' },
-                      { key: 'notif_invitados',     label: 'Promoción de invitados',    desc: 'Mueve invitados de espera a confirmado el día del partido' },
+                      { key: 'notif_apertura',     label: 'Inscripciones abiertas',  desc: 'Cuando abre la ventana de inscripción para un partido' },
+                      { key: 'notif_recordatorio', label: 'Recordatorio de partido', desc: 'A los confirmados, ≤10h antes del partido' },
+                      { key: 'notif_cupos',        label: 'Cupos disponibles',       desc: 'A no-inscritos cuando quedan cupos libres' },
+                      { key: 'notif_invitados',    label: 'Promoción de invitados',  desc: 'Mueve invitados de espera a confirmado el día del partido' },
                     ] as const).map(({ key, label, desc }) => (
                       <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
                         <div>
@@ -2272,16 +2296,14 @@ export default function AdminPage() {
                         <button
                           onClick={() => toggleSetting(key, !settings[key])}
                           style={{
-                            flexShrink: 0,
-                            width: 44, height: 24, borderRadius: 12,
+                            flexShrink: 0, width: 44, height: 24, borderRadius: 12,
                             background: settings[key] !== false ? 'var(--green)' : 'var(--border)',
                             border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s',
                           }}
                         >
                           <div style={{
                             position: 'absolute', top: 3, left: settings[key] !== false ? 23 : 3,
-                            width: 18, height: 18, borderRadius: '50%', background: '#fff',
-                            transition: 'left 0.2s',
+                            width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.2s',
                           }} />
                         </button>
                       </div>
@@ -2289,15 +2311,78 @@ export default function AdminPage() {
                   </div>
                 </div>
 
+                {/* Email notifications */}
+                <div className="card" style={{ padding: '20px 24px' }}>
+                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--amber)', marginBottom: 20 }}>✉️ NOTIFICACIONES EMAIL</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {([
+                      { key: 'email_apertura',     label: 'Email apertura partido',    desc: 'Correo a todos los jugadores cuando se abren inscripciones' },
+                      { key: 'email_recordatorio', label: 'Email recordatorio partido', desc: 'Correo a confirmados el día del partido (cron 10am)' },
+                    ] as const).map(({ key, label, desc }) => (
+                      <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 500 }}>{label}</div>
+                          <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{desc}</div>
+                        </div>
+                        <button
+                          onClick={() => toggleSetting(key, !settings[key])}
+                          style={{
+                            flexShrink: 0, width: 44, height: 24, borderRadius: 12,
+                            background: settings[key] !== false ? 'var(--green)' : 'var(--border)',
+                            border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s',
+                          }}
+                        >
+                          <div style={{
+                            position: 'absolute', top: 3, left: settings[key] !== false ? 23 : 3,
+                            width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.2s',
+                          }} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Test email */}
+                <div className="card" style={{ padding: '20px 24px' }}>
+                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 16 }}>📧 ENVIAR EMAIL DE PRUEBA</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      type="email"
+                      placeholder="correo@ejemplo.com"
+                      value={testEmailAddr}
+                      onChange={e => { setTestEmailAddr(e.target.value); setTestEmailResult(null) }}
+                      style={{ flex: 1 }}
+                    />
+                    <button
+                      onClick={enviarEmailPrueba}
+                      disabled={testEmailSending || !testEmailAddr}
+                      className="btn btn-ghost"
+                      style={{ fontSize: 12, padding: '10px 18px', whiteSpace: 'nowrap' }}
+                    >
+                      {testEmailSending ? 'Enviando...' : 'Enviar'}
+                    </button>
+                  </div>
+                  {testEmailResult && (
+                    <div className="mono" style={{
+                      fontSize: 12, marginTop: 10, padding: '8px 12px', borderRadius: 3,
+                      ...(testEmailResult.ok
+                        ? { color: 'var(--green)', background: '#0f2d1a', border: '1px solid #16a34a' }
+                        : { color: 'var(--red)', background: '#2d0a0a', border: '1px solid #7f1d1d' }),
+                    }}>
+                      {testEmailResult.ok ? '✓ ' : '✕ '}{testEmailResult.msg}
+                    </div>
+                  )}
+                </div>
+
                 {/* Cron info */}
                 <div className="card" style={{ padding: '16px 24px' }}>
                   <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>⏱ CRON SCHEDULE</div>
                   <div className="mono" style={{ fontSize: 13 }}>
-                    <span style={{ color: 'var(--green)' }}>0 19 * * *</span>
-                    <span style={{ color: 'var(--text-muted)', marginLeft: 12 }}>→ 2:00 PM Colombia (19:00 UTC)</span>
+                    <span style={{ color: 'var(--green)' }}>0 15 * * *</span>
+                    <span style={{ color: 'var(--text-muted)', marginLeft: 12 }}>→ 10:00 AM Colombia (15:00 UTC)</span>
                   </div>
                   <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8 }}>
-                    Corre diariamente. Verifica apertura, recordatorio, cupos y promoción de invitados en un solo pase.
+                    Corre diariamente. Envía push + email de apertura e inscripciones. Verifica recordatorio (≤10h antes), cupos y promoción de invitados.
                   </div>
                 </div>
 

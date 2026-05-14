@@ -3,11 +3,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPush } from '@/lib/push'
 import { calcularVentanaPartido } from '@/lib/partidos'
 import { logActivity } from '@/lib/activityLog'
+import { sendAperturaEmail, sendRecordatorioEmail } from '@/lib/email'
 
-// Single daily cron — runs at 19:00 UTC = 2:00 PM Colombia
+// Single daily cron — runs at 15:00 UTC = 10:00 AM Colombia
 // Handles 4 tasks in one pass:
-//   1. Apertura notification → all users when inscription window opens
-//   2. Recordatorio → confirmed players ~5h before match
+//   1. Apertura notification → all users when inscription window opens (push + email)
+//   2. Recordatorio → confirmed players ≤10h before match (push + email)
 //   3. Cupos disponibles → non-inscribed users with spots remaining
 //   4. Invitee promotion → promote waiting invitees if spots available
 
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient()
   const now = new Date()
   const hoy = now.toISOString().split('T')[0]
-  const results = { apertura: 0, recordatorio: 0, cupos: 0, invitados: 0 }
+  const results = { apertura: 0, apertura_email: 0, recordatorio: 0, recordatorio_email: 0, cupos: 0, invitados: 0 }
 
   // ── Load notification toggles from app_settings ──────────────────────────
   const { data: settingsRows } = await admin.from('app_settings').select('key, value')
@@ -50,10 +51,12 @@ export async function GET(req: NextRequest) {
   for (const row of (settingsRows ?? [])) {
     settings[(row as { key: string; value: unknown }).key] = (row as { key: string; value: unknown }).value === true
   }
-  const sendApertura    = settings['notif_apertura']    !== false
-  const sendRecordatorio = settings['notif_recordatorio'] !== false
-  const sendCupos       = settings['notif_cupos']       !== false
-  const sendInvitados   = settings['notif_invitados']   !== false
+  const sendApertura      = settings['notif_apertura']      !== false
+  const sendRecordatorio  = settings['notif_recordatorio']  !== false
+  const sendCupos         = settings['notif_cupos']         !== false
+  const sendInvitados     = settings['notif_invitados']     !== false
+  const emailApertura     = settings['email_apertura']      !== false
+  const emailRecordatorio = settings['email_recordatorio']  !== false
 
   const { data: partidos } = await admin
     .from('partidos')
@@ -91,17 +94,40 @@ export async function GET(req: NextRequest) {
 
     // ── 1. Apertura: window just opened, not yet notified ────────────────────
     if (sendApertura && !partido.notif_apertura_sent && abierta) {
+      // Push to all
       const { data: subs } = await admin.from('push_subscriptions').select('endpoint, p256dh, auth')
       results.apertura += await sendToMany(admin, subs ?? [], {
         title: '⚽ ¡Inscripciones abiertas!',
         body: `Ya puedes anotarte para el partido del ${partido.dia_semana}. ¡Entra ahora!`,
         url: '/',
       })
+
+      // Email to all approved players
+      if (emailApertura) {
+        const { data: profiles } = await admin
+          .from('profiles')
+          .select('email, username')
+          .eq('aprobado', true)
+          .eq('baneado', false)
+          .neq('role', 'admin')
+        for (const p of (profiles ?? [])) {
+          const r = await sendAperturaEmail({
+            email: (p as { email: string }).email,
+            username: (p as { username: string }).username,
+            diaSemana: partido.dia_semana,
+            fechaPartido: partido.fecha,
+            hora: matchHora,
+          })
+          if (r.ok) results.apertura_email++
+        }
+      }
+
       await admin.from('partidos').update({ notif_apertura_sent: true }).eq('id', partido.id)
     }
 
-    // ── 2. Recordatorio: match in <8h, not yet notified ──────────────────────
-    if (sendRecordatorio && !partido.notif_recordatorio_sent && hoursToMatch > 0 && hoursToMatch <= 8) {
+    // ── 2. Recordatorio: match in ≤10h, not yet notified ─────────────────────
+    // Window extended to 10h (cron at 10am catches 7pm+ matches)
+    if (sendRecordatorio && !partido.notif_recordatorio_sent && hoursToMatch > 0 && hoursToMatch <= 10) {
       const { data: inscripciones } = await admin
         .from('inscripciones')
         .select('player_id')
@@ -110,6 +136,7 @@ export async function GET(req: NextRequest) {
 
       const confirmedIds = (inscripciones ?? []).map((i: { player_id: string }) => i.player_id)
       if (confirmedIds.length > 0) {
+        // Push
         const { data: subs } = await admin
           .from('push_subscriptions')
           .select('endpoint, p256dh, auth')
@@ -117,9 +144,27 @@ export async function GET(req: NextRequest) {
 
         results.recordatorio += await sendToMany(admin, subs ?? [], {
           title: '⏰ Recordatorio de partido',
-          body: `Hoy a las ${matchHora} es el partido del ${partido.dia_semana}. Si no puedes ir, cancela tu cupo para que otro jugador pueda entrar 🙏`,
+          body: `Hoy a las ${matchHora} es el partido del ${partido.dia_semana}. Si no puedes ir, cancela tu cupo 🙏`,
           url: '/',
         })
+
+        // Email
+        if (emailRecordatorio) {
+          const { data: profiles } = await admin
+            .from('profiles')
+            .select('email, username')
+            .in('id', confirmedIds)
+          for (const p of (profiles ?? [])) {
+            const r = await sendRecordatorioEmail({
+              email: (p as { email: string }).email,
+              username: (p as { username: string }).username,
+              diaSemana: partido.dia_semana,
+              hora: matchHora,
+            })
+            if (r.ok) results.recordatorio_email++
+          }
+        }
+
         await admin.from('partidos').update({ notif_recordatorio_sent: true }).eq('id', partido.id)
       }
     }
@@ -142,7 +187,6 @@ export async function GET(req: NextRequest) {
         const inscritosIds = (inscritos ?? []).map((i: { player_id: string }) => i.player_id)
 
         const subsQuery = admin.from('push_subscriptions').select('endpoint, p256dh, auth')
-        // Use array parameter (not string interpolation) to avoid injection
         const { data: subs } = inscritosIds.length > 0
           ? await subsQuery.not('player_id', 'in', inscritosIds)
           : await subsQuery
@@ -155,7 +199,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── 4. Invitee promotion: today's match at 2pm ────────────────────────────
+    // ── 4. Invitee promotion: today's match at 10am ───────────────────────────
     if (sendInvitados && partido.fecha === hoy) {
       const { count: confirmados } = await admin
         .from('inscripciones')
@@ -182,10 +226,11 @@ export async function GET(req: NextRequest) {
   }
 
   const totalPush = results.apertura + results.recordatorio + results.cupos
-  if (totalPush > 0 || results.invitados > 0) {
+  const totalEmail = results.apertura_email + results.recordatorio_email
+  if (totalPush > 0 || totalEmail > 0 || results.invitados > 0) {
     await logActivity({
       accion: 'cron_notificaciones',
-      detalles: { ...results, total_push: totalPush, timestamp: now.toISOString() },
+      detalles: { ...results, total_push: totalPush, total_email: totalEmail, timestamp: now.toISOString() },
     })
   }
   console.log('[cron/notificaciones]', now.toISOString(), results)

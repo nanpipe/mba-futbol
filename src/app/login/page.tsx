@@ -179,13 +179,6 @@ export default function LoginPage() {
               NO PUEDES REGISTRAR<br />
               A NADIE QUE NO SEAS TÚ MISMO.<br />
               <br />
-              {bloqueado.conflictingUsername && (
-                <>
-                  <span style={{ color: '#fca5a5' }}>YA ESTABA LOGUEADO: </span>
-                  <span style={{ color: '#fff', letterSpacing: '0.1em' }}>{bloqueado.conflictingUsername.toUpperCase()}</span>
-                  <br /><br />
-                </>
-              )}
               👀 YA SABEMOS QUIÉN ERES<br />
               Y LO QUE QUERÍAS HACER.<br />
               <br />

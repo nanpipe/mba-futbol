@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
         user_id: user.id,
         username,
         accion: 'login_bloqueado_ip',
-        detalles: { ip, device_id: deviceId, conflicting_user_id: conflict.data!.user_id, conflicting_username: conflictingUsername },
+        detalles: { ip, device_id: deviceId, conflicting_username: conflictingUsername },
         ip,
       })
       return NextResponse.json(

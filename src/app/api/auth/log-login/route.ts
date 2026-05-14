@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
         ip,
       })
       return NextResponse.json(
-        { error: 'Ya hay una sesión activa desde este dispositivo o red. Espera 1 hora o usa datos móviles.' },
+        { error: '🚨 NO PUEDES REGISTRAR A NADIE QUE NO SEAS TÚ MISMO. 👀 YA SABEMOS QUIÉN ERES Y LO QUE QUERÍAS HACER. 🍺 VAS A PAGAR CERVEZAS POR ESTO.' },
         { status: 429 }
       )
     }

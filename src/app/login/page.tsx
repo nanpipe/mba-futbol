@@ -66,7 +66,7 @@ export default function LoginPage() {
     if (logRes.status === 429) {
       const logData = await logRes.json()
       await supabase.auth.signOut()
-      setError(logData.error ?? 'Ya hay una sesión activa desde este dispositivo o red. Espera 1 hora.')
+      setError(logData.error ?? '🚨 NO PUEDES REGISTRAR A NADIE QUE NO SEAS TÚ MISMO. 👀 YA SABEMOS QUIÉN ERES Y LO QUE QUERÍAS HACER. 🍺 VAS A PAGAR CERVEZAS POR ESTO.')
       setLoading(false)
       return
     }

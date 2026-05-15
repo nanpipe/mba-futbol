@@ -201,7 +201,7 @@ export async function POST(req: NextRequest) {
         await admin.from('inscripciones').delete().eq('id', ins.id)
         if (ins.estado === 'confirmado') {
           await admin.rpc('promover_espera', { p_partido_id: ins.partido_id })
-          internalFetch('/api/notify', { method: 'POST' }).catch(() => {})
+          await internalFetch('/api/notify', { method: 'POST' }).catch(() => {})
         }
       }
     }

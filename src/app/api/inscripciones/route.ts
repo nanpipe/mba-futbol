@@ -163,7 +163,7 @@ export async function DELETE(req: NextRequest) {
 
   if (inscripcion.estado === 'confirmado') {
     await admin.rpc('promover_espera', { p_partido_id: partido_id })
-    internalFetch('/api/notify', { method: 'POST' }).catch(() => {})
+    await internalFetch('/api/notify', { method: 'POST' }).catch(() => {})
   }
 
   // Log synchronously — before return so Vercel doesn't kill it

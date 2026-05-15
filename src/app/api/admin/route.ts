@@ -349,6 +349,23 @@ export async function POST(req: NextRequest) {
       .update({ estado: 'confirmado', posicion_espera: null })
       .eq('id', inscripcion_id as string)
 
+    // Queue promotion notification (email + push)
+    const [{ data: promotedProfile }, { data: promotedPartido }] = await Promise.all([
+      admin.from('profiles').select('email, username').eq('id', (ins as { player_id: string }).player_id).single(),
+      admin.from('partidos').select('fecha').eq('id', partido_id as string).single(),
+    ])
+    if (promotedProfile && promotedPartido) {
+      await admin.from('notificaciones_pendientes').insert({
+        player_id: (ins as { player_id: string }).player_id,
+        email: (promotedProfile as { email: string }).email,
+        username: (promotedProfile as { username: string }).username,
+        partido_id,
+        fecha_partido: (promotedPartido as { fecha: string }).fecha,
+        tipo: 'promovido',
+      })
+      await internalFetch('/api/notify', { method: 'POST' })
+    }
+
     // Renumber remaining espera queue
     const { data: espera } = await admin
       .from('inscripciones')

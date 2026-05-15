@@ -5,13 +5,13 @@ import type { ActivityLog } from '@/types/admin'
 
 const LOG_FILTERS = [
   { id: 'todos',        label: 'Todos' },
-  { id: 'login',        label: 'Login',         match: ['login', 'login_bloqueado_ip'] },
-  { id: 'inscripcion',  label: 'Inscripción',   match: ['inscribirse', 'cancelar_inscripcion', 'promover_espera', 'confirmar_invitado'] },
-  { id: 'carta',        label: 'Carta',         match: ['enviar_carta', 'aprobar_carta', 'rechazar_carta'] },
-  { id: 'partido',      label: 'Partido',       match: ['crear_partido', 'editar_partido', 'eliminar_partido', 'registrar_resultado', 'forzar_notif_apertura', 'abrir_evaluaciones'] },
-  { id: 'jugador',      label: 'Jugador',       match: ['aprobar_jugador', 'rechazar_jugador', 'banear', 'liberar_ban', 'eliminar_jugador', 'editar_jugador', 'cambiar_password', 'actualizar_posicion', 'toggle_uniform', 'mover_espera', 'remover_partido'] },
-  { id: 'perfil',       label: 'Perfil',        match: ['actualizar_perfil', 'actualizar_posicion', 'subir_avatar'] },
-  { id: 'notif',        label: 'Notif',         match: ['cron_notificaciones', 'guardar_setting', 'enviar_email_prueba'] },
+  { id: 'login',        label: 'Login',         match: ['login', 'registro', 'recuperar'] as const },
+  { id: 'inscripcion',  label: 'Inscripción',   match: ['inscripcion', 'baja_partido', 'invitado', 'bumped_espera', 'agregar_jugador_partido'] as const },
+  { id: 'carta',        label: 'Carta',         match: ['enviar_carta', 'aprobar_carta', 'rechazar_carta'] as const },
+  { id: 'partido',      label: 'Partido',       match: ['crear_partido', 'editar_partido', 'eliminar_partido', 'registrar_resultado', 'forzar_notif_apertura', 'abrir_evaluaciones', 'guardar_equipos', 'confirmar_equipos', 'resetear_equipos'] as const },
+  { id: 'jugador',      label: 'Jugador',       match: ['aprobar_jugador', 'rechazar_jugador', 'banear', 'liberar_ban', 'eliminar_jugador', 'editar_jugador', 'cambiar_password', 'actualizar_posicion', 'toggle_uniform', 'mover_espera', 'remover_partido', 'promover_espera_manual'] as const },
+  { id: 'perfil',       label: 'Perfil',        match: ['actualizar_perfil', 'subir_avatar'] as const },
+  { id: 'notif',        label: 'Notif',         match: ['cron_notificaciones', 'guardar_setting', 'enviar_email_prueba', 'notif_', 'push_'] as const },
 ] as const
 
 type FilterId = typeof LOG_FILTERS[number]['id']

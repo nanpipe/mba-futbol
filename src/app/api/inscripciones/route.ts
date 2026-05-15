@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { calcularVentanaPartido } from '@/lib/partidos'
 import { safeError, isUUID } from '@/lib/validation'
 import { internalFetch } from '@/lib/internalFetch'
+import { logActivity } from '@/lib/activityLog'
 
 export const dynamic = 'force-dynamic'
 
@@ -90,6 +91,7 @@ export async function POST(req: NextRequest) {
     // Uniform + spots free → confirmed
     const { error } = await admin.from('inscripciones').insert({ partido_id, player_id: user.id, estado: 'confirmado' })
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'confirmado' } })
     return NextResponse.json({ estado: 'confirmado' })
   } else if (tieneUniforme && !spotsLibres) {
     // Uniform + full → try to bump the most-recent non-uniform confirmed player
@@ -107,6 +109,8 @@ export async function POST(req: NextRequest) {
       await admin.from('inscripciones').update({ estado: 'espera', posicion_espera: 1 }).eq('id', toBump.id)
       const { error } = await admin.from('inscripciones').insert({ partido_id, player_id: user.id, estado: 'confirmado' })
       if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+      await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'confirmado_prioridad' } })
+      await logActivity({ user_id: toBump.player_id, accion: 'bumped_espera', detalles: { partido_id, fecha: partido.fecha, bumped_by: profile.username } })
       return NextResponse.json({ estado: 'confirmado', prioridad: true })
     }
     // All confirmed slots taken by uniformed players → fall through to espera
@@ -118,6 +122,7 @@ export async function POST(req: NextRequest) {
     partido_id, player_id: user.id, estado: 'espera', posicion_espera: posicion
   })
   if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+  await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'espera', posicion_espera: posicion } })
   return NextResponse.json({ estado: 'espera', posicion_espera: posicion })
 }
 

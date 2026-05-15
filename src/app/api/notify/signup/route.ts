@@ -47,6 +47,13 @@ export async function POST(req: NextRequest) {
   }
 
   await logActivity({
+    user_id: profile.id,
+    username,
+    accion: 'registro',
+    detalles: { username },
+  })
+
+  await logActivity({
     accion: 'notif_nueva_solicitud',
     detalles: { username, push_enviados: enviados, admins_notificados: adminIds.length },
   })

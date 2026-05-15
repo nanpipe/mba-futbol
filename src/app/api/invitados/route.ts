@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
   // Verify player is approved
-  const { data: playerProfile } = await supabase.from('profiles').select('aprobado').eq('id', user.id).single()
+  const { data: playerProfile } = await supabase.from('profiles').select('aprobado, username').eq('id', user.id).single()
   if (!playerProfile?.aprobado) return NextResponse.json({ error: 'Tu cuenta aún no ha sido aprobada.' }, { status: 403 })
 
   let body: { partido_id?: unknown; nombre?: unknown }
@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
     })
 
   if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+  await logActivity({ user_id: user.id, username: (playerProfile as { username?: string })?.username ?? '', accion: 'alta_invitado', detalles: { partido_id, nombre: nombre as string, fecha: (partido as { fecha?: string })?.fecha } })
   return NextResponse.json({ ok: true, mensaje: `${nombre} agregado a lista de espera de invitados.` })
 }
 
@@ -102,12 +103,14 @@ export async function DELETE(req: NextRequest) {
 
   // Allow owner OR admin to delete
   const { data: callerProfile } = await admin.from('profiles').select('role').eq('id', user.id).single()
-  const isAdmin = (callerProfile as { role?: string })?.role === 'admin'
+  const callerRole = (callerProfile as { role?: string })?.role
+  const isAdmin = callerRole === 'admin' || callerRole === 'superadmin'
   if (!isAdmin && inv.player_id !== user.id) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
 
   await admin.from('invitados').delete().eq('id', invitado_id)
+  await logActivity({ user_id: user.id, accion: 'baja_invitado', detalles: { invitado_id } })
   return NextResponse.json({ ok: true })
 }
 

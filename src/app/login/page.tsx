@@ -162,7 +162,7 @@ export default function LoginPage() {
     </div>
 
     {/* ── Modal dramático de bloqueo ── */}
-    {bloqueado && pagarRespuesta !=='si' && (
+    {bloqueado && (
       <div style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.96)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',

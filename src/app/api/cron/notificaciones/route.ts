@@ -225,14 +225,47 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ── 5. Drain notificaciones_pendientes (promotion emails/push) ───────────────
+  // Safety net: any rows left enviado=false get processed here even if the
+  // fire-and-forget internalFetch('/api/notify') failed earlier.
+  const { data: pendientes } = await admin
+    .from('notificaciones_pendientes')
+    .select('*')
+    .eq('enviado', false)
+    .order('created_at', { ascending: true })
+    .limit(20)
+
+  let promovidos_enviados = 0
+  for (const notif of pendientes ?? []) {
+    try {
+      const fecha = new Date(notif.fecha_partido)
+      const diaSemana = fecha.toLocaleDateString('es-CO', { weekday: 'long', timeZone: 'America/Bogota' })
+      const fechaFormateada = fecha.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', timeZone: 'America/Bogota' })
+      const { sendPromovido } = await import('@/lib/email')
+      const { sendPush } = await import('@/lib/push')
+      const emailResult = await sendPromovido({ email: notif.email, username: notif.username, fechaPartido: fechaFormateada, diaSemana })
+      const { data: subs } = await admin.from('push_subscriptions').select('endpoint, p256dh, auth').eq('player_id', notif.player_id)
+      for (const sub of subs ?? []) {
+        try {
+          await sendPush(sub, { title: '¡Entraste al partido!', body: `Cupo confirmado para el ${diaSemana} ${fechaFormateada} ⚽`, url: '/' })
+        } catch { /* expired sub */ }
+      }
+      await admin.from('notificaciones_pendientes').update({ enviado: true }).eq('id', notif.id)
+      await logActivity({ user_id: notif.player_id, username: notif.username, accion: 'notif_promovido', detalles: { email: notif.email, email_ok: emailResult.ok, fecha_partido: notif.fecha_partido, via: 'cron' } })
+      promovidos_enviados++
+    } catch (err) {
+      console.error('[cron] error draining notif', notif.id, err)
+    }
+  }
+
   const totalPush = results.apertura + results.recordatorio + results.cupos
   const totalEmail = results.apertura_email + results.recordatorio_email
-  if (totalPush > 0 || totalEmail > 0 || results.invitados > 0) {
+  if (totalPush > 0 || totalEmail > 0 || results.invitados > 0 || promovidos_enviados > 0) {
     await logActivity({
       accion: 'cron_notificaciones',
-      detalles: { ...results, total_push: totalPush, total_email: totalEmail, timestamp: now.toISOString() },
+      detalles: { ...results, total_push: totalPush, total_email: totalEmail, promovidos_enviados, timestamp: now.toISOString() },
     })
   }
-  console.log('[cron/notificaciones]', now.toISOString(), results)
-  return NextResponse.json({ ok: true, ...results })
+  console.log('[cron/notificaciones]', now.toISOString(), { ...results, promovidos_enviados })
+  return NextResponse.json({ ok: true, ...results, promovidos_enviados })
 }

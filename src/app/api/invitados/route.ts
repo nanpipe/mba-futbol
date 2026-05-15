@@ -124,7 +124,7 @@ export async function PATCH(req: NextRequest) {
 
   // Admin only
   const { data: prof } = await admin.from('profiles').select('role, username').eq('id', user.id).single()
-  if ((prof as { role?: string })?.role !== 'admin') {
+  if ((prof as { role?: string })?.role !== 'admin' && (prof as { role?: string })?.role !== 'superadmin') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
 

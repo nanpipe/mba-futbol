@@ -163,7 +163,7 @@ export async function PUT(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
   const { data: prof } = await admin.from('profiles').select('role, username').eq('id', user.id).single()
-  if ((prof as { role?: string })?.role !== 'admin') {
+  if ((prof as { role?: string })?.role !== 'admin' && (prof as { role?: string })?.role !== 'superadmin') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
 
@@ -240,7 +240,7 @@ export async function PATCH(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
   const { data: prof } = await admin.from('profiles').select('role, username').eq('id', user.id).single()
-  if ((prof as { role?: string })?.role !== 'admin') {
+  if ((prof as { role?: string })?.role !== 'admin' && (prof as { role?: string })?.role !== 'superadmin') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
 

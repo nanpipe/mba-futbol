@@ -9,7 +9,7 @@ async function getAdminUser(supabase: Awaited<ReturnType<typeof createClient>>) 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
   const { data: p } = await supabase.from('profiles').select('role, username').eq('id', user.id).single()
-  if (p?.role !== 'admin') return null
+  if (p?.role !== 'admin' && p?.role !== 'superadmin') return null
   return { ...user, username: (p as { username?: string })?.username ?? 'admin' }
 }
 

@@ -81,6 +81,27 @@ export async function POST(req: NextRequest) {
   const tieneUniforme = (profile as { uniform?: boolean })?.uniform ?? false
   const spotsLibres = (totalConfirmados ?? 0) < partido.cupos_total
 
+  // Helper: push all admins+superadmin (fire-and-forget)
+  const pushAdmins = (titulo: string, cuerpo: string) => {
+    ;(async () => {
+      const { data: adminProfiles } = await admin
+        .from('profiles').select('id').in('role', ['admin', 'superadmin'])
+      const adminIds = (adminProfiles ?? []).map((a: { id: string }) => a.id)
+      if (!adminIds.length) return
+      const { data: subs } = await admin
+        .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', adminIds)
+      if (!subs?.length) return
+      const { sendPush } = await import('@/lib/push')
+      for (const sub of subs) {
+        sendPush(sub, { title: titulo, body: cuerpo, url: '/admin' }).catch(() => {})
+      }
+    })().catch(() => {})
+  }
+
+  const dia = partido.fecha
+    ? new Date(partido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'long', timeZone: 'America/Bogota' })
+    : ''
+
   // ── Uniform priority logic ─────────────────────────────────────────────────
   // Rule: players WITHOUT uniform always go to espera, no exceptions.
   // Uniformed players: confirmed if spots available, can bump non-uniform if full.
@@ -92,6 +113,7 @@ export async function POST(req: NextRequest) {
     const { error } = await admin.from('inscripciones').insert({ partido_id, player_id: user.id, estado: 'confirmado' })
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
     await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'confirmado' } })
+    pushAdmins('✅ Nueva inscripción', `${profile.username} se inscribió (confirmado) — ${dia}`)
     return NextResponse.json({ estado: 'confirmado' })
   } else if (tieneUniforme && !spotsLibres) {
     // Uniform + full → try to bump the most-recent non-uniform confirmed player
@@ -111,6 +133,7 @@ export async function POST(req: NextRequest) {
       if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
       await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'confirmado_prioridad' } })
       await logActivity({ user_id: toBump.player_id, accion: 'bumped_espera', detalles: { partido_id, fecha: partido.fecha, bumped_by: profile.username } })
+      pushAdmins('✅ Nueva inscripción (uniforme)', `${profile.username} entró confirmado — ${dia}`)
       return NextResponse.json({ estado: 'confirmado', prioridad: true })
     }
     // All confirmed slots taken by uniformed players → fall through to espera
@@ -123,6 +146,7 @@ export async function POST(req: NextRequest) {
   })
   if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
   await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'espera', posicion_espera: posicion } })
+  pushAdmins('⏳ Nueva inscripción (espera)', `${profile.username} en lista de espera #${posicion} — ${dia}`)
   return NextResponse.json({ estado: 'espera', posicion_espera: posicion })
 }
 

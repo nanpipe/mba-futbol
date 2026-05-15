@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
   for (const notif of pendientes) {
     try {
-      const fecha = new Date(notif.fecha_partido)
+      const fecha = new Date(notif.fecha_partido + 'T12:00:00')
       const diaSemana = fecha.toLocaleDateString('es-CO', { weekday: 'long', timeZone: 'America/Bogota' })
       const fechaFormateada = fecha.toLocaleDateString('es-CO', {
         day: 'numeric', month: 'long', timeZone: 'America/Bogota'

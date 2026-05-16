@@ -682,6 +682,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, mensaje: 'Evaluaciones abiertas y jugadores notificados.' })
   }
 
+  // ── Guardar foto del partido ───────────────────────────────────────────────
+  if (accion === 'guardar_foto_partido') {
+    const { partido_id, foto_url } = body
+    if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
+    if (!isString(foto_url, 1, 2048)) return NextResponse.json({ error: 'URL inválida' }, { status: 400 })
+    try { new URL(foto_url as string) } catch { return NextResponse.json({ error: 'URL inválida' }, { status: 400 }) }
+
+    const { error } = await admin.from('partidos').update({ foto_url }).eq('id', partido_id as string)
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'guardar_foto_partido', detalles: { partido_id }, ip })
+    return NextResponse.json({ ok: true, mensaje: 'Foto guardada.' })
+  }
+
   // ── Guardar setting ────────────────────────────────────────────────────────
   if (accion === 'guardar_setting') {
     const { key, value } = body

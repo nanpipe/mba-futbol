@@ -87,6 +87,7 @@ export interface HistorialPartido {
   puntos_morado: number | null
   equipos_confirmados: boolean
   evaluaciones_abiertas: boolean
+  foto_url: string | null
   cupos_total: number
   tipo?: 'normal' | 'minitorneo'
   inscripciones: { estado: string }[]

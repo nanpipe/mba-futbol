@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
   const { data: prof } = await admin.from('profiles').select('role').eq('id', user.id).single()
-  if (prof?.role !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  if (prof?.role !== 'admin' && prof?.role !== 'superadmin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   let parsed: Record<string, unknown>
   try { parsed = await req.json() } catch { return NextResponse.json({ error: 'JSON inválido' }, { status: 400 }) }

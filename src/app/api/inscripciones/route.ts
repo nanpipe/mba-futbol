@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { calcularVentanaPartido } from '@/lib/partidos'
 import { safeError, isUUID } from '@/lib/validation'
 import { internalFetch } from '@/lib/internalFetch'
+import { logActivity } from '@/lib/activityLog'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,6 +81,27 @@ export async function POST(req: NextRequest) {
   const tieneUniforme = (profile as { uniform?: boolean })?.uniform ?? false
   const spotsLibres = (totalConfirmados ?? 0) < partido.cupos_total
 
+  // Helper: push all admins+superadmin (fire-and-forget)
+  const pushAdmins = (titulo: string, cuerpo: string) => {
+    ;(async () => {
+      const { data: adminProfiles } = await admin
+        .from('profiles').select('id').in('role', ['admin', 'superadmin'])
+      const adminIds = (adminProfiles ?? []).map((a: { id: string }) => a.id)
+      if (!adminIds.length) return
+      const { data: subs } = await admin
+        .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', adminIds)
+      if (!subs?.length) return
+      const { sendPush } = await import('@/lib/push')
+      for (const sub of subs) {
+        sendPush(sub, { title: titulo, body: cuerpo, url: '/admin' }).catch(() => {})
+      }
+    })().catch(() => {})
+  }
+
+  const dia = partido.fecha
+    ? new Date(partido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'long', timeZone: 'America/Bogota' })
+    : ''
+
   // ── Uniform priority logic ─────────────────────────────────────────────────
   // Rule: players WITHOUT uniform always go to espera, no exceptions.
   // Uniformed players: confirmed if spots available, can bump non-uniform if full.
@@ -90,6 +112,8 @@ export async function POST(req: NextRequest) {
     // Uniform + spots free → confirmed
     const { error } = await admin.from('inscripciones').insert({ partido_id, player_id: user.id, estado: 'confirmado' })
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'confirmado' } })
+    pushAdmins('✅ Nueva inscripción', `${profile.username} se inscribió (confirmado) — ${dia}`)
     return NextResponse.json({ estado: 'confirmado' })
   } else if (tieneUniforme && !spotsLibres) {
     // Uniform + full → try to bump the most-recent non-uniform confirmed player
@@ -107,6 +131,9 @@ export async function POST(req: NextRequest) {
       await admin.from('inscripciones').update({ estado: 'espera', posicion_espera: 1 }).eq('id', toBump.id)
       const { error } = await admin.from('inscripciones').insert({ partido_id, player_id: user.id, estado: 'confirmado' })
       if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+      await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'confirmado_prioridad' } })
+      await logActivity({ user_id: toBump.player_id, accion: 'bumped_espera', detalles: { partido_id, fecha: partido.fecha, bumped_by: profile.username } })
+      pushAdmins('✅ Nueva inscripción (uniforme)', `${profile.username} entró confirmado — ${dia}`)
       return NextResponse.json({ estado: 'confirmado', prioridad: true })
     }
     // All confirmed slots taken by uniformed players → fall through to espera
@@ -118,6 +145,8 @@ export async function POST(req: NextRequest) {
     partido_id, player_id: user.id, estado: 'espera', posicion_espera: posicion
   })
   if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+  await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'espera', posicion_espera: posicion } })
+  pushAdmins('⏳ Nueva inscripción (espera)', `${profile.username} en lista de espera #${posicion} — ${dia}`)
   return NextResponse.json({ estado: 'espera', posicion_espera: posicion })
 }
 
@@ -152,45 +181,41 @@ export async function DELETE(req: NextRequest) {
 
   await admin.from('inscripciones').delete().eq('id', inscripcion.id)
 
+  const username = (playerProfile as { username?: string } | null)?.username ?? 'Un jugador'
+  const dia = (partidoInfo as { dia_semana?: string } | null)?.dia_semana ?? ''
+  const estado = inscripcion.estado === 'confirmado' ? 'confirmado' : 'lista de espera'
+
   if (inscripcion.estado === 'confirmado') {
     await admin.rpc('promover_espera', { p_partido_id: partido_id })
-    internalFetch('/api/notify', { method: 'POST' }).catch(() => {})
+    await internalFetch('/api/notify', { method: 'POST' }).catch(() => {})
   }
 
-  // Push all admins about the withdrawal (fire-and-forget, logged)
+  // Log synchronously — before return so Vercel doesn't kill it
+  const { logActivity } = await import('@/lib/activityLog')
+  await logActivity({
+    user_id: user.id,
+    username,
+    accion: 'baja_partido',
+    detalles: { partido_id, estado_previo: inscripcion.estado, dia },
+  })
+
+  // Admin push — fire-and-forget (best-effort, not critical)
   ;(async () => {
-    const { data: adminProfiles } = await admin.from('profiles').select('id').eq('role', 'admin')
+    const { data: adminProfiles } = await admin
+      .from('profiles').select('id').in('role', ['admin', 'superadmin'])
     const adminIds = (adminProfiles ?? []).map((a: { id: string }) => a.id)
-    const username = (playerProfile as { username?: string } | null)?.username ?? 'Un jugador'
-    const estado = inscripcion.estado === 'confirmado' ? 'confirmado' : 'lista de espera'
-    const dia = (partidoInfo as { dia_semana?: string } | null)?.dia_semana ?? ''
-    let pushEnviados = 0
-    if (adminIds.length) {
-      const { data: subs } = await admin
-        .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', adminIds)
-      if (subs?.length) {
-        const { sendPush } = await import('@/lib/push')
-        for (const sub of subs) {
-          await sendPush(sub, {
-            title: '⚠️ Baja en el partido',
-            body: `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}`,
-            url: '/admin',
-          }).then(() => { pushEnviados++ }).catch(() => {})
-        }
-      }
+    if (!adminIds.length) return
+    const { data: subs } = await admin
+      .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', adminIds)
+    if (!subs?.length) return
+    const { sendPush } = await import('@/lib/push')
+    for (const sub of subs) {
+      await sendPush(sub, {
+        title: '⚠️ Baja en el partido',
+        body: `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}`,
+        url: '/admin',
+      }).catch(() => {})
     }
-    const { logActivity } = await import('@/lib/activityLog')
-    await logActivity({
-      user_id: user.id,
-      username,
-      accion: 'baja_partido',
-      detalles: {
-        partido_id,
-        estado_previo: inscripcion.estado,
-        dia,
-        push_admins_enviados: pushEnviados,
-      },
-    })
   })().catch(() => {})
 
   return NextResponse.json({ ok: true })

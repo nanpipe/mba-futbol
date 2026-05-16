@@ -174,24 +174,44 @@ export default function PerfilPage() {
     e.target.value = ''
 
     try {
-      // 1. Compress
+      // 1. Compress (useWebWorker: false avoids CDN web-worker CSP issues)
       setAvatarStatus('Comprimiendo...')
       const { default: imageCompression } = await import('browser-image-compression')
       const compressed = await imageCompression(file, {
         maxSizeMB: 1,
         maxWidthOrHeight: 800,
-        useWebWorker: true,
+        useWebWorker: false,
       })
 
-      // 2. Remove background → Blob (PNG transparente)
-      setAvatarStatus('Removiendo fondo...')
-      const { removeBackground } = await import('@imgly/background-removal')
-      const noBg: Blob = await removeBackground(compressed)
+      // 2. Attempt background removal (optional — skip on failure)
+      let uploadBlob: Blob
+      let bgRemoved = false
+      try {
+        setAvatarStatus('Removiendo fondo...')
+        const { removeBackground } = await import('@imgly/background-removal')
+        uploadBlob = await removeBackground(compressed)  // already PNG
+        bgRemoved = true
+      } catch (bgErr) {
+        console.warn('BG removal failed, uploading without it:', bgErr)
+        // Convert compressed blob → PNG via canvas so upload contentType matches
+        uploadBlob = await new Promise<Blob>((resolve, reject) => {
+          const img = new Image()
+          img.onload = () => {
+            const canvas = document.createElement('canvas')
+            canvas.width = img.naturalWidth
+            canvas.height = img.naturalHeight
+            canvas.getContext('2d')!.drawImage(img, 0, 0)
+            canvas.toBlob(b => b ? resolve(b) : reject(new Error('canvas toBlob failed')), 'image/png')
+          }
+          img.onerror = reject
+          img.src = URL.createObjectURL(compressed)
+        })
+      }
 
-      // 3. Upload PNG to Supabase Storage
+      // 3. Upload to Supabase Storage
       setAvatarStatus('Subiendo...')
       const { error: uploadError } = await supabase.storage.from('avatars')
-        .upload(`${user.id}/avatar.png`, noBg, { upsert: true, contentType: 'image/png' })
+        .upload(`${user.id}/avatar.png`, uploadBlob, { upsert: true, contentType: 'image/png' })
 
       if (uploadError) {
         flash('error', 'Error subiendo imagen.')
@@ -207,7 +227,7 @@ export default function PerfilPage() {
       if (res.ok) {
         const busted = `${publicUrl}?t=${Date.now()}`
         setProfile(p => p ? { ...p, avatar_url: busted } : p)
-        flash('ok', 'Foto actualizada. Fondo removido automáticamente ✓')
+        flash('ok', bgRemoved ? 'Foto actualizada. Fondo removido automáticamente ✓' : 'Foto actualizada ✓')
       } else {
         flash('error', 'Error guardando la foto.')
       }

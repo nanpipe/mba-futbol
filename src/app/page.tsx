@@ -428,7 +428,7 @@ export default function HomePage() {
         <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span className="display" style={{ fontSize: 20, letterSpacing: '0.1em' }}>MBA FC</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            {profile?.role === 'admin' && (
+            {(profile?.role === 'admin' || profile?.role === 'superadmin') && (
               <Link href="/admin" className="mono" style={{ fontSize: 12, color: 'var(--amber)', letterSpacing: '0.08em', textDecoration: 'none' }}>
                 ADMIN ↗
               </Link>

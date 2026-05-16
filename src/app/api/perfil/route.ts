@@ -29,7 +29,7 @@ export async function PATCH(req: NextRequest) {
     .eq('id', user.id)
     .single()
 
-  if (!currentProfile?.aprobado && currentProfile?.role !== 'admin') {
+  if (!currentProfile?.aprobado && currentProfile?.role !== 'admin' && currentProfile?.role !== 'superadmin') {
     return NextResponse.json({ error: 'Cuenta pendiente de aprobación' }, { status: 403 })
   }
 

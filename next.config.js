@@ -12,8 +12,8 @@ const cspDirectives = [
   // Supabase storage for avatars + self + data URIs + blobs
   "img-src 'self' data: blob: https://*.supabase.co",
   "font-src 'self' https://fonts.gstatic.com",
-  // Supabase (realtime WS + REST + auth)
-  `connect-src 'self' https://*.supabase.co wss://*.supabase.co${isDev ? ' http://localhost:*' : ''}`,
+  // Supabase (realtime WS + REST + auth) + imgly BG removal CDN
+  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://staticimgly.com${isDev ? ' http://localhost:*' : ''}`,
   "worker-src 'self' blob:",
   "frame-src 'none'",
   "frame-ancestors 'none'",   // prevents clickjacking at CSP level

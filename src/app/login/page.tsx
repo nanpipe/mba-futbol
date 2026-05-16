@@ -232,20 +232,6 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {pagarRespuesta === 'si' && (
-                <div style={{ background: '#0f2d1a', border: '1px solid #16a34a', borderRadius: 6, padding: '20px 24px' }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>🍺💚</div>
-                  <div className="mono" style={{ fontSize: 13, color: '#4ade80', lineHeight: 1.8 }}>
-                    Nequi: <strong style={{ fontSize: 18, color: '#fff' }}>318 810 9368</strong><br />
-                    <br />
-                    Envía tu comprobante<br />
-                    por interno.<br />
-                    <br />
-                    <span style={{ color: '#86efac' }}>Gracias por tu aporte voluntario. 🙏</span>
-                  </div>
-                </div>
-              )}
-
               {pagarRespuesta === 'no' && (
                 <div style={{ background: '#1a0a00', border: '1px solid #92400e', borderRadius: 6, padding: '20px 24px' }}>
                   <div style={{ fontSize: 28, marginBottom: 8 }}>😤🍺</div>
@@ -259,6 +245,29 @@ export default function LoginPage() {
               )}
             </div>
           )}
+        </div>
+      </div>
+    )}
+
+    {/* ── Modal pago Nequi (aparece cuando dice Sí) ── */}
+    {bloqueado && pagarRespuesta === 'si' && (
+      <div style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.96)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 24, zIndex: 999,
+      }}>
+        <div style={{ maxWidth: 360, width: '100%', textAlign: 'center' }}>
+          <div style={{ background: '#0f2d1a', border: '1px solid #16a34a', borderRadius: 6, padding: '28px 24px' }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>🍺💚</div>
+            <div className="mono" style={{ fontSize: 14, color: '#4ade80', lineHeight: 1.8 }}>
+              Nequi: <strong style={{ fontSize: 20, color: '#fff' }}>318 810 9368</strong><br />
+              <br />
+              Envía tu comprobante<br />
+              por interno.<br />
+              <br />
+              <span style={{ color: '#86efac' }}>Gracias por tu aporte voluntario. 🙏</span>
+            </div>
+          </div>
         </div>
       </div>
     )}

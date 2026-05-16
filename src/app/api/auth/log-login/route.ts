@@ -34,8 +34,8 @@ export async function POST(req: NextRequest) {
   const role = (profile as { role?: string })?.role ?? 'player'
   const username = (profile as { username?: string })?.username ?? user.email ?? 'unknown'
 
-  // ── Conflict check (skip for admins) ─────────────────────────────────────
-  if (role !== 'admin') {
+  // ── Conflict check (skip for admins + superadmin) ────────────────────────
+  if (role !== 'admin' && role !== 'superadmin') {
     const since = new Date(Date.now() - IP_BLOCK_WINDOW_MS).toISOString()
 
     // Build OR filter: block if same IP OR same device_id used by a different user
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
         (admin.from('activity_log').select('user_id')
           .eq('accion', 'login').eq('ip', ip)
           .neq('user_id', user.id).gte('created_at', since)
-          .not('detalles', 'cs', '{"role":"admin"}')  // admin logins don't block players
+          .not('detalles', 'cs', '{"role":"admin"}').not('detalles', 'cs', '{"role":"superadmin"}')  // privileged logins don't block players
           .limit(1).maybeSingle()) as unknown as Promise<ConflictResult>
       )
     }
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       checks.push(
         (admin.from('activity_log').select('user_id')
           .eq('accion', 'login')
-          .not('detalles', 'cs', '{"role":"admin"}')  // admin logins don't block players
+          .not('detalles', 'cs', '{"role":"admin"}').not('detalles', 'cs', '{"role":"superadmin"}')  // privileged logins don't block players
           .contains('detalles', { device_id: deviceId })
           .neq('user_id', user.id).gte('created_at', since)
           .limit(1).maybeSingle()) as unknown as Promise<ConflictResult>

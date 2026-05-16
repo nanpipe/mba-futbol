@@ -37,29 +37,19 @@ export default function RegistroPage() {
       return
     }
 
-    // Obtener IP del cliente
+    // Server-side IP check (reads real IP + checks DB — can't be bypassed client-side)
     let ip = 'unknown'
     try {
-      const ipRes = await fetch('/api/ip')
-      const ipData = await ipRes.json()
-      ip = ipData.ip
-    } catch {
-      // Si falla, continuar sin IP (el admin puede revisar)
-    }
-
-    // Verificar si la IP ya está registrada
-    if (ip !== 'unknown') {
-      const { data: ipExistente } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('ip_registro', ip)
-        .single()
-
-      if (ipExistente) {
-        setError(`Ya existe una cuenta registrada desde este dispositivo (@${ipExistente.username}). Solo se permite una cuenta por dispositivo.`)
+      const checkRes = await fetch('/api/auth/check-registro', { method: 'POST' })
+      const checkData = await checkRes.json()
+      ip = checkData.ip ?? 'unknown'
+      if (checkData.blocked) {
+        setError(`Ya existe una cuenta registrada desde este dispositivo (@${checkData.existingUsername}). Solo se permite una cuenta por dispositivo.`)
         setLoading(false)
         return
       }
+    } catch {
+      // Si falla, continuar sin IP (el admin puede revisar)
     }
 
     // Verificar username disponible

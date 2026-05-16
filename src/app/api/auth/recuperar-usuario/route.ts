@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendUsernameEmail } from '@/lib/email'
 import { isEmail } from '@/lib/validation'
+import { logActivity } from '@/lib/activityLog'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +31,8 @@ export async function POST(req: NextRequest) {
     email: (email as string).trim().toLowerCase(),
     username: profile.username,
   })
+
+  await logActivity({ accion: 'recuperar_usuario', detalles: { email: (email as string).trim().toLowerCase() }, ip: req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? req.headers.get('x-real-ip') ?? undefined })
 
   return NextResponse.json({ ok: true })
 }

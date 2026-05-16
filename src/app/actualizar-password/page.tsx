@@ -14,13 +14,36 @@ export default function ActualizarPasswordPage() {
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    // Supabase puts the session tokens in the URL hash after password reset link
-    // The client SDK picks them up automatically on page load via onAuthStateChange
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
+    const params = new URLSearchParams(window.location.search)
+    const isRecovery = params.get('recovery') === 'true'
+    const tokenHash = params.get('token_hash')
+    const type = params.get('type')
+
+    // Register listener first — catches PASSWORD_RECOVERY and SIGNED_IN (post-callback)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') { setReady(true); return }
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session && isRecovery) {
         setReady(true)
       }
     })
+
+    // PKCE token_hash flow (old direct link without callback)
+    if (tokenHash && type === 'recovery') {
+      supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+        .then(({ error }) => {
+          if (error) setError('Enlace inválido o expirado.')
+          else setReady(true)
+        })
+      return () => subscription.unsubscribe()
+    }
+
+    // Session already established by server-side callback — check immediately
+    if (isRecovery) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) setReady(true)
+      })
+    }
+
     return () => subscription.unsubscribe()
   }, [supabase])
 

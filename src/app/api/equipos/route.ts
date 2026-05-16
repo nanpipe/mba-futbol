@@ -11,7 +11,7 @@ async function getAdminUser(supabase: Awaited<ReturnType<typeof createClient>>) 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
   const { data: p } = await supabase.from('profiles').select('role, username').eq('id', user.id).single()
-  if (p?.role !== 'admin') return null
+  if (p?.role !== 'admin' && p?.role !== 'superadmin') return null
   return { ...user, username: (p as { username?: string })?.username ?? 'admin' }
 }
 
@@ -89,6 +89,10 @@ export async function POST(req: NextRequest) {
 
   // ── balancear: Gemini AI → fallback snake-draft ────────────────────────────
   if (accion === 'balancear') {
+    // Determine partido type (normal 2-team vs minitorneo 3-team)
+    const { data: pTipo } = await admin.from('partidos').select('tipo').eq('id', partido_id as string).single()
+    const esMinitorneo = (pTipo as { tipo?: string })?.tipo === 'minitorneo'
+
     const [{ data: ins }, { data: invs }, { data: knowledge }, { data: feedbackRows }] = await Promise.all([
       admin
         .from('inscripciones')
@@ -154,8 +158,9 @@ export async function POST(req: NextRequest) {
             ).join('\n')
           : 'Sin feedback previo.'
 
-        const half = Math.ceil(jugadores.length / 2)
-        const prompt = `Eres el organizador de equipos del MBA Fútbol Club. Divide los jugadores disponibles en dos equipos balanceados y competitivos.
+        const perTeam = Math.ceil(jugadores.length / (esMinitorneo ? 3 : 2))
+        const prompt = esMinitorneo
+          ? `Eres el organizador de equipos del MBA Fútbol Club. Divide los jugadores en tres equipos balanceados para un MINITORNEO (Blanco, Negro, Morado).
 
 === CONTEXTO APRENDIDO (feedback histórico del administrador) ===
 ${feedbackLines}
@@ -164,7 +169,24 @@ ${feedbackLines}
 ${playerLines}
 
 === INSTRUCCIONES ===
-1. Crea Equipo A con exactamente ${half} jugadores y Equipo B con exactamente ${jugadores.length - half} jugadores (diferencia máxima de 1)
+1. Crea tres equipos lo más equilibrados posible (~${perTeam} jugadores c/u, diferencia máxima de 1)
+2. Respeta ESTRICTAMENTE el feedback histórico (relaciones, conflictos, preferencias)
+3. Si hay porteros disponibles, distribuye al menos uno por equipo cuando sea posible
+4. Para jugadores sin datos cualitativos, usa el valor numérico de habilidad
+5. Introduce variedad natural — no siempre el mismo resultado
+
+Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
+{"equipoA":["username1","username2"],"equipoB":["username3"],"equipoC":["username4"],"razon":"Explicación clave en máx 200 caracteres"}`
+          : `Eres el organizador de equipos del MBA Fútbol Club. Divide los jugadores disponibles en dos equipos balanceados y competitivos.
+
+=== CONTEXTO APRENDIDO (feedback histórico del administrador) ===
+${feedbackLines}
+
+=== JUGADORES DISPONIBLES HOY (${jugadores.length} jugadores) ===
+${playerLines}
+
+=== INSTRUCCIONES ===
+1. Crea Equipo A con exactamente ${perTeam} jugadores y Equipo B con exactamente ${jugadores.length - perTeam} jugadores (diferencia máxima de 1)
 2. Respeta ESTRICTAMENTE el feedback histórico (relaciones, conflictos, preferencias)
 3. Si hay porteros disponibles, asigna al menos uno por equipo cuando sea posible
 4. Para jugadores sin datos cualitativos, usa el valor numérico de habilidad
@@ -217,16 +239,42 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
           const equipoB: JugadorEquipo[] = (parsed.equipoB ?? [])
             .map((u: string) => byUsername[u] ?? byUsername[u + ' *'])
             .filter(Boolean)
+          const equipoC: JugadorEquipo[] = esMinitorneo
+            ? ((parsed.equipoC ?? [])
+                .map((u: string) => byUsername[u] ?? byUsername[u + ' *'])
+                .filter(Boolean))
+            : []
 
-          // Safety: assign any player Gemini missed to the smaller team
-          const assigned = new Set([...equipoA, ...equipoB].map(j => j.id))
+          const allTeams = esMinitorneo ? [equipoA, equipoB, equipoC] : [equipoA, equipoB]
+
+          // Safety: assign any player Gemini missed to the smallest team
+          const assigned = new Set(allTeams.flat().map(j => j.id))
           for (const j of jugadores) {
             if (!assigned.has(j.id)) {
-              equipoA.length <= equipoB.length ? equipoA.push(j) : equipoB.push(j)
+              allTeams.sort((a, b) => a.length - b.length)[0].push(j)
             }
           }
 
-          // Rebalance: max diff = 1 (move last player from bigger team)
+          if (esMinitorneo) {
+            // Rebalance 3 teams: max diff = 1
+            const rebalance = () => {
+              const sorted = [...allTeams].sort((a, b) => b.length - a.length)
+              if (sorted[0].length - sorted[2].length > 1) {
+                sorted[2].push(sorted[0].pop()!)
+                return true
+              }
+              return false
+            }
+            for (let i = 0; i < 10 && rebalance(); i++) { /* iterate */ }
+
+            return NextResponse.json({
+              ok: true, equipoA, equipoB, equipoC,
+              razon: (parsed.razon as string) ?? '',
+              source: 'gemini',
+            })
+          }
+
+          // Rebalance 2 teams: max diff = 1
           while (equipoA.length > equipoB.length + 1) equipoB.push(equipoA.pop()!)
           while (equipoB.length > equipoA.length + 1) equipoA.push(equipoB.pop()!)
 
@@ -243,16 +291,27 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
     }
 
     // ── Fallback: deterministic snake-draft ───────────────────────────────
+    if (esMinitorneo) {
+      // 3-team snake-draft: sort by habilidad desc, assign A B C C B A A B C...
+      const sorted = [...jugadores].sort((a, b) => b.habilidad - a.habilidad)
+      const eA: JugadorEquipo[] = [], eB: JugadorEquipo[] = [], eC: JugadorEquipo[] = []
+      const snakeOrder = [0, 1, 2, 2, 1, 0]
+      const teams = [eA, eB, eC]
+      sorted.forEach((j, i) => teams[snakeOrder[i % 6]].push(j))
+      return NextResponse.json({ ok: true, equipoA: eA, equipoB: eB, equipoC: eC, razon: '', source: 'fallback' })
+    }
     const { equipoA, equipoB } = balancearEquipos(jugadores)
-    return NextResponse.json({ ok: true, equipoA, equipoB, razon: '', source: 'fallback', fallbackReason })
+    return NextResponse.json({ ok: true, equipoA, equipoB, razon: '', source: 'fallback' })
   }
 
   // ── guardar: save (or overwrite) teams in DB ──────────────────────────────
   if (accion === 'guardar') {
-    const { equipoA, equipoB } = body as {
+    const { equipoA, equipoB, equipoC } = body as {
       equipoA: { id: string }[]
       equipoB: { id: string }[]
+      equipoC?: { id: string }[]
     }
+    const esMinitorneo = !!equipoC
 
     // Fetch invitado IDs for this partido
     const { data: invitadosIds } = await admin
@@ -264,32 +323,39 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
     // Delete existing teams (FK on delete set null clears invitados.equipo_id automatically)
     await admin.from('equipos').delete().eq('partido_id', partido_id as string)
 
-    // Create team A and B
+    // Create teams
     const { data: tA } = await admin.from('equipos').insert({ partido_id, nombre: 'A' }).select().single()
     const { data: tB } = await admin.from('equipos').insert({ partido_id, nombre: 'B' }).select().single()
+    const tC = esMinitorneo
+      ? (await admin.from('equipos').insert({ partido_id, nombre: 'C' }).select().single()).data
+      : null
 
-    if (!tA || !tB) return NextResponse.json({ error: 'Error creando equipos' }, { status: 500 })
+    if (!tA || !tB || (esMinitorneo && !tC)) return NextResponse.json({ error: 'Error creando equipos' }, { status: 500 })
 
     // Insert regular players (profiles FK)
-    const rowsA = (equipoA ?? [])
-      .filter((p: { id: string }) => !invSet.has(p.id))
-      .map((p: { id: string }) => ({ equipo_id: tA.id, player_id: p.id }))
-    const rowsB = (equipoB ?? [])
-      .filter((p: { id: string }) => !invSet.has(p.id))
-      .map((p: { id: string }) => ({ equipo_id: tB.id, player_id: p.id }))
+    const makeRows = (list: { id: string }[], equipo_id: string) =>
+      list.filter(p => !invSet.has(p.id)).map(p => ({ equipo_id, player_id: p.id }))
+
+    const rowsA = makeRows(equipoA ?? [], tA.id)
+    const rowsB = makeRows(equipoB ?? [], tB.id)
+    const rowsC = esMinitorneo && tC ? makeRows(equipoC ?? [], tC.id) : []
+
     if (rowsA.length) await admin.from('equipo_jugadores').insert(rowsA)
     if (rowsB.length) await admin.from('equipo_jugadores').insert(rowsB)
+    if (rowsC.length) await admin.from('equipo_jugadores').insert(rowsC)
 
     // Assign invitados to their team via equipo_id
-    const invitadosA = (equipoA ?? []).filter((p: { id: string }) => invSet.has(p.id))
-    const invitadosB = (equipoB ?? []).filter((p: { id: string }) => invSet.has(p.id))
+    const invitadosA = (equipoA ?? []).filter(p => invSet.has(p.id))
+    const invitadosB = (equipoB ?? []).filter(p => invSet.has(p.id))
+    const invitadosC = esMinitorneo ? (equipoC ?? []).filter(p => invSet.has(p.id)) : []
     await Promise.all([
-      ...invitadosA.map((p: { id: string }) => admin.from('invitados').update({ equipo_id: tA.id }).eq('id', p.id)),
-      ...invitadosB.map((p: { id: string }) => admin.from('invitados').update({ equipo_id: tB.id }).eq('id', p.id)),
+      ...invitadosA.map(p => admin.from('invitados').update({ equipo_id: tA.id }).eq('id', p.id)),
+      ...invitadosB.map(p => admin.from('invitados').update({ equipo_id: tB.id }).eq('id', p.id)),
+      ...(tC ? invitadosC.map(p => admin.from('invitados').update({ equipo_id: tC.id }).eq('id', p.id)) : []),
     ])
 
-    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'guardar_equipos', detalles: { partido_id, totalA: rowsA.length, totalB: rowsB.length } })
-    return NextResponse.json({ ok: true, mensaje: 'Equipos guardados como borrador.' })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'guardar_equipos', detalles: { partido_id, totalA: rowsA.length, totalB: rowsB.length, ...(esMinitorneo ? { totalC: rowsC.length } : {}) } })
+    return NextResponse.json({ ok: true, mensaje: esMinitorneo ? 'Tres equipos guardados como borrador.' : 'Equipos guardados como borrador.' })
   }
 
   // ── confirmar: lock teams + send push ─────────────────────────────────────
@@ -299,8 +365,12 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
       .select('id, nombre')
       .eq('partido_id', partido_id as string)
 
-    if (!equipos || equipos.length < 2) {
-      return NextResponse.json({ error: 'Primero guarda los equipos.' }, { status: 400 })
+    const { data: pTipoConf } = await admin.from('partidos').select('tipo').eq('id', partido_id as string).single()
+    const esMinitorneoConf = (pTipoConf as { tipo?: string })?.tipo === 'minitorneo'
+    const minEquipos = esMinitorneoConf ? 3 : 2
+
+    if (!equipos || equipos.length < minEquipos) {
+      return NextResponse.json({ error: `Primero guarda los equipos (se necesitan ${minEquipos}).` }, { status: 400 })
     }
 
     // Mark confirmed
@@ -313,12 +383,17 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
       .select('equipo_id, player_id, profiles(username)')
       .in('equipo_id', equipos.map(e => e.id))
 
-    const nombresPorEquipo: Record<string, string[]> = { A: [], B: [] }
+    const nombresPorEquipo: Record<string, string[]> = { A: [], B: [], C: [] }
     for (const row of (jAll ?? [])) {
       const eq = equipos.find(e => e.id === row.equipo_id)
       const username = (row as unknown as { profiles: { username: string } }).profiles?.username ?? ''
-      if (eq) nombresPorEquipo[eq.nombre]?.push(username)
+      if (eq) {
+        if (!nombresPorEquipo[eq.nombre]) nombresPorEquipo[eq.nombre] = []
+        nombresPorEquipo[eq.nombre].push(username)
+      }
     }
+
+    const colorLabels: Record<string, string> = { A: 'Blanco', B: 'Negro', C: 'Morado' }
 
     // Push notifications
     const { data: subs } = await admin
@@ -330,9 +405,10 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
     for (const sub of (subs ?? [])) {
       const equipo = (jAll ?? []).find(j => j.player_id === sub.player_id)
       const nombreEq = equipos.find(e => e.id === equipo?.equipo_id)?.nombre ?? '?'
+      const colorEq = colorLabels[nombreEq] ?? nombreEq
       await sendPush(sub, {
-        title: `⚽ Equipo ${nombreEq} confirmado`,
-        body: `Juegas en el Equipo ${nombreEq}. Revisa la alineación en la app.`,
+        title: `⚽ Equipo ${colorEq} confirmado`,
+        body: `Juegas con el equipo ${colorEq}. Revisa la alineación en la app.`,
         url: '/',
       }).catch(() => {})
     }

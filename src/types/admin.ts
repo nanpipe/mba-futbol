@@ -82,7 +82,11 @@ export interface HistorialPartido {
   resultado: string | null
   goles_a: number | null
   goles_b: number | null
+  puntos_blanco: number | null
+  puntos_negro: number | null
+  puntos_morado: number | null
   equipos_confirmados: boolean
+  evaluaciones_abiertas: boolean
   cupos_total: number
   tipo?: 'normal' | 'minitorneo'
   inscripciones: { estado: string }[]

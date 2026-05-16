@@ -4,6 +4,7 @@ import { sendPush } from '@/lib/push'
 import { calcularVentanaPartido } from '@/lib/partidos'
 import { logActivity } from '@/lib/activityLog'
 import { sendAperturaEmail, sendRecordatorioEmail } from '@/lib/email'
+import { tallyAndAssign } from '@/app/api/evaluaciones/route'
 
 // Single daily cron — runs at 15:00 UTC = 10:00 AM Colombia
 // Handles 4 tasks in one pass:
@@ -83,7 +84,8 @@ export async function GET(req: NextRequest) {
     }
     if (p.fecha === dosDiasAtrasStr && (p.evaluaciones_abiertas as boolean)) {
       await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', p.id)
-      await logActivity({ accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha } })
+      const { badges_asignados } = await tallyAndAssign(admin, p.id)
+      await logActivity({ accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha, badges_asignados } })
     }
   }
 
@@ -123,6 +125,18 @@ export async function GET(req: NextRequest) {
       }
 
       await admin.from('partidos').update({ notif_apertura_sent: true }).eq('id', partido.id)
+
+      // Close any still-open evaluations from past matches when new inscription window opens
+      const { data: evalAbiertas } = await admin
+        .from('partidos')
+        .select('id, fecha')
+        .eq('evaluaciones_abiertas', true)
+        .lt('fecha', hoy)
+      for (const ep of evalAbiertas ?? []) {
+        await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', ep.id)
+        const { badges_asignados } = await tallyAndAssign(admin, ep.id)
+        await logActivity({ accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: ep.id, fecha: ep.fecha, razon: 'nueva_apertura', badges_asignados } })
+      }
     }
 
     // ── 2. Recordatorio: match in ≤10h, not yet notified ─────────────────────

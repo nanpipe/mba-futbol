@@ -9,7 +9,47 @@ export const dynamic = 'force-dynamic'
 
 const VALID_CATEGORIAS: Set<string> = new Set(CATEGORIAS.map(c => c.id))
 
-// GET /api/evaluaciones?partido_id=xxx — check status for current user
+// ── Shared: tally votes → assign player_badges ────────────────────────────────
+export async function tallyAndAssign(
+  admin: ReturnType<typeof createAdminClient>,
+  partido_id: string
+): Promise<{ badges_asignados: number }> {
+  const { data: votos } = await admin
+    .from('votos_reconocimiento')
+    .select('votado_id, categoria')
+    .eq('partido_id', partido_id)
+
+  if (!votos || votos.length === 0) return { badges_asignados: 0 }
+
+  const tally: Record<string, Record<string, number>> = {}
+  for (const v of votos) {
+    if (!tally[v.categoria]) tally[v.categoria] = {}
+    tally[v.categoria][v.votado_id] = (tally[v.categoria][v.votado_id] ?? 0) + 1
+  }
+
+  let badges_asignados = 0
+  for (const cat of CATEGORIAS) {
+    const catVotes = tally[cat.id]
+    if (!catVotes) continue
+    const [winnerId] = Object.entries(catVotes).reduce(
+      (best, curr) => curr[1] > best[1] ? curr : best,
+      ['', 0]
+    )
+    if (!winnerId) continue
+    await admin.from('player_badges').upsert({
+      player_id: winnerId,
+      badge_id: cat.id,
+      badge_emoji: cat.emoji,
+      badge_nombre: cat.nombre,
+      partido_id,
+    }, { onConflict: 'player_id,badge_id,partido_id' })
+    badges_asignados++
+  }
+
+  return { badges_asignados }
+}
+
+// ── GET /api/evaluaciones?partido_id=xxx ─────────────────────────────────────
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
@@ -46,26 +86,83 @@ export async function GET(req: NextRequest) {
     .eq('partido_id', partido_id)
     .eq('votante_id', user.id)
 
-  // Teammates to vote for
-  const { data: compañeros } = await admin
+  const yaVoto = (count ?? 0) > 0
+
+  // Teammates to vote for (only needed when open)
+  const { data: compañeros } = partido.evaluaciones_abiertas ? await admin
     .from('inscripciones')
     .select('player_id, profiles!player_id(id, username, avatar_url, posicion)')
     .eq('partido_id', partido_id)
     .eq('estado', 'confirmado')
-    .neq('player_id', user.id)
+    .neq('player_id', user.id) : { data: null }
+
+  // Results: badge winners + vote counts (when closed or just voted)
+  let resultados: { categoria: string; emoji: string; nombre: string; ganador: string; votos: number }[] | null = null
+  if (!partido.evaluaciones_abiertas || yaVoto) {
+    const { data: badges } = await admin
+      .from('player_badges')
+      .select('badge_id, badge_emoji, badge_nombre, profiles!player_badges_player_id_fkey(username)')
+      .eq('partido_id', partido_id)
+
+    if (badges && badges.length > 0) {
+      // Count votes per category for display
+      const { data: votosData } = await admin
+        .from('votos_reconocimiento')
+        .select('votado_id, categoria')
+        .eq('partido_id', partido_id)
+
+      const tally: Record<string, Record<string, number>> = {}
+      for (const v of (votosData ?? [])) {
+        if (!tally[v.categoria]) tally[v.categoria] = {}
+        tally[v.categoria][v.votado_id] = (tally[v.categoria][v.votado_id] ?? 0) + 1
+      }
+
+      resultados = badges.map(b => {
+        const catVotes = tally[b.badge_id] ?? {}
+        const profile = (b as unknown as { profiles: { username: string } | null }).profiles
+        const ganadorId = Object.entries(catVotes).reduce(
+          (best, curr) => curr[1] > best[1] ? curr : best, ['', 0]
+        )[0]
+        const voteCount = catVotes[ganadorId] ?? 0
+        return {
+          categoria: b.badge_id,
+          emoji: b.badge_emoji,
+          nombre: b.badge_nombre,
+          ganador: profile?.username ?? '?',
+          votos: voteCount,
+        }
+      })
+    }
+  }
+
+  // Voting progress (when open)
+  let progreso: { votaron: number; total: number } | null = null
+  if (partido.evaluaciones_abiertas) {
+    const { data: todosVotantes } = await admin
+      .from('votos_reconocimiento')
+      .select('votante_id')
+      .eq('partido_id', partido_id)
+    const { count: totalConfirmados } = await admin
+      .from('inscripciones')
+      .select('id', { count: 'exact', head: true })
+      .eq('partido_id', partido_id)
+      .eq('estado', 'confirmado')
+    const uniqueVotantes = new Set((todosVotantes ?? []).map(v => v.votante_id)).size
+    progreso = { votaron: uniqueVotantes, total: totalConfirmados ?? 0 }
+  }
 
   return NextResponse.json({
     ok: true,
     abierto: partido.evaluaciones_abiertas,
-    yaVoto: (count ?? 0) > 0,
+    yaVoto,
     partido: { fecha: partido.fecha, dia_semana: partido.dia_semana },
-    compañeros: (compañeros ?? []).map(c =>
-      (c as unknown as { profiles: object }).profiles
-    ),
+    compañeros: (compañeros ?? []).map(c => (c as unknown as { profiles: object }).profiles),
+    resultados,
+    progreso,
   })
 }
 
-// POST /api/evaluaciones — submit votes
+// ── POST /api/evaluaciones — submit votes ─────────────────────────────────────
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
@@ -79,7 +176,6 @@ export async function POST(req: NextRequest) {
   const { partido_id, votos } = body
   if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
 
-  // Match must be open
   const { data: partido } = await admin
     .from('partidos')
     .select('evaluaciones_abiertas')
@@ -90,7 +186,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'La votación no está abierta.' }, { status: 403 })
   }
 
-  // Verify participation
   const { data: inscripcion } = await admin
     .from('inscripciones')
     .select('id')
@@ -101,7 +196,6 @@ export async function POST(req: NextRequest) {
 
   if (!inscripcion) return NextResponse.json({ error: 'No participaste en este partido.' }, { status: 403 })
 
-  // Already voted?
   const { count: yaVoto } = await admin
     .from('votos_reconocimiento')
     .select('id', { count: 'exact', head: true })
@@ -112,17 +206,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Ya enviaste tus votos.' }, { status: 409 })
   }
 
-  // Fetch confirmed teammates — votado_id must be in this set
   const { data: confirmados } = await admin
     .from('inscripciones')
     .select('player_id')
     .eq('partido_id', partido_id as string)
     .eq('estado', 'confirmado')
-    .neq('player_id', user.id)
 
   const validTargets = new Set((confirmados ?? []).map((c: { player_id: string }) => c.player_id))
 
-  // Build validated rows (one per category, no self-votes, target must be confirmed participant)
   const rows: object[] = []
   const seen = new Set<string>()
 
@@ -131,7 +222,7 @@ export async function POST(req: NextRequest) {
     if (typeof categoria !== 'string' || !VALID_CATEGORIAS.has(categoria)) continue
     if (!isUUID(votado_id)) continue
     if (votado_id === user.id) continue
-    if (!validTargets.has(votado_id as string)) continue  // must be confirmed teammate
+    if (!validTargets.has(votado_id as string)) continue
     if (seen.has(categoria)) continue
     seen.add(categoria)
     rows.push({ partido_id, votante_id: user.id, votado_id, categoria })
@@ -151,10 +242,30 @@ export async function POST(req: NextRequest) {
     detalles: { partido_id, categorias: rows.length },
   })
 
+  // ── Auto-close if all confirmed players have now voted ────────────────────
+  const { data: todosVotantes } = await admin
+    .from('votos_reconocimiento')
+    .select('votante_id')
+    .eq('partido_id', partido_id as string)
+
+  const uniqueVotantes = new Set((todosVotantes ?? []).map(v => v.votante_id)).size
+  const totalConfirmados = confirmados?.length ?? 0
+
+  if (uniqueVotantes >= totalConfirmados && totalConfirmados > 0) {
+    await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', partido_id as string)
+    const { badges_asignados } = await tallyAndAssign(admin, partido_id as string)
+    await logActivity({
+      user_id: user.id,
+      accion: 'auto_cerrar_votacion',
+      detalles: { partido_id, razon: 'todos_votaron', badges_asignados },
+    })
+    return NextResponse.json({ ok: true, mensaje: '¡Votos enviados! Todos votaron — badges asignados.', auto_cerrado: true })
+  }
+
   return NextResponse.json({ ok: true, mensaje: '¡Votos enviados! Gracias.' })
 }
 
-// PUT /api/evaluaciones — admin: close voting + assign badges
+// ── PUT /api/evaluaciones — admin: close voting + assign badges ───────────────
 export async function PUT(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
@@ -173,65 +284,24 @@ export async function PUT(req: NextRequest) {
   const { partido_id } = body
   if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
 
-  // Close voting
   await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', partido_id as string)
-
-  // Fetch all votes for this match
-  const { data: votos } = await admin
-    .from('votos_reconocimiento')
-    .select('votado_id, categoria')
-    .eq('partido_id', partido_id as string)
-
-  if (!votos || votos.length === 0) {
-    return NextResponse.json({ ok: true, mensaje: 'Votación cerrada. No hay votos registrados.' })
-  }
-
-  // Tally: categoria → { player_id → count }
-  const tally: Record<string, Record<string, number>> = {}
-  for (const v of votos) {
-    if (!tally[v.categoria]) tally[v.categoria] = {}
-    tally[v.categoria][v.votado_id] = (tally[v.categoria][v.votado_id] ?? 0) + 1
-  }
-
-  // Award badge to the player with most votes per category (ties → first in iteration)
-  const badges: { player_id: string; categoria: string; emoji: string }[] = []
-
-  for (const cat of CATEGORIAS) {
-    const catVotes = tally[cat.id]
-    if (!catVotes) continue
-
-    const [winnerId] = Object.entries(catVotes).reduce(
-      (best, curr) => curr[1] > best[1] ? curr : best,
-      ['', 0]
-    )
-    if (!winnerId) continue
-
-    await admin.from('player_badges').upsert({
-      player_id: winnerId,
-      badge_id: cat.id,
-      badge_emoji: cat.emoji,
-      badge_nombre: cat.nombre,
-      partido_id,
-    }, { onConflict: 'player_id,badge_id,partido_id' })
-
-    badges.push({ player_id: winnerId, categoria: cat.id, emoji: cat.emoji })
-  }
+  const { badges_asignados } = await tallyAndAssign(admin, partido_id as string)
 
   await logActivity({
     user_id: user.id,
     username: (prof as { username?: string })?.username,
     accion: 'cerrar_votacion',
-    detalles: { partido_id, badges_asignados: badges.length },
+    detalles: { partido_id, badges_asignados },
   })
 
   return NextResponse.json({
     ok: true,
-    mensaje: `Votación cerrada. ${badges.length} reconocimientos asignados.`,
-    badges,
+    mensaje: `Votación cerrada. ${badges_asignados} reconocimientos asignados.`,
+    badges_asignados,
   })
 }
 
-// PATCH /api/evaluaciones — admin: reopen voting + delete assigned badges for this match
+// ── PATCH /api/evaluaciones — admin: reopen voting + delete badges ────────────
 export async function PATCH(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
@@ -250,10 +320,7 @@ export async function PATCH(req: NextRequest) {
   const { partido_id } = body
   if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
 
-  // Reopen voting
   await admin.from('partidos').update({ evaluaciones_abiertas: true }).eq('id', partido_id as string)
-
-  // Delete badges previously awarded for this match so re-closing recalculates clean
   await admin.from('player_badges').delete().eq('partido_id', partido_id as string)
 
   await logActivity({

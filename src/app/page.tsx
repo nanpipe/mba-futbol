@@ -138,15 +138,7 @@ export default function HomePage() {
 
     const hoy = new Date().toISOString().split('T')[0]
 
-    // Fetch next upcoming partido
-    const { data: partido } = await supabase
-      .from('partidos')
-      .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, cupos_total, equipos_confirmados, evaluaciones_abiertas')
-      .gte('fecha', hoy)
-      .order('fecha', { ascending: true })
-      .limit(1)
-      .single()
-
+    // Always load last match (for eval CTA) in parallel with upcoming match
     const cargarUltimo = async () => {
       const { data: ultimo } = await supabase
         .from('partidos')
@@ -164,6 +156,15 @@ export default function HomePage() {
         setUltimoPartido({ partido: ultimo, inscripciones: (ins as unknown as Inscripcion[]) ?? [] })
       }
     }
+
+    // Fetch next upcoming partido
+    const { data: partido } = await supabase
+      .from('partidos')
+      .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, cupos_total, equipos_confirmados, evaluaciones_abiertas')
+      .gte('fecha', hoy)
+      .order('fecha', { ascending: true })
+      .limit(1)
+      .single()
 
     if (!partido) {
       await cargarUltimo()
@@ -183,15 +184,17 @@ export default function HomePage() {
       return
     }
 
-    // Window not yet open — show countdown
+    // Window not yet open — show countdown but still load last match for eval
     if (!abierta) {
       abreEnRef.current = abreEn
+      cargarUltimo() // fire-and-forget, updates state when done
       setVentana({ abierta: false, partido: null, abreEn: null, msHastaAbre: abreEn.getTime() - now.getTime() })
       setLoading(false)
       return
     }
 
-    // Window is open
+    // Window is open — also load last match for eval CTA
+    cargarUltimo() // fire-and-forget
     setVentana({ abierta: true, partido, abreEn: null, msHastaAbre: 0 })
 
     const { data: ins } = await supabase
@@ -850,31 +853,6 @@ export default function HomePage() {
               </div>
             )}
 
-            {/* Evaluation CTA — last match (after match day, 24h window) */}
-            {ultimoPartido?.partido?.evaluaciones_abiertas &&
-              user &&
-              ultimoPartido.inscripciones.some(i => i.player_id === user.id) && (
-              <div style={{ marginTop: 16 }}>
-                <div style={{ background: '#1a1500', border: '1px solid #92400e', borderRadius: 6, padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontSize: 20 }}>📊</span>
-                      <span className="display" style={{ fontSize: 18, letterSpacing: '0.05em' }}>Evalúa el último partido</span>
-                    </div>
-                    <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>
-                      {ultimoPartido.partido.dia_semana} · Anónimo · Solo toma 2 minutos
-                    </div>
-                  </div>
-                  <Link
-                    href={`/evaluar/${ultimoPartido.partido.id}`}
-                    className="btn btn-ghost"
-                    style={{ fontSize: 12, padding: '10px 20px', color: 'var(--amber)', borderColor: '#92400e', whiteSpace: 'nowrap' }}
-                  >
-                    Evaluar ahora →
-                  </Link>
-                </div>
-              </div>
-            )}
 
             {/* Lista de jugadores */}
             {inscripciones.length > 0 && (
@@ -956,6 +934,32 @@ export default function HomePage() {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Evaluation CTA — last match, always visible regardless of inscription state */}
+        {ultimoPartido?.partido?.evaluaciones_abiertas &&
+          user &&
+          ultimoPartido.inscripciones.some(i => i.player_id === user.id) && (
+          <div style={{ marginTop: 32 }} className="fade-in">
+            <div style={{ background: '#1a1500', border: '1px solid #92400e', borderRadius: 6, padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 20 }}>📊</span>
+                  <span className="display" style={{ fontSize: 18, letterSpacing: '0.05em' }}>Evalúa el último partido</span>
+                </div>
+                <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                  {ultimoPartido.partido.dia_semana} · Anónimo · Solo toma 2 minutos
+                </div>
+              </div>
+              <Link
+                href={`/evaluar/${ultimoPartido.partido.id}`}
+                className="btn btn-ghost"
+                style={{ fontSize: 12, padding: '10px 20px', color: 'var(--amber)', borderColor: '#92400e', whiteSpace: 'nowrap' }}
+              >
+                Evaluar ahora →
+              </Link>
+            </div>
           </div>
         )}
       </div>

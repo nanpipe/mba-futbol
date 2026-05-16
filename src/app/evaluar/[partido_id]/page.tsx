@@ -13,6 +13,30 @@ interface Compañero {
   posicion: string
 }
 
+function ResultadosPanel({ resultados }: { resultados: { categoria: string; emoji: string; nombre: string; ganador: string; votos: number }[] }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {resultados.map(r => (
+        <div key={r.categoria} style={{
+          display: 'flex', alignItems: 'center', gap: 16,
+          padding: '14px 18px', background: 'var(--bg-card)',
+          border: '1px solid var(--border)', borderRadius: 6,
+        }}>
+          <span style={{ fontSize: 28, flexShrink: 0 }}>{r.emoji}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 2 }}>{r.nombre}</div>
+            <div style={{ fontSize: 16, fontWeight: 600 }}>{r.ganador}</div>
+          </div>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', flexShrink: 0 }}>
+            {r.votos} voto{r.votos !== 1 ? 's' : ''}
+          </div>
+        </div>
+      ))}
+      <Link href="/" className="btn btn-ghost" style={{ display: 'block', textAlign: 'center', marginTop: 8 }}>← Volver al inicio</Link>
+    </div>
+  )
+}
+
 function PlayerChip({
   p,
   selected,
@@ -50,6 +74,8 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
   const { partido_id } = use(params)
   const supabase = createClient()
 
+  interface Resultado { categoria: string; emoji: string; nombre: string; ganador: string; votos: number }
+
   const [estado, setEstado] = useState<'loading' | 'closed' | 'not-participant' | 'already' | 'open' | 'done'>('loading')
   const [compañeros, setCompañeros] = useState<Compañero[]>([])
   const [votos, setVotos] = useState<Record<string, string>>({})  // categoriaId → playerId
@@ -57,6 +83,8 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
   const [enviando, setEnviando] = useState(false)
   const [mensaje, setMensaje] = useState('')
   const [votosFinales, setVotosFinales] = useState(0)
+  const [resultados, setResultados] = useState<Resultado[] | null>(null)
+  const [progreso, setProgreso] = useState<{ votaron: number; total: number } | null>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -70,10 +98,13 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
         return
       }
 
-      if (!data.abierto) { setEstado('closed'); return }
+      setPartido(data.partido)
+      if (data.resultados) setResultados(data.resultados)
+      if (data.progreso) setProgreso(data.progreso)
+
+      if (!data.abierto) { setEstado(data.resultados ? 'already' : 'closed'); return }
       if (data.yaVoto)   { setEstado('already'); return }
 
-      setPartido(data.partido)
       setCompañeros(data.compañeros)
       setEstado('open')
     })
@@ -103,6 +134,12 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
     const data = await res.json()
     if (res.ok) {
       setVotosFinales(votosCount)
+      // If auto-closed (all voted), re-fetch to get resultados
+      if (data.auto_cerrado) {
+        const r2 = await fetch(`/api/evaluaciones?partido_id=${partido_id}`)
+        const d2 = await r2.json()
+        if (d2.resultados) setResultados(d2.resultados)
+      }
       setEstado('done')
     } else {
       setMensaje(data.error ?? 'Error enviando votos.')
@@ -144,22 +181,58 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
     </div>
   </>)
 
-  if (estado === 'already') return centered(<>
-    <div style={{ fontSize: 48 }}>✅</div>
-    <div className="display" style={{ fontSize: 28 }}>¡Ya votaste!</div>
-    <div className="mono" style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-      Tus votos fueron enviados. Los reconocimientos se revelarán cuando el admin cierre la votación.
+  if (estado === 'already') return (
+    <div style={{ minHeight: '100vh', paddingBottom: 60 }}>
+      <nav style={{ borderBottom: '1px solid var(--border)', padding: '16px 0' }}>
+        <div className="container" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Link href="/" className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', textDecoration: 'none' }}>← INICIO</Link>
+          <span className="display" style={{ fontSize: 18, letterSpacing: '0.08em' }}>RECONOCIMIENTOS</span>
+          {partido && <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 'auto' }}>{partido.dia_semana}</div>}
+        </div>
+      </nav>
+      <div className="container" style={{ paddingTop: 32, maxWidth: 560 }}>
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
+          <div className="display" style={{ fontSize: 24, marginBottom: 8 }}>¡Ya votaste!</div>
+          {resultados ? (
+            <div className="mono" style={{ fontSize: 12, color: 'var(--green)' }}>Votación cerrada — estos son los ganadores:</div>
+          ) : (
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Los reconocimientos se revelarán cuando cierre la votación.
+              {progreso && ` (${progreso.votaron}/${progreso.total} votaron)`}
+            </div>
+          )}
+        </div>
+        {resultados && <ResultadosPanel resultados={resultados} />}
+      </div>
     </div>
-  </>)
+  )
 
-  if (estado === 'done') return centered(<>
-    <div style={{ fontSize: 64 }}>🎉</div>
-    <div className="display" style={{ fontSize: 32 }}>¡Gracias!</div>
-    <div className="mono" style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-      Diste {votosFinales} reconocimiento{votosFinales !== 1 ? 's' : ''}.<br />
-      Los badges se asignarán cuando el admin cierre la votación.
+  if (estado === 'done') return (
+    <div style={{ minHeight: '100vh', paddingBottom: 60 }}>
+      <nav style={{ borderBottom: '1px solid var(--border)', padding: '16px 0' }}>
+        <div className="container" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Link href="/" className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', textDecoration: 'none' }}>← INICIO</Link>
+          <span className="display" style={{ fontSize: 18, letterSpacing: '0.08em' }}>RECONOCIMIENTOS</span>
+          {partido && <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 'auto' }}>{partido.dia_semana}</div>}
+        </div>
+      </nav>
+      <div className="container" style={{ paddingTop: 32, maxWidth: 560 }}>
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{ fontSize: 52, marginBottom: 8 }}>🎉</div>
+          <div className="display" style={{ fontSize: 28, marginBottom: 8 }}>¡Gracias!</div>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            {votosFinales} reconocimiento{votosFinales !== 1 ? 's' : ''} enviado{votosFinales !== 1 ? 's' : ''}.
+            {resultados
+              ? ' Todos votaron — estos son los ganadores:'
+              : ' Los badges se revelarán cuando todos voten o el admin cierre la votación.'}
+          </div>
+        </div>
+        {resultados && <ResultadosPanel resultados={resultados} />}
+        {!resultados && <Link href="/" className="btn btn-ghost" style={{ display: 'block', textAlign: 'center', marginTop: 16 }}>← Volver al inicio</Link>}
+      </div>
     </div>
-  </>)
+  )
 
   return (
     <div style={{ minHeight: '100vh', paddingBottom: 100 }}>
@@ -183,12 +256,17 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
 
       <div className="container" style={{ paddingTop: 32, maxWidth: 560 }}>
 
-        {/* Subtitle */}
+        {/* Subtitle + progress */}
         <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 28, lineHeight: 1.7 }}>
           Vota por un compañero en cada categoría. Es anónimo y opcional.{' '}
           <span style={{ color: votosCount > 0 ? 'var(--green)' : 'var(--text-dim)' }}>
             {votosCount}/{CATEGORIAS.length} votadas.
           </span>
+          {progreso && (
+            <span style={{ color: 'var(--text-muted)', marginLeft: 8 }}>
+              · {progreso.votaron}/{progreso.total} jugadores votaron
+            </span>
+          )}
         </div>
 
         {mensaje && (

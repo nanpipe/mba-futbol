@@ -577,6 +577,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, mensaje: `Posición actualizada a ${posicion}.` })
   }
 
+  // ── Confirmar que el partido se jugó ─────────────────────────────────────
+  if (accion === 'confirmar_partido') {
+    const { partido_id } = body
+    if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
+    const { error } = await admin.from('partidos').update({ equipos_confirmados: true }).eq('id', partido_id as string)
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'confirmar_partido', detalles: { partido_id }, ip })
+    return NextResponse.json({ ok: true, mensaje: 'Partido confirmado.' })
+  }
+
   // ── Registrar resultado del partido ───────────────────────────────────────
   if (accion === 'registrar_resultado') {
     const { partido_id, goles_a, goles_b, puntos_blanco, puntos_negro, puntos_morado } = body

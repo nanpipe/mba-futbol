@@ -4,6 +4,7 @@ import { sendPush } from '@/lib/push'
 import { calcularVentanaPartido } from '@/lib/partidos'
 import { logActivity } from '@/lib/activityLog'
 import { sendAperturaEmail, sendRecordatorioEmail } from '@/lib/email'
+import { tallyAndAssign } from '@/app/api/evaluaciones/route'
 
 // Single daily cron — runs at 15:00 UTC = 10:00 AM Colombia
 // Handles 4 tasks in one pass:
@@ -82,37 +83,9 @@ export async function GET(req: NextRequest) {
       await logActivity({ accion: 'auto_abrir_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha } })
     }
     if (p.fecha === dosDiasAtrasStr && (p.evaluaciones_abiertas as boolean)) {
-      // Close window + tally votes + assign badges
       await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', p.id)
-
-      const { data: votos } = await admin
-        .from('votos_reconocimiento').select('votado_id, categoria').eq('partido_id', p.id)
-
-      if (votos && votos.length > 0) {
-        const { CATEGORIAS } = await import('@/lib/categorias')
-        const tally: Record<string, Record<string, number>> = {}
-        for (const v of votos) {
-          if (!tally[v.categoria]) tally[v.categoria] = {}
-          tally[v.categoria][v.votado_id] = (tally[v.categoria][v.votado_id] ?? 0) + 1
-        }
-        let badgesAsignados = 0
-        for (const cat of CATEGORIAS) {
-          const catVotes = tally[cat.id]
-          if (!catVotes) continue
-          const [winnerId] = Object.entries(catVotes).reduce(
-            (best, curr) => curr[1] > best[1] ? curr : best, ['', 0]
-          )
-          if (!winnerId) continue
-          await admin.from('player_badges').upsert({
-            player_id: winnerId, badge_id: cat.id,
-            badge_emoji: cat.emoji, badge_nombre: cat.nombre, partido_id: p.id,
-          }, { onConflict: 'player_id,badge_id,partido_id' })
-          badgesAsignados++
-        }
-        await logActivity({ accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha, badges_asignados: badgesAsignados } })
-      } else {
-        await logActivity({ accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha, badges_asignados: 0 } })
-      }
+      const { badges_asignados } = await tallyAndAssign(admin, p.id)
+      await logActivity({ accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha, badges_asignados } })
     }
   }
 
@@ -152,6 +125,18 @@ export async function GET(req: NextRequest) {
       }
 
       await admin.from('partidos').update({ notif_apertura_sent: true }).eq('id', partido.id)
+
+      // Close any still-open evaluations from past matches when new inscription window opens
+      const { data: evalAbiertas } = await admin
+        .from('partidos')
+        .select('id, fecha')
+        .eq('evaluaciones_abiertas', true)
+        .lt('fecha', hoy)
+      for (const ep of evalAbiertas ?? []) {
+        await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', ep.id)
+        const { badges_asignados } = await tallyAndAssign(admin, ep.id)
+        await logActivity({ accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: ep.id, fecha: ep.fecha, razon: 'nueva_apertura', badges_asignados } })
+      }
     }
 
     // ── 2. Recordatorio: match in ≤10h, not yet notified ─────────────────────

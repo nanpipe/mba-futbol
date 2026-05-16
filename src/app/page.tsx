@@ -558,7 +558,7 @@ export default function HomePage() {
                         <img
                           src={ultimoPartido.partido.foto_url}
                           alt="Foto del partido"
-                          style={{ width: '100%', display: 'block', height: 400, objectFit: 'cover', objectPosition: 'center top' }}
+                          style={{ width: '100%', display: 'block', maxHeight: 400, objectFit: 'contain' }}
                         />
                       </div>
                     )}

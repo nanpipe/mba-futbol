@@ -290,7 +290,7 @@ export function TabHistorial({ active }: Props) {
             )
 
             return (
-              <div key={p.id} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              <div key={p.id} className="card" style={{ padding: 0, overflow: 'hidden', position: 'relative' }}>
                 {/* Header row — click to expand */}
                 <button
                   onClick={() => handleExpand(p.id, p)}
@@ -326,6 +326,32 @@ export function TabHistorial({ active }: Props) {
                     <span className="mono" style={{ fontSize: 14, color: 'var(--text-dim)' }}>{isExpanded ? '▲' : '▼'}</span>
                   </div>
                 </button>
+
+                {/* Quick photo upload — always visible, outside expand */}
+                <label
+                  onClick={e => e.stopPropagation()}
+                  title={p.foto_url ? 'Cambiar foto del partido' : 'Subir foto del partido'}
+                  style={{
+                    position: 'absolute', top: 16, right: 56,
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '4px 10px', borderRadius: 3, cursor: uploadingFoto ? 'wait' : 'pointer',
+                    border: `1px solid ${p.foto_url ? '#16a34a' : 'var(--border)'}`,
+                    background: p.foto_url ? '#0f2d1a' : 'var(--bg-card)',
+                    color: p.foto_url ? 'var(--green)' : 'var(--text-dim)',
+                    fontSize: 12, fontFamily: 'DM Mono, monospace', letterSpacing: '0.05em',
+                    userSelect: 'none',
+                  }}
+                >
+                  <span style={{ fontSize: 14 }}>📷</span>
+                  <span className="mono" style={{ fontSize: 10 }}>{p.foto_url ? 'FOTO ✓' : 'FOTO'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    disabled={uploadingFoto}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleFotoUpload(p.id, f) }}
+                  />
+                </label>
 
                 {/* Badges */}
                 {badges.length > 0 && (

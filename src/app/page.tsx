@@ -19,6 +19,13 @@ interface Partido {
   equipos_confirmados?: boolean
   evaluaciones_abiertas?: boolean
   foto_url?: string | null
+  goles_a?: number | null
+  goles_b?: number | null
+  resultado?: string | null
+  tipo?: string | null
+  puntos_blanco?: number | null
+  puntos_negro?: number | null
+  puntos_morado?: number | null
 }
 
 interface Badge {
@@ -150,7 +157,7 @@ export default function HomePage() {
     const cargarUltimo = async () => {
       const { data: ultimo } = await supabase
         .from('partidos')
-        .select('id, fecha, dia_semana, evaluaciones_abiertas, foto_url')
+        .select('id, fecha, dia_semana, evaluaciones_abiertas, foto_url, goles_a, goles_b, resultado, tipo, puntos_blanco, puntos_negro, puntos_morado')
         .lt('fecha', hoy)
         .order('fecha', { ascending: false })
         .limit(1)
@@ -542,19 +549,60 @@ export default function HomePage() {
                   {new Date(ultimoPartido.partido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })} · 7:00 PM
                 </div>
 
-                {/* Eval closed: show photo + badge results */}
+                {/* Eval closed: show photo + winner + badge results */}
                 {!ultimoPartido.partido.evaluaciones_abiertas && ultimoPartido.badges.length > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {/* Match photo */}
                     {ultimoPartido.partido.foto_url && (
-                      <div style={{ borderRadius: 6, overflow: 'hidden', marginBottom: 4 }}>
+                      <div style={{ borderRadius: 6, overflow: 'hidden' }}>
                         <img
                           src={ultimoPartido.partido.foto_url}
                           alt="Foto del partido"
-                          style={{ width: '100%', display: 'block', maxHeight: 280, objectFit: 'cover' }}
+                          style={{ width: '100%', display: 'block', height: 400, objectFit: 'cover', objectPosition: 'center top' }}
                         />
                       </div>
                     )}
+
+                    {/* Match result / winner */}
+                    {(() => {
+                      const p = ultimoPartido.partido
+                      const esMinitorneo = p.tipo === 'minitorneo'
+                      if (esMinitorneo && p.puntos_blanco != null) {
+                        const pts = [
+                          { label: 'Blancos 🤍', pts: p.puntos_blanco ?? 0 },
+                          { label: 'Negros 🖤', pts: p.puntos_negro ?? 0 },
+                          { label: 'Morados 💜', pts: p.puntos_morado ?? 0 },
+                        ]
+                        const winner = pts.reduce((a, b) => b.pts > a.pts ? b : a)
+                        return (
+                          <div style={{ padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div>
+                              <div className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 4 }}>GANADOR DEL PARTIDO</div>
+                              <div className="display" style={{ fontSize: 20 }}>{winner.label}</div>
+                            </div>
+                            <div className="mono" style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+                              B{p.puntos_blanco} · N{p.puntos_negro} · M{p.puntos_morado}
+                            </div>
+                          </div>
+                        )
+                      }
+                      if (!esMinitorneo && p.goles_a != null && p.goles_b != null) {
+                        const winnerLabel = p.goles_a > p.goles_b ? 'Equipo Blanco 🤍' : p.goles_b > p.goles_a ? 'Equipo Negro 🖤' : 'Empate'
+                        return (
+                          <div style={{ padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div>
+                              <div className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 4 }}>GANADOR DEL PARTIDO</div>
+                              <div className="display" style={{ fontSize: 20 }}>{winnerLabel}</div>
+                            </div>
+                            <div className="display" style={{ fontSize: 24, color: 'var(--green)' }}>
+                              {p.goles_a} – {p.goles_b}
+                            </div>
+                          </div>
+                        )
+                      }
+                      return null
+                    })()}
+
                     {/* Badge winners */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {ultimoPartido.badges.map(b => (

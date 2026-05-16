@@ -60,6 +60,7 @@ export function TabHistorial({ active }: Props) {
   const [savingResultado, setSavingResultado] = useState(false)
   const [savingConfirmar, setSavingConfirmar] = useState(false)
   const [savingEval, setSavingEval] = useState(false)
+  const [savingCerrar, setSavingCerrar] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
 
   const showFlash = (msg: string) => {
@@ -160,6 +161,25 @@ export function TabHistorial({ active }: Props) {
       showFlash(`Error: ${r.error}`)
     }
     setSavingResultado(false)
+  }
+
+  const handleCerrarVotacion = async (partido_id: string) => {
+    if (!window.confirm('¿Cerrar votación y asignar badges? Esta acción es irreversible (o usa Reabrir para deshacer).')) return
+    setSavingCerrar(true)
+    const res = await fetch('/api/evaluaciones', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ partido_id }),
+    })
+    const r = await res.json()
+    if (res.ok) {
+      setHistorial(prev => prev.map(p => p.id === partido_id ? { ...p, evaluaciones_abiertas: false } : p))
+      await cargar() // reload to show new badges
+      showFlash(r.mensaje ?? 'Votación cerrada ✓')
+    } else {
+      showFlash(`Error: ${r.error}`)
+    }
+    setSavingCerrar(false)
   }
 
   const handleAbrirEval = async (partido_id: string) => {
@@ -464,24 +484,39 @@ export function TabHistorial({ active }: Props) {
                       )}
                     </div>
 
-                    {/* ── Open evaluations ── */}
+                    {/* ── Evaluaciones ── */}
                     <div>
-                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 8 }}>EVALUACIONES</div>
+                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 10 }}>EVALUACIONES</div>
                       {p.evaluaciones_abiertas ? (
-                        <div className="mono" style={{ fontSize: 12, color: '#a78bfa' }}>📊 Evaluaciones ya están abiertas.</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div className="mono" style={{ fontSize: 12, color: '#a78bfa' }}>📊 Votación abierta — jugadores pueden evaluar.</div>
+                          <button
+                            onClick={() => handleCerrarVotacion(p.id)}
+                            disabled={savingCerrar}
+                            className="btn btn-primary"
+                            style={{ padding: '9px 20px', fontSize: 13, alignSelf: 'flex-start' }}
+                          >
+                            {savingCerrar ? '...' : '🏅 Cerrar votación y asignar badges'}
+                          </button>
+                          <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                            Cierra la votación, talla votos y asigna badges a los ganadores por categoría.
+                          </div>
+                        </div>
                       ) : (
-                        <button
-                          onClick={() => handleAbrirEval(p.id)}
-                          disabled={savingEval}
-                          className="btn btn-ghost"
-                          style={{ fontSize: 12, padding: '8px 16px', color: '#a78bfa', borderColor: '#7c3aed' }}
-                        >
-                          {savingEval ? '...' : '📊 Abrir evaluaciones ahora'}
-                        </button>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <button
+                            onClick={() => handleAbrirEval(p.id)}
+                            disabled={savingEval}
+                            className="btn btn-ghost"
+                            style={{ fontSize: 12, padding: '8px 16px', color: '#a78bfa', borderColor: '#7c3aed', alignSelf: 'flex-start' }}
+                          >
+                            {savingEval ? '...' : '📊 Abrir evaluaciones ahora'}
+                          </button>
+                          <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                            Abre votación y notifica por push a jugadores confirmados.
+                          </div>
+                        </div>
                       )}
-                      <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>
-                        Notifica por push a jugadores confirmados.
-                      </div>
                     </div>
 
                   </div>

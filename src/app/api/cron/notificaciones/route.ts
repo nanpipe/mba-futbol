@@ -82,8 +82,37 @@ export async function GET(req: NextRequest) {
       await logActivity({ accion: 'auto_abrir_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha } })
     }
     if (p.fecha === dosDiasAtrasStr && (p.evaluaciones_abiertas as boolean)) {
+      // Close window + tally votes + assign badges
       await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', p.id)
-      await logActivity({ accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha } })
+
+      const { data: votos } = await admin
+        .from('votos_reconocimiento').select('votado_id, categoria').eq('partido_id', p.id)
+
+      if (votos && votos.length > 0) {
+        const { CATEGORIAS } = await import('@/lib/categorias')
+        const tally: Record<string, Record<string, number>> = {}
+        for (const v of votos) {
+          if (!tally[v.categoria]) tally[v.categoria] = {}
+          tally[v.categoria][v.votado_id] = (tally[v.categoria][v.votado_id] ?? 0) + 1
+        }
+        let badgesAsignados = 0
+        for (const cat of CATEGORIAS) {
+          const catVotes = tally[cat.id]
+          if (!catVotes) continue
+          const [winnerId] = Object.entries(catVotes).reduce(
+            (best, curr) => curr[1] > best[1] ? curr : best, ['', 0]
+          )
+          if (!winnerId) continue
+          await admin.from('player_badges').upsert({
+            player_id: winnerId, badge_id: cat.id,
+            badge_emoji: cat.emoji, badge_nombre: cat.nombre, partido_id: p.id,
+          }, { onConflict: 'player_id,badge_id,partido_id' })
+          badgesAsignados++
+        }
+        await logActivity({ accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha, badges_asignados: badgesAsignados } })
+      } else {
+        await logActivity({ accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha, badges_asignados: 0 } })
+      }
     }
   }
 

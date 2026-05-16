@@ -113,6 +113,13 @@ export default function HomePage() {
   const touchStartY = useRef(0)
   const PULL_THRESHOLD = 72
 
+  // Bug report modal
+  const [bugModalOpen, setBugModalOpen] = useState(false)
+  const [bugDesc, setBugDesc] = useState('')
+  const [bugFile, setBugFile] = useState<File | null>(null)
+  const [bugSending, setBugSending] = useState(false)
+  const [bugMsg, setBugMsg] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
+
   useEffect(() => {
     if ('Notification' in window) setPushPermission(Notification.permission)
     setIsIos(/iphone|ipad|ipod/i.test(navigator.userAgent))
@@ -359,6 +366,51 @@ export default function HomePage() {
     window.location.href = '/login'
   }
 
+  const enviarBugReport = async () => {
+    if (bugDesc.trim().length < 3) {
+      setBugMsg({ tipo: 'error', texto: 'Describe el problema (mínimo 3 caracteres).' })
+      return
+    }
+    setBugSending(true)
+    setBugMsg(null)
+
+    let screenshot_url: string | null = null
+
+    // Upload screenshot if provided
+    if (bugFile) {
+      const ext = bugFile.name.split('.').pop() ?? 'png'
+      const path = `${user!.id}/${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage
+        .from('bug-reports')
+        .upload(path, bugFile, { upsert: false })
+
+      if (upErr) {
+        setBugMsg({ tipo: 'error', texto: 'Error al subir la captura. Intenta sin imagen.' })
+        setBugSending(false)
+        return
+      }
+      const { data: { publicUrl } } = supabase.storage.from('bug-reports').getPublicUrl(path)
+      screenshot_url = publicUrl
+    }
+
+    const res = await fetch('/api/bug-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ descripcion: bugDesc.trim(), screenshot_url }),
+    })
+
+    if (res.ok) {
+      setBugMsg({ tipo: 'ok', texto: 'Gracias, lo revisamos pronto.' })
+      setBugDesc('')
+      setBugFile(null)
+      setTimeout(() => { setBugModalOpen(false); setBugMsg(null) }, 2000)
+    } else {
+      const data = await res.json().catch(() => ({}))
+      setBugMsg({ tipo: 'error', texto: data.error ?? 'Error al enviar. Intenta de nuevo.' })
+    }
+    setBugSending(false)
+  }
+
   const confirmados = inscripciones.filter(i => i.estado === 'confirmado')
   const enEspera = inscripciones.filter(i => i.estado === 'espera')
   const cuposTotal = ventana?.partido?.cupos_total ?? 14
@@ -485,6 +537,20 @@ export default function HomePage() {
                 🔔 Notificaciones
               </button>
             )}
+            {/* Bug report */}
+            <button
+              onClick={() => { setBugModalOpen(true); setBugMsg(null) }}
+              title="Reportar un problema"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--text-muted)', fontSize: 18, lineHeight: 1,
+                padding: '4px 6px', borderRadius: 3,
+                display: 'flex', alignItems: 'center',
+              }}
+            >
+              🐛
+            </button>
+
             {/* Profile avatar + username → /perfil */}
             <Link href="/perfil" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
               <div style={{
@@ -1063,6 +1129,110 @@ export default function HomePage() {
           </div>
         )}
       </div>
+
+      {/* ── Bug Report Modal ──────────────────────────────────────────────── */}
+      {bugModalOpen && (
+        <div
+          onClick={e => { if (e.target === e.currentTarget) { setBugModalOpen(false); setBugMsg(null) } }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 200,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '0 16px',
+          }}
+        >
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 6, padding: 24, width: '100%', maxWidth: 440,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div className="mono" style={{ fontSize: 12, letterSpacing: '0.12em', color: 'var(--text-muted)' }}>
+                🐛 REPORTAR PROBLEMA
+              </div>
+              <button
+                onClick={() => { setBugModalOpen(false); setBugMsg(null) }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 20, lineHeight: 1, padding: '0 4px' }}
+              >
+                ×
+              </button>
+            </div>
+
+            {bugMsg?.tipo === 'ok' ? (
+              <div style={{
+                padding: '16px 20px', borderRadius: 4,
+                background: '#0f2d1a', border: '1px solid #16a34a',
+                color: 'var(--green)', fontFamily: 'DM Mono, monospace', fontSize: 13, lineHeight: 1.6,
+                textAlign: 'center',
+              }}>
+                ✓ {bugMsg.texto}
+              </div>
+            ) : (
+              <>
+                <div style={{ marginBottom: 16 }}>
+                  <label className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--text-muted)', display: 'block', marginBottom: 8 }}>
+                    DESCRIPCIÓN
+                  </label>
+                  <textarea
+                    value={bugDesc}
+                    onChange={e => setBugDesc(e.target.value.slice(0, 500))}
+                    placeholder="¿Qué pasó? ¿Qué esperabas que pasara?"
+                    rows={5}
+                    style={{
+                      width: '100%', boxSizing: 'border-box',
+                      background: 'var(--bg)', border: '1px solid var(--border)',
+                      borderRadius: 3, padding: '10px 12px',
+                      color: 'var(--text)', fontSize: 14, lineHeight: 1.5,
+                      fontFamily: 'inherit', resize: 'vertical',
+                    }}
+                  />
+                  <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, textAlign: 'right' }}>
+                    {bugDesc.length}/500
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 20 }}>
+                  <label className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--text-muted)', display: 'block', marginBottom: 8 }}>
+                    CAPTURA DE PANTALLA (opcional)
+                  </label>
+                  <label style={{
+                    display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                    border: '1px dashed var(--border)', borderRadius: 3, padding: '10px 14px',
+                  }}>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      onChange={e => setBugFile(e.target.files?.[0] ?? null)}
+                    />
+                    <span style={{ fontSize: 18 }}>📎</span>
+                    <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      {bugFile ? bugFile.name : 'Adjuntar imagen...'}
+                    </span>
+                  </label>
+                </div>
+
+                {bugMsg?.tipo === 'error' && (
+                  <div className="mono" style={{
+                    fontSize: 12, color: 'var(--red)', padding: '10px 14px',
+                    background: '#2d0a0a', borderRadius: 3, border: '1px solid #7f1d1d', marginBottom: 16,
+                  }}>
+                    {bugMsg.texto}
+                  </div>
+                )}
+
+                <button
+                  onClick={enviarBugReport}
+                  disabled={bugSending}
+                  className="btn btn-primary"
+                  style={{ width: '100%', padding: '12px' }}
+                >
+                  {bugSending ? 'Enviando...' : 'Enviar reporte'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

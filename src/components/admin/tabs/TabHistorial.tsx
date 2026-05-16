@@ -8,6 +8,21 @@ interface Props {
   active: boolean
 }
 
+interface InscripcionHistorial {
+  id: string
+  estado: string
+  player_id: string
+  profiles: { username: string; id: string }
+}
+
+interface PlayerBasic {
+  id: string
+  username: string
+  aprobado: boolean
+  baneado: boolean
+  role: string
+}
+
 async function adminAction(accion: string, extra: Record<string, unknown>): Promise<{ ok: boolean; mensaje?: string; error?: string }> {
   const res = await fetch('/api/admin', {
     method: 'POST',
@@ -26,6 +41,16 @@ export function TabHistorial({ active }: Props) {
   // Per-partido expanded management panel
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
+  // Inscriptions for expanded match
+  const [inscripciones, setInscripciones] = useState<InscripcionHistorial[]>([])
+  const [loadingIns, setLoadingIns] = useState(false)
+
+  // Add player
+  const [allPlayers, setAllPlayers] = useState<PlayerBasic[]>([])
+  const [addPlayerId, setAddPlayerId] = useState('')
+  const [addEstado, setAddEstado] = useState<'confirmado' | 'espera'>('confirmado')
+  const [savingAdd, setSavingAdd] = useState(false)
+
   // Result form state
   const [golesA, setGolesA] = useState('')
   const [golesB, setGolesB] = useState('')
@@ -35,6 +60,7 @@ export function TabHistorial({ active }: Props) {
   const [savingResultado, setSavingResultado] = useState(false)
   const [savingConfirmar, setSavingConfirmar] = useState(false)
   const [savingEval, setSavingEval] = useState(false)
+  const [removingId, setRemovingId] = useState<string | null>(null)
 
   const showFlash = (msg: string) => {
     setFlash(msg)
@@ -58,10 +84,36 @@ export function TabHistorial({ active }: Props) {
     if (active) cargar()
   }, [active, cargar])
 
+  // Fetch all approved players once (for add dropdown)
+  useEffect(() => {
+    if (!active) return
+    supabase
+      .from('profiles')
+      .select('id, username, aprobado, baneado, role')
+      .eq('aprobado', true)
+      .eq('baneado', false)
+      .order('username')
+      .then(({ data }) => setAllPlayers((data as PlayerBasic[]) ?? []))
+  }, [active, supabase])
+
+  const cargarInscripciones = useCallback(async (partidoId: string) => {
+    setLoadingIns(true)
+    const { data } = await supabase
+      .from('inscripciones')
+      .select('id, estado, player_id, profiles!player_id(username, id)')
+      .eq('partido_id', partidoId)
+      .order('estado')
+      .order('posicion_espera', { ascending: true, nullsFirst: false })
+    setInscripciones((data as unknown as InscripcionHistorial[]) ?? [])
+    setLoadingIns(false)
+  }, [supabase])
+
   const handleExpand = (id: string, p: HistorialPartido) => {
     if (expandedId === id) { setExpandedId(null); return }
     setExpandedId(id)
-    // Pre-fill result form if score exists
+    setAddPlayerId('')
+    cargarInscripciones(id)
+    // Pre-fill result form
     if (p.tipo === 'minitorneo') {
       setPtsBlancos(p.puntos_blanco != null ? String(p.puntos_blanco) : '')
       setPtsNegros(p.puntos_negro != null ? String(p.puntos_negro) : '')
@@ -122,6 +174,35 @@ export function TabHistorial({ active }: Props) {
     setSavingEval(false)
   }
 
+  const handleRemover = async (ins: InscripcionHistorial, partido_id: string) => {
+    if (!window.confirm(`¿Remover a ${ins.profiles.username} del partido?`)) return
+    setRemovingId(ins.id)
+    const r = await adminAction('remover_partido', { player_id: ins.profiles.id, partido_id })
+    if (r.ok) {
+      setInscripciones(prev => prev.filter(i => i.id !== ins.id))
+      showFlash(`${ins.profiles.username} removido.`)
+    } else {
+      showFlash(`Error: ${r.error}`)
+    }
+    setRemovingId(null)
+  }
+
+  const handleAgregar = async (partido_id: string) => {
+    if (!addPlayerId) return
+    const name = allPlayers.find(p => p.id === addPlayerId)?.username ?? ''
+    if (!window.confirm(`¿Agregar a ${name} como ${addEstado}?`)) return
+    setSavingAdd(true)
+    const r = await adminAction('agregar_jugador_partido', { player_id: addPlayerId, partido_id, estado: addEstado })
+    if (r.ok) {
+      await cargarInscripciones(partido_id)
+      setAddPlayerId('')
+      showFlash(r.mensaje ?? `${name} agregado.`)
+    } else {
+      showFlash(`Error: ${r.error}`)
+    }
+    setSavingAdd(false)
+  }
+
   return (
     <div id="tab-historial" className="fade-in">
       {flash && (
@@ -158,6 +239,12 @@ export function TabHistorial({ active }: Props) {
               : (p.goles_a != null && p.goles_b != null ? `${p.goles_a} – ${p.goles_b}` : p.resultado ?? null)
             const isExpanded = expandedId === p.id
 
+            // Players not yet in this match (for add dropdown)
+            const inscribedIds = new Set(inscripciones.map(i => i.player_id))
+            const availablePlayers = allPlayers.filter(pl =>
+              pl.role !== 'admin' && pl.role !== 'superadmin' && !inscribedIds.has(pl.id)
+            )
+
             return (
               <div key={p.id} className="card" style={{ padding: 0, overflow: 'hidden' }}>
                 {/* Header row — click to expand */}
@@ -187,14 +274,10 @@ export function TabHistorial({ active }: Props) {
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
                     {p.equipos_confirmados && (
-                      <span className="mono" style={{ fontSize: 10, color: 'var(--green)', border: '1px solid #16a34a', padding: '2px 8px', borderRadius: 2 }}>
-                        JUGADO
-                      </span>
+                      <span className="mono" style={{ fontSize: 10, color: 'var(--green)', border: '1px solid #16a34a', padding: '2px 8px', borderRadius: 2 }}>JUGADO</span>
                     )}
                     {p.evaluaciones_abiertas && (
-                      <span className="mono" style={{ fontSize: 10, color: '#a78bfa', border: '1px solid #7c3aed', padding: '2px 8px', borderRadius: 2 }}>
-                        EVAL ✓
-                      </span>
+                      <span className="mono" style={{ fontSize: 10, color: '#a78bfa', border: '1px solid #7c3aed', padding: '2px 8px', borderRadius: 2 }}>EVAL ✓</span>
                     )}
                     <span className="mono" style={{ fontSize: 14, color: 'var(--text-dim)' }}>{isExpanded ? '▲' : '▼'}</span>
                   </div>
@@ -214,7 +297,93 @@ export function TabHistorial({ active }: Props) {
 
                 {/* Expandable management panel */}
                 {isExpanded && (
-                  <div style={{ borderTop: '1px solid var(--border)', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ borderTop: '1px solid var(--border)', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+                    {/* ── Player list ── */}
+                    <div>
+                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 10 }}>
+                        JUGADORES — {inscripciones.filter(i => i.estado === 'confirmado').length} confirmados
+                        {inscripciones.some(i => i.estado === 'espera') && ` · ${inscripciones.filter(i => i.estado === 'espera').length} espera`}
+                      </div>
+                      {loadingIns ? (
+                        <div className="mono pulsing" style={{ fontSize: 12, color: 'var(--text-muted)' }}>Cargando...</div>
+                      ) : inscripciones.length === 0 ? (
+                        <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>Sin inscritos registrados.</div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {inscripciones.map(ins => (
+                            <div key={ins.id} style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              padding: '8px 12px',
+                              background: ins.estado === 'espera' ? 'var(--bg)' : 'var(--bg-card)',
+                              border: `1px solid ${ins.estado === 'espera' ? '#1a2a1a' : 'var(--border)'}`,
+                              borderRadius: 3,
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <span className={`badge ${ins.estado === 'confirmado' ? 'badge-green' : 'badge-amber'}`} style={{ fontSize: 10 }}>
+                                  {ins.estado === 'confirmado' ? '✓' : '⏳'}
+                                </span>
+                                <span style={{ fontSize: 14 }}>{ins.profiles.username}</span>
+                              </div>
+                              <button
+                                onClick={() => handleRemover(ins, p.id)}
+                                disabled={removingId === ins.id}
+                                className="mono"
+                                style={{ fontSize: 11, color: removingId === ins.id ? 'var(--text-dim)' : 'var(--red)', background: 'none', border: 'none', cursor: 'pointer' }}
+                              >
+                                {removingId === ins.id ? '...' : 'REMOVER'}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Add player */}
+                      <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                        <div style={{ flex: 1, minWidth: 160 }}>
+                          <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>AGREGAR JUGADOR</div>
+                          <select
+                            value={addPlayerId}
+                            onChange={e => setAddPlayerId(e.target.value)}
+                            style={{ width: '100%', padding: '8px 10px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text)', fontSize: 13 }}
+                          >
+                            <option value="">— Seleccionar —</option>
+                            {availablePlayers.map(pl => (
+                              <option key={pl.id} value={pl.id}>{pl.username}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>ESTADO</div>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            {(['confirmado', 'espera'] as const).map(e => (
+                              <button
+                                key={e}
+                                onClick={() => setAddEstado(e)}
+                                className="mono"
+                                style={{
+                                  padding: '7px 10px', fontSize: 11, border: '1px solid',
+                                  borderColor: addEstado === e ? (e === 'confirmado' ? '#16a34a' : '#92400e') : 'var(--border)',
+                                  background: addEstado === e ? (e === 'confirmado' ? '#0f2d1a' : '#1a1000') : 'none',
+                                  color: addEstado === e ? (e === 'confirmado' ? 'var(--green)' : 'var(--amber)') : 'var(--text-muted)',
+                                  borderRadius: 3, cursor: 'pointer', letterSpacing: '0.05em', textTransform: 'uppercase',
+                                }}
+                              >
+                                {e}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleAgregar(p.id)}
+                          disabled={!addPlayerId || savingAdd}
+                          className="btn btn-ghost"
+                          style={{ fontSize: 12, padding: '8px 14px', color: 'var(--green)', borderColor: '#16a34a' }}
+                        >
+                          {savingAdd ? '...' : '+ Agregar'}
+                        </button>
+                      </div>
+                    </div>
 
                     {/* ── Confirm match happened ── */}
                     {!p.equipos_confirmados && (
@@ -229,7 +398,7 @@ export function TabHistorial({ active }: Props) {
                           {savingConfirmar ? '...' : '✓ Marcar como jugado'}
                         </button>
                         <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6, lineHeight: 1.5 }}>
-                          Necesario para que el cron abra evaluaciones automáticamente al día siguiente.
+                          Necesario para que el cron abra evaluaciones automáticamente.
                         </div>
                       </div>
                     )}
@@ -310,8 +479,8 @@ export function TabHistorial({ active }: Props) {
                           {savingEval ? '...' : '📊 Abrir evaluaciones ahora'}
                         </button>
                       )}
-                      <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6, lineHeight: 1.5 }}>
-                        Notifica por push a jugadores confirmados para que evalúen.
+                      <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>
+                        Notifica por push a jugadores confirmados.
                       </div>
                     </div>
 

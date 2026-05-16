@@ -40,9 +40,34 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
   }
 
-  const { avatar_url, posicion } = body
+  const { avatar_url, posicion, username } = body
   const ip = getIP(req)
   const updates: Record<string, string> = {}
+
+  // ── Username ──────────────────────────────────────────────────────────────
+  if (username !== undefined) {
+    // Check setting
+    const { data: unSetting } = await admin
+      .from('app_settings').select('value').eq('key', 'usuarios_pueden_cambiar_username').maybeSingle()
+    const canChange = unSetting !== null && (unSetting as { value: unknown })?.value === true
+    if (!canChange) {
+      return NextResponse.json({ error: 'El club no permite cambiar el nombre de usuario.' }, { status: 403 })
+    }
+    if (!isString(username, 3, 30)) {
+      return NextResponse.json({ error: 'Username debe tener entre 3 y 30 caracteres.' }, { status: 400 })
+    }
+    const clean = (username as string).trim().toLowerCase().replace(/[^a-z0-9_]/g, '')
+    if (clean.length < 3) {
+      return NextResponse.json({ error: 'Username solo puede contener letras, números y guiones bajos.' }, { status: 400 })
+    }
+    // Check uniqueness
+    const { data: existing } = await admin
+      .from('profiles').select('id').eq('username', clean).maybeSingle()
+    if (existing && (existing as { id: string }).id !== user.id) {
+      return NextResponse.json({ error: 'Ese nombre de usuario ya está en uso.' }, { status: 409 })
+    }
+    updates.username = clean
+  }
 
   // ── Posición ──────────────────────────────────────────────────────────────
   const POSICIONES = ['portero', 'defensa', 'medio', 'delantero', 'cualquiera']

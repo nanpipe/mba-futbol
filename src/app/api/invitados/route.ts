@@ -18,6 +18,13 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
+  // Check club setting: invitados enabled?
+  const { data: invSetting } = await admin
+    .from('app_settings').select('value').eq('key', 'usar_invitados').maybeSingle()
+  if (invSetting !== null && (invSetting as { value: unknown })?.value === false) {
+    return NextResponse.json({ error: 'El sistema de invitados está desactivado.' }, { status: 403 })
+  }
+
   // Verify player is approved
   const { data: playerProfile } = await supabase.from('profiles').select('aprobado, username').eq('id', user.id).single()
   if (!playerProfile?.aprobado) return NextResponse.json({ error: 'Tu cuenta aún no ha sido aprobada.' }, { status: 403 })

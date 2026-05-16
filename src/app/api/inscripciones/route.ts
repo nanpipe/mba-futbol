@@ -78,7 +78,15 @@ export async function POST(req: NextRequest) {
     .eq('partido_id', partido_id)
     .eq('estado', 'confirmado')
 
-  const tieneUniforme = (profile as { uniform?: boolean })?.uniform ?? false
+  // Check club setting: uniform priority enabled?
+  const { data: uniformSetting } = await admin
+    .from('app_settings')
+    .select('value')
+    .eq('key', 'usar_uniforme')
+    .maybeSingle()
+  const usarUniforme = uniformSetting === null || (uniformSetting as { value: unknown })?.value !== false
+
+  const tieneUniforme = usarUniforme ? ((profile as { uniform?: boolean })?.uniform ?? false) : true
   const spotsLibres = (totalConfirmados ?? 0) < partido.cupos_total
 
   // Helper: push all admins+superadmin (fire-and-forget)

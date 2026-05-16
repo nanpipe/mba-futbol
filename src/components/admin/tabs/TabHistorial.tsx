@@ -62,6 +62,7 @@ export function TabHistorial({ active }: Props) {
   const [savingEval, setSavingEval] = useState(false)
   const [savingCerrar, setSavingCerrar] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
+  const [uploadingFoto, setUploadingFoto] = useState(false)
 
   const showFlash = (msg: string) => {
     setFlash(msg)
@@ -73,7 +74,7 @@ export function TabHistorial({ active }: Props) {
     const hoy = new Date().toISOString().split('T')[0]
     const { data } = await supabase
       .from('partidos')
-      .select('id, fecha, dia_semana, resultado, goles_a, goles_b, puntos_blanco, puntos_negro, puntos_morado, equipos_confirmados, evaluaciones_abiertas, cupos_total, tipo, inscripciones(estado), player_badges(badge_emoji, badge_nombre, profiles!player_badges_player_id_fkey(username))')
+      .select('id, fecha, dia_semana, resultado, goles_a, goles_b, puntos_blanco, puntos_negro, puntos_morado, equipos_confirmados, evaluaciones_abiertas, foto_url, cupos_total, tipo, inscripciones(estado), player_badges(badge_emoji, badge_nombre, profiles!player_badges_player_id_fkey(username))')
       .lt('fecha', hoy)
       .order('fecha', { ascending: false })
       .limit(30)
@@ -207,6 +208,29 @@ export function TabHistorial({ active }: Props) {
     setRemovingId(null)
   }
 
+  const handleFotoUpload = async (partidoId: string, file: File) => {
+    setUploadingFoto(true)
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+      const path = `${partidoId}/foto.${ext}`
+      const { error: upErr } = await supabase.storage
+        .from('match-photos')
+        .upload(path, file, { upsert: true, contentType: file.type })
+      if (upErr) { showFlash(`Error subiendo foto: ${upErr.message}`); return }
+
+      const { data: { publicUrl } } = supabase.storage.from('match-photos').getPublicUrl(path)
+      const r = await adminAction('guardar_foto_partido', { partido_id: partidoId, foto_url: publicUrl })
+      if (r.ok) {
+        setHistorial(prev => prev.map(p => p.id === partidoId ? { ...p, foto_url: publicUrl } : p))
+        showFlash('Foto guardada ✓')
+      } else {
+        showFlash(`Error: ${r.error}`)
+      }
+    } finally {
+      setUploadingFoto(false)
+    }
+  }
+
   const handleAgregar = async (partido_id: string) => {
     if (!addPlayerId) return
     const name = allPlayers.find(p => p.id === addPlayerId)?.username ?? ''
@@ -266,7 +290,7 @@ export function TabHistorial({ active }: Props) {
             )
 
             return (
-              <div key={p.id} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              <div key={p.id} className="card" style={{ padding: 0, overflow: 'hidden', position: 'relative' }}>
                 {/* Header row — click to expand */}
                 <button
                   onClick={() => handleExpand(p.id, p)}
@@ -302,6 +326,32 @@ export function TabHistorial({ active }: Props) {
                     <span className="mono" style={{ fontSize: 14, color: 'var(--text-dim)' }}>{isExpanded ? '▲' : '▼'}</span>
                   </div>
                 </button>
+
+                {/* Quick photo upload — always visible, outside expand */}
+                <label
+                  onClick={e => e.stopPropagation()}
+                  title={p.foto_url ? 'Cambiar foto del partido' : 'Subir foto del partido'}
+                  style={{
+                    position: 'absolute', top: 16, right: 56,
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '4px 10px', borderRadius: 3, cursor: uploadingFoto ? 'wait' : 'pointer',
+                    border: `1px solid ${p.foto_url ? '#16a34a' : 'var(--border)'}`,
+                    background: p.foto_url ? '#0f2d1a' : 'var(--bg-card)',
+                    color: p.foto_url ? 'var(--green)' : 'var(--text-dim)',
+                    fontSize: 12, fontFamily: 'DM Mono, monospace', letterSpacing: '0.05em',
+                    userSelect: 'none',
+                  }}
+                >
+                  <span style={{ fontSize: 14 }}>📷</span>
+                  <span className="mono" style={{ fontSize: 10 }}>{p.foto_url ? 'FOTO ✓' : 'FOTO'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    disabled={uploadingFoto}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleFotoUpload(p.id, f) }}
+                  />
+                </label>
 
                 {/* Badges */}
                 {badges.length > 0 && (
@@ -482,6 +532,38 @@ export function TabHistorial({ active }: Props) {
                           </button>
                         </div>
                       )}
+                    </div>
+
+                    {/* ── Foto del partido ── */}
+                    <div>
+                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 10 }}>FOTO DEL PARTIDO</div>
+                      {p.foto_url && (
+                        <div style={{ marginBottom: 10, borderRadius: 4, overflow: 'hidden', maxWidth: 340 }}>
+                          <img
+                            src={p.foto_url!}
+                            alt="Foto del partido"
+                            style={{ width: '100%', display: 'block', maxHeight: 200, objectFit: 'cover' }}
+                          />
+                        </div>
+                      )}
+                      <label style={{
+                        display: 'inline-block', padding: '8px 16px', fontSize: 12, cursor: uploadingFoto ? 'wait' : 'pointer',
+                        border: '1px solid var(--border)', borderRadius: 3, background: 'var(--bg-card)',
+                        color: uploadingFoto ? 'var(--text-dim)' : 'var(--text)',
+                        fontFamily: 'DM Mono, monospace', letterSpacing: '0.05em',
+                      }}>
+                        {uploadingFoto ? 'Subiendo...' : p.foto_url ? '📷 Cambiar foto' : '📷 Subir foto'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          disabled={uploadingFoto}
+                          onChange={e => { const f = e.target.files?.[0]; if (f) handleFotoUpload(p.id, f) }}
+                        />
+                      </label>
+                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 6 }}>
+                        Se muestra en el dashboard cuando cierran las evaluaciones.
+                      </div>
                     </div>
 
                     {/* ── Evaluaciones ── */}

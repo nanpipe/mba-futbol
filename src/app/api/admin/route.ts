@@ -682,16 +682,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, mensaje: 'Evaluaciones abiertas y jugadores notificados.' })
   }
 
+  // ── Guardar foto del partido ───────────────────────────────────────────────
+  if (accion === 'guardar_foto_partido') {
+    const { partido_id, foto_url } = body
+    if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
+    if (!isString(foto_url, 1, 2048)) return NextResponse.json({ error: 'URL inválida' }, { status: 400 })
+    try { new URL(foto_url as string) } catch { return NextResponse.json({ error: 'URL inválida' }, { status: 400 }) }
+
+    const { error } = await admin.from('partidos').update({ foto_url }).eq('id', partido_id as string)
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'guardar_foto_partido', detalles: { partido_id }, ip })
+    return NextResponse.json({ ok: true, mensaje: 'Foto guardada.' })
+  }
+
   // ── Guardar setting ────────────────────────────────────────────────────────
   if (accion === 'guardar_setting') {
     const { key, value } = body
-    const ALLOWED_KEYS = ['notif_apertura', 'notif_recordatorio', 'notif_cupos', 'notif_invitados', 'email_apertura', 'email_recordatorio']
+    const ALLOWED_KEYS = [
+      'notif_apertura', 'notif_recordatorio', 'notif_cupos', 'notif_invitados',
+      'email_apertura', 'email_recordatorio',
+      'usar_uniforme', 'usar_invitados', 'usuarios_pueden_cambiar_username',
+      'club_nombre', 'club_ciudad', 'club_dias_juego',
+    ]
     if (typeof key !== 'string' || !ALLOWED_KEYS.includes(key)) {
       return NextResponse.json({ error: 'Clave inválida' }, { status: 400 })
     }
+    // Booleans stored as bool, strings stored as string
+    const storedValue = typeof value === 'string' && value !== 'true' && value !== 'false'
+      ? value
+      : value === true || value === 'true'
     const { error } = await admin.from('app_settings').upsert({
       key,
-      value: value === true || value === 'true' ? true : false,
+      value: storedValue,
       updated_at: new Date().toISOString(),
       updated_by: adminUser.id,
     }, { onConflict: 'key' })

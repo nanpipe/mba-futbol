@@ -18,6 +18,14 @@ interface Partido {
   cupos_total?: number
   equipos_confirmados?: boolean
   evaluaciones_abiertas?: boolean
+  foto_url?: string | null
+}
+
+interface Badge {
+  badge_id: string
+  badge_emoji: string
+  badge_nombre: string
+  profiles: { username: string } | null
 }
 
 interface EquipoJugador {
@@ -86,7 +94,7 @@ export default function HomePage() {
   const [nuevoInvitado, setNuevoInvitado] = useState('')
   const [agregandoInvitado, setAgregandoInvitado] = useState(false)
   const [countdown, setCountdown] = useState('')
-  const [ultimoPartido, setUltimoPartido] = useState<{ partido: Partido; inscripciones: Inscripcion[] } | null>(null)
+  const [ultimoPartido, setUltimoPartido] = useState<{ partido: Partido; inscripciones: Inscripcion[]; badges: Badge[] } | null>(null)
   const [misEquipos, setMisEquipos] = useState<{ equipos: Equipo[]; miEquipo: Equipo | null; partido_id: string } | null>(null)
   const abreEnRef = useRef<Date | null>(null)
   const [pushPermission, setPushPermission] = useState<NotificationPermission | null>(null)
@@ -138,22 +146,32 @@ export default function HomePage() {
 
     const hoy = new Date().toISOString().split('T')[0]
 
-    // Always load last match (for eval CTA) in parallel with upcoming match
+    // Always load last match (for eval CTA + results) in parallel with upcoming match
     const cargarUltimo = async () => {
       const { data: ultimo } = await supabase
         .from('partidos')
-        .select('id, fecha, dia_semana, evaluaciones_abiertas')
+        .select('id, fecha, dia_semana, evaluaciones_abiertas, foto_url')
         .lt('fecha', hoy)
         .order('fecha', { ascending: false })
         .limit(1)
         .single()
       if (ultimo) {
-        const { data: ins } = await supabase
-          .from('inscripciones')
-          .select('id, player_id, estado, posicion_espera, profiles!player_id(username)')
-          .eq('partido_id', ultimo.id)
-          .eq('estado', 'confirmado')
-        setUltimoPartido({ partido: ultimo, inscripciones: (ins as unknown as Inscripcion[]) ?? [] })
+        const [{ data: ins }, { data: bdgs }] = await Promise.all([
+          supabase
+            .from('inscripciones')
+            .select('id, player_id, estado, posicion_espera, profiles!player_id(username)')
+            .eq('partido_id', ultimo.id)
+            .eq('estado', 'confirmado'),
+          supabase
+            .from('player_badges')
+            .select('badge_id, badge_emoji, badge_nombre, profiles!player_badges_player_id_fkey(username)')
+            .eq('partido_id', ultimo.id),
+        ])
+        setUltimoPartido({
+          partido: ultimo,
+          inscripciones: (ins as unknown as Inscripcion[]) ?? [],
+          badges: (bdgs as unknown as Badge[]) ?? [],
+        })
       }
     }
 
@@ -523,21 +541,55 @@ export default function HomePage() {
                 <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 16 }}>
                   {new Date(ultimoPartido.partido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })} · 7:00 PM
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {ultimoPartido.inscripciones.map((ins, idx) => (
-                    <div key={ins.id} style={{
-                      display: 'flex', alignItems: 'center', gap: 12,
-                      padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 3,
-                      border: ins.player_id === user?.id ? '1px solid #16a34a' : '1px solid transparent'
-                    }}>
-                      <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', width: 20 }}>{idx + 1}</span>
-                      <span style={{ fontSize: 15, flex: 1 }}>{ins.profiles.username}</span>
-                      {ins.player_id === user?.id && (
-                        <span className="mono" style={{ fontSize: 10, color: 'var(--green)', letterSpacing: '0.1em' }}>TÚ</span>
-                      )}
+
+                {/* Eval closed: show photo + badge results */}
+                {!ultimoPartido.partido.evaluaciones_abiertas && ultimoPartido.badges.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {/* Match photo */}
+                    {ultimoPartido.partido.foto_url && (
+                      <div style={{ borderRadius: 6, overflow: 'hidden', marginBottom: 4 }}>
+                        <img
+                          src={ultimoPartido.partido.foto_url}
+                          alt="Foto del partido"
+                          style={{ width: '100%', display: 'block', maxHeight: 280, objectFit: 'cover' }}
+                        />
+                      </div>
+                    )}
+                    {/* Badge winners */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {ultimoPartido.badges.map(b => (
+                        <div key={b.badge_id} style={{
+                          display: 'flex', alignItems: 'center', gap: 12,
+                          padding: '10px 14px', background: 'var(--bg-card)',
+                          border: '1px solid var(--border)', borderRadius: 4,
+                        }}>
+                          <span style={{ fontSize: 22, flexShrink: 0 }}>{b.badge_emoji}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 1 }}>{b.badge_nombre}</div>
+                            <div style={{ fontSize: 14, fontWeight: 600 }}>{b.profiles?.username ?? '?'}</div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ) : (
+                  /* Eval open or no badges: show player list */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {ultimoPartido.inscripciones.map((ins, idx) => (
+                      <div key={ins.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 3,
+                        border: ins.player_id === user?.id ? '1px solid #16a34a' : '1px solid transparent'
+                      }}>
+                        <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', width: 20 }}>{idx + 1}</span>
+                        <span style={{ fontSize: 15, flex: 1 }}>{ins.profiles.username}</span>
+                        {ins.player_id === user?.id && (
+                          <span className="mono" style={{ fontSize: 10, color: 'var(--green)', letterSpacing: '0.1em' }}>TÚ</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </>

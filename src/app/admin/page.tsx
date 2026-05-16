@@ -41,9 +41,10 @@ export default function AdminPage() {
   const [playerIdsWithPush, setPlayerIdsWithPush] = useState<Set<string>>(new Set())
   const [partidos, setPartidos] = useState<Partido[]>([])
   const [mensaje, setMensaje] = useState('')
+  const [usarUniforme, setUsarUniforme] = useState(true)
 
   const cargarDatos = useCallback(async () => {
-    const [{ data: ps }, { data: pushSubs }, { data: pts }] = await Promise.all([
+    const [{ data: ps }, { data: pushSubs }, { data: pts }, settingsRes] = await Promise.all([
       supabase
         .from('profiles')
         .select('id, username, email, role, baneado, aprobado, uniform, fecha_liberacion, razon_ban, ip_registro, created_at, avatar_url')
@@ -55,10 +56,15 @@ export default function AdminPage() {
         .gte('fecha', new Date().toISOString().split('T')[0])
         .order('fecha', { ascending: true })
         .limit(8),
+      fetch('/api/admin?accion=settings'),
     ])
     setPlayers((ps ?? []) as Player[])
     setPlayerIdsWithPush(new Set((pushSubs ?? []).map((s: { player_id: string }) => s.player_id)))
     setPartidos((pts ?? []) as Partido[])
+    if (settingsRes.ok) {
+      const json = await settingsRes.json()
+      setUsarUniforme((json.settings ?? {})['usar_uniforme'] !== false)
+    }
   }, [supabase])
 
   useEffect(() => {
@@ -253,6 +259,7 @@ export default function AdminPage() {
             playerIdsWithPush={playerIdsWithPush}
             accionAdmin={accionAdmin}
             isSuperAdmin={isSuperAdmin}
+            usarUniforme={usarUniforme}
           />
         )}
         {tab === 'cartas'    && <TabCartas active />}

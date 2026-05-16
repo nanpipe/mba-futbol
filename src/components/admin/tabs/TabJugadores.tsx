@@ -9,9 +9,10 @@ interface Props {
   playerIdsWithPush: Set<string>
   accionAdmin: AdminAction
   isSuperAdmin: boolean
+  usarUniforme?: boolean
 }
 
-export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperAdmin }: Props) {
+export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperAdmin, usarUniforme = true }: Props) {
   const [editModal, setEditModal] = useState<Player | null>(null)
   const [editEmail, setEditEmail] = useState('')
   const [editPassword, setEditPassword] = useState('')
@@ -151,7 +152,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                         {p.role === 'admin' && (
                           <span className="mono" style={{ fontSize: 9, color: 'var(--amber)', letterSpacing: '0.1em', background: '#2d1f00', border: '1px solid #92400e', padding: '2px 5px', borderRadius: 2 }}>ADMIN</span>
                         )}
-                        {p.uniform && !isPrivileged(p.role) && (
+                        {usarUniforme && p.uniform && !isPrivileged(p.role) && (
                           <span className="mono" style={{ fontSize: 9, color: 'var(--green)', letterSpacing: '0.1em', background: '#0f2d1a', padding: '2px 5px', borderRadius: 2 }}>UNIFORME</span>
                         )}
                       </div>
@@ -162,19 +163,21 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                       <span title={hasPush ? 'Notificaciones activadas' : 'Sin notificaciones'} style={{ fontSize: 15, opacity: hasPush ? 1 : 0.3, cursor: 'default', lineHeight: 1 }}>
                         {hasPush ? '🔔' : '🔕'}
                       </span>
-                      <button
-                        onClick={() => accionAdmin('toggle_uniform', { player_id: p.id })}
-                        title={p.uniform ? 'Tiene uniforme — clic para quitar' : 'Sin uniforme — clic para asignar'}
-                        style={{
-                          fontSize: 15, padding: '4px 6px', borderRadius: 3, cursor: 'pointer',
-                          background: p.uniform ? '#0f2d1a' : 'transparent',
-                          color: p.uniform ? 'var(--green)' : 'var(--text-dim)',
-                          border: `1px solid ${p.uniform ? '#16a34a' : 'var(--border)'}`,
-                          lineHeight: 1,
-                        }}
-                      >
-                        👕
-                      </button>
+                      {usarUniforme && (
+                        <button
+                          onClick={() => accionAdmin('toggle_uniform', { player_id: p.id })}
+                          title={p.uniform ? 'Tiene uniforme — clic para quitar' : 'Sin uniforme — clic para asignar'}
+                          style={{
+                            fontSize: 15, padding: '4px 6px', borderRadius: 3, cursor: 'pointer',
+                            background: p.uniform ? '#0f2d1a' : 'transparent',
+                            color: p.uniform ? 'var(--green)' : 'var(--text-dim)',
+                            border: `1px solid ${p.uniform ? '#16a34a' : 'var(--border)'}`,
+                            lineHeight: 1,
+                          }}
+                        >
+                          👕
+                        </button>
+                      )}
                       <button onClick={() => abrirEdit(p)} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>
                         Editar
                       </button>

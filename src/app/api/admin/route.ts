@@ -685,13 +685,22 @@ export async function POST(req: NextRequest) {
   // ── Guardar setting ────────────────────────────────────────────────────────
   if (accion === 'guardar_setting') {
     const { key, value } = body
-    const ALLOWED_KEYS = ['notif_apertura', 'notif_recordatorio', 'notif_cupos', 'notif_invitados', 'email_apertura', 'email_recordatorio']
+    const ALLOWED_KEYS = [
+      'notif_apertura', 'notif_recordatorio', 'notif_cupos', 'notif_invitados',
+      'email_apertura', 'email_recordatorio',
+      'usar_uniforme', 'usar_invitados', 'usuarios_pueden_cambiar_username',
+      'club_nombre', 'club_ciudad', 'club_dias_juego',
+    ]
     if (typeof key !== 'string' || !ALLOWED_KEYS.includes(key)) {
       return NextResponse.json({ error: 'Clave inválida' }, { status: 400 })
     }
+    // Booleans stored as bool, strings stored as string
+    const storedValue = typeof value === 'string' && value !== 'true' && value !== 'false'
+      ? value
+      : value === true || value === 'true'
     const { error } = await admin.from('app_settings').upsert({
       key,
-      value: value === true || value === 'true' ? true : false,
+      value: storedValue,
       updated_at: new Date().toISOString(),
       updated_by: adminUser.id,
     }, { onConflict: 'key' })

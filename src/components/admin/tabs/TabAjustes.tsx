@@ -15,18 +15,34 @@ const EMAIL_SETTINGS = [
   { key: 'email_recordatorio', label: 'Email recordatorio partido', desc: 'Correo a confirmados el día del partido (cron 10am)' },
 ] as const
 
+const CLUB_TOGGLES = [
+  { key: 'usar_uniforme',                    label: 'Gestión de uniformes',        desc: 'Prioridad por uniforme en inscripciones y badge en panel de jugadores' },
+  { key: 'usar_invitados',                   label: 'Sistema de invitados',         desc: 'Jugadores pueden agregar invitados a los partidos' },
+  { key: 'usuarios_pueden_cambiar_username', label: 'Jugadores editan su usuario',  desc: 'Permite cambiar el nombre de usuario desde el perfil' },
+] as const
+
+const CLUB_TEXT_FIELDS = [
+  { key: 'club_nombre',     label: 'Nombre del club',   placeholder: 'MBA FC' },
+  { key: 'club_ciudad',     label: 'Ciudad',             placeholder: 'Bogotá' },
+  { key: 'club_dias_juego', label: 'Días de juego',      placeholder: 'Martes y Viernes' },
+] as const
+
 interface Props {
   active: boolean
 }
 
 export function TabAjustes({ active }: Props) {
-  const [settings, setSettings] = useState<Record<string, boolean>>({
+  const [settings, setSettings] = useState<Record<string, boolean | string>>({
     notif_apertura: true,
     notif_recordatorio: true,
     notif_cupos: true,
     notif_invitados: true,
+    usar_uniforme: true,
+    usar_invitados: true,
+    usuarios_pueden_cambiar_username: false,
   })
   const [settingsLoading, setSettingsLoading] = useState(false)
+  const [savingText, setSavingText] = useState<string | null>(null)
   const [testEmailAddr, setTestEmailAddr] = useState('')
   const [testEmailSending, setTestEmailSending] = useState(false)
   const [testEmailResult, setTestEmailResult] = useState<{ ok: boolean; msg: string } | null>(null)
@@ -36,7 +52,7 @@ export function TabAjustes({ active }: Props) {
     const res = await fetch('/api/admin?accion=settings')
     if (res.ok) {
       const json = await res.json()
-      setSettings(json.settings ?? {})
+      setSettings(prev => ({ ...prev, ...(json.settings ?? {}) }))
     }
     setSettingsLoading(false)
   }, [])
@@ -52,6 +68,16 @@ export function TabAjustes({ active }: Props) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ accion: 'guardar_setting', key, value }),
     })
+  }
+
+  const guardarTexto = async (key: string, value: string) => {
+    setSavingText(key)
+    await fetch('/api/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion: 'guardar_setting', key, value }),
+    })
+    setSavingText(null)
   }
 
   const enviarEmailPrueba = async () => {
@@ -103,6 +129,49 @@ export function TabAjustes({ active }: Props) {
             <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--amber)', marginBottom: 20 }}>✉️ NOTIFICACIONES EMAIL</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {EMAIL_SETTINGS.map(({ key, label, desc }) => (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 500 }}>{label}</div>
+                    <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{desc}</div>
+                  </div>
+                  <ToggleSwitch
+                    checked={settings[key] !== false}
+                    onChange={v => toggleSetting(key, v)}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Club settings */}
+          <div className="card" style={{ padding: '20px 24px' }}>
+            <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--green)', marginBottom: 20 }}>⚽ CONFIGURACIÓN DEL CLUB</div>
+
+            {/* Text fields */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 24 }}>
+              {CLUB_TEXT_FIELDS.map(({ key, label, placeholder }) => (
+                <div key={key}>
+                  <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
+                    {label}
+                    {savingText === key && <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>guardando...</span>}
+                  </label>
+                  <input
+                    type="text"
+                    value={(settings[key] as string) ?? ''}
+                    placeholder={placeholder}
+                    onChange={e => setSettings(prev => ({ ...prev, [key]: e.target.value }))}
+                    onBlur={e => guardarTexto(key, e.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Divider */}
+            <div style={{ borderTop: '1px solid var(--border)', marginBottom: 20 }} />
+
+            {/* Toggle fields */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {CLUB_TOGGLES.map(({ key, label, desc }) => (
                 <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 500 }}>{label}</div>

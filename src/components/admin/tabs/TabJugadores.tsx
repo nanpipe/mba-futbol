@@ -21,10 +21,17 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
   const [editDeleteOpen, setEditDeleteOpen] = useState(false)
   const [editDeleteConfirm, setEditDeleteConfirm] = useState('')
 
-  const baneados = players.filter(p => p.baneado && p.role !== 'admin')
+  const isPrivileged = (role: string) => role === 'admin' || role === 'superadmin'
+  const roleOrder = (role: string) => role === 'superadmin' ? 0 : role === 'admin' ? 1 : 2
+
+  const baneados = players.filter(p => p.baneado && !isPrivileged(p.role))
   const activos = players
     .filter(p => p.aprobado && !p.baneado)
-    .sort((a, b) => (a.role === 'admin' ? -1 : 1) - (b.role === 'admin' ? -1 : 1))
+    .sort((a, b) => {
+      const ro = roleOrder(a.role) - roleOrder(b.role)
+      if (ro !== 0) return ro
+      return a.username.localeCompare(b.username)
+    })
 
   const abrirEdit = (p: Player) => {
     setEditModal(p)
@@ -138,16 +145,19 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                     <div style={{ minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 14, fontWeight: 500 }}>{p.username}</span>
+                        {p.role === 'superadmin' && (
+                          <span className="mono" style={{ fontSize: 9, color: '#a78bfa', letterSpacing: '0.1em', background: '#1a0a2e', border: '1px solid #7c3aed', padding: '2px 5px', borderRadius: 2 }}>SUPERADMIN</span>
+                        )}
                         {p.role === 'admin' && (
                           <span className="mono" style={{ fontSize: 9, color: 'var(--amber)', letterSpacing: '0.1em', background: '#2d1f00', border: '1px solid #92400e', padding: '2px 5px', borderRadius: 2 }}>ADMIN</span>
                         )}
-                        {p.uniform && p.role !== 'admin' && (
+                        {p.uniform && !isPrivileged(p.role) && (
                           <span className="mono" style={{ fontSize: 9, color: 'var(--green)', letterSpacing: '0.1em', background: '#0f2d1a', padding: '2px 5px', borderRadius: 2 }}>UNIFORME</span>
                         )}
                       </div>
                     </div>
                   </div>
-                  {p.role !== 'admin' && (
+                  {!isPrivileged(p.role) && (
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
                       <span title={hasPush ? 'Notificaciones activadas' : 'Sin notificaciones'} style={{ fontSize: 15, opacity: hasPush ? 1 : 0.3, cursor: 'default', lineHeight: 1 }}>
                         {hasPush ? '🔔' : '🔕'}

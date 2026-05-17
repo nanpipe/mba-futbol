@@ -72,6 +72,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, cartas: data ?? [], count: data?.length ?? 0 })
   }
 
+  if (accion === 'bugs') {
+    const { data } = await admin
+      .from('bug_reports')
+      .select('id, username, descripcion, screenshot_url, estado, created_at')
+      .order('created_at', { ascending: false })
+      .limit(100)
+    return NextResponse.json({ ok: true, bugs: data ?? [] })
+  }
+
   if (accion === 'settings') {
     const { data } = await admin.from('app_settings').select('key, value, updated_at')
     const settings: Record<string, unknown> = {}
@@ -731,6 +740,20 @@ export async function POST(req: NextRequest) {
     if (!result.ok) return NextResponse.json({ error: result.error ?? 'Error enviando email' }, { status: 500 })
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'enviar_email_prueba', detalles: { email }, ip })
     return NextResponse.json({ ok: true, mensaje: `Email de prueba enviado a ${email}`, id: result.id })
+  }
+
+  // ── Actualizar estado de bug report ───────────────────────────────────────
+  if (accion === 'actualizar_bug_report') {
+    const { bug_id, estado } = body
+    if (!isUUID(bug_id)) return NextResponse.json({ error: 'bug_id inválido' }, { status: 400 })
+    const ESTADOS_VALIDOS = ['nuevo', 'revisado', 'cerrado']
+    if (typeof estado !== 'string' || !ESTADOS_VALIDOS.includes(estado)) {
+      return NextResponse.json({ error: 'Estado inválido' }, { status: 400 })
+    }
+    const { error } = await admin.from('bug_reports').update({ estado }).eq('id', bug_id as string)
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'actualizar_bug_report', detalles: { bug_id, estado }, ip })
+    return NextResponse.json({ ok: true, mensaje: `Bug marcado como ${estado}.` })
   }
 
   return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 })

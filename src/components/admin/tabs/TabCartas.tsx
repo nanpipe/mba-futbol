@@ -43,6 +43,23 @@ export function TabCartas({ active }: Props) {
   const aprobadas = cartas.filter(c => c.aprobado)
   const rechazadas = cartas.filter(c => c.rechazado && !c.aprobado)
 
+  const deshacerRechazo = async (pid: string) => {
+    if (!confirm('¿Restaurar carta a pendiente?')) return
+    setCartaActioning(pid)
+    const res = await fetch('/api/carta', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion: 'deshacer_rechazo', player_id: pid }),
+    })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      alert(d.error ?? 'Error al deshacer')
+    } else {
+      await cargar()
+    }
+    setCartaActioning(null)
+  }
+
   const handleAction = async (pid: string, accion: 'aprobar' | 'rechazar') => {
     setCartaActioning(pid)
     const overrides = cartaOverrides[pid] ?? {}
@@ -235,15 +252,23 @@ export function TabCartas({ active }: Props) {
                   const pid = carta.player_id as string
                   const profile = carta.profiles as { username: string; avatar_url: string | null } | null
                   return (
-                    <div key={pid} className="card" style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 16, opacity: 0.7 }}>
+                    <div key={pid} className="card" style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 16, opacity: 0.7, flexWrap: 'wrap' }}>
                       <PlayerAvatar url={profile?.avatar_url ?? null} username={profile?.username ?? '?'} size={32} />
-                      <div style={{ flex: 1 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, fontSize: 13 }}>{profile?.username ?? pid}</div>
                         {(carta.notas_admin as string | null) && (
                           <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>📝 {carta.notas_admin as string}</div>
                         )}
                       </div>
-                      <div className="mono" style={{ fontSize: 10, color: 'var(--red)' }}>RECHAZADO</div>
+                      <div className="mono" style={{ fontSize: 10, color: 'var(--red)', flexShrink: 0 }}>RECHAZADA</div>
+                      <button
+                        disabled={cartaActioning === pid}
+                        onClick={() => deshacerRechazo(pid)}
+                        className="btn btn-ghost"
+                        style={{ fontSize: 11, padding: '4px 12px', color: 'var(--amber)', borderColor: '#92400e', flexShrink: 0 }}
+                      >
+                        {cartaActioning === pid ? '...' : '↩ Deshacer'}
+                      </button>
                     </div>
                   )
                 })}

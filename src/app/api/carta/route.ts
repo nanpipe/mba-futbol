@@ -200,5 +200,35 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ ok: true, mensaje: 'Carta rechazada. El jugador podrá volver a enviar.' })
   }
 
+  if (accion === 'deshacer_rechazo') {
+    if (typeof player_id !== 'string') return NextResponse.json({ error: 'player_id requerido' }, { status: 400 })
+
+    const { data: carta } = await admin
+      .from('evaluaciones_carta')
+      .select('rechazado')
+      .eq('player_id', player_id)
+      .single()
+
+    if (!carta?.rechazado) {
+      return NextResponse.json({ error: 'La carta no está rechazada.' }, { status: 409 })
+    }
+
+    await admin.from('evaluaciones_carta').update({
+      rechazado: false,
+      aprobado: false,
+      notas_admin: null,
+      updated_at: new Date().toISOString(),
+    }).eq('player_id', player_id)
+
+    await logActivity({
+      user_id: user.id,
+      username: (prof as { username?: string })?.username,
+      accion: 'deshacer_rechazo_carta',
+      detalles: { player_id },
+    })
+
+    return NextResponse.json({ ok: true, mensaje: 'Carta restaurada a pendiente.' })
+  }
+
   return NextResponse.json({ error: 'Acción inválida.' }, { status: 400 })
 }

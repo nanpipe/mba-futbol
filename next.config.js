@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 
+const { version } = require('./package.json')
 const isDev = process.env.NODE_ENV === 'development'
 
 // Content Security Policy
@@ -45,6 +46,9 @@ const securityHeaders = [
 ]
 
 const nextConfig = {
+  env: {
+    NEXT_PUBLIC_APP_VERSION: version,
+  },
   async headers() {
     return [
       {

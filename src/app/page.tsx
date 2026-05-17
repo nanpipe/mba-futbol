@@ -1130,6 +1130,13 @@ export default function HomePage() {
         )}
       </div>
 
+      {/* Version footer */}
+      <div style={{ textAlign: 'center', padding: '32px 0 16px' }}>
+        <span className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', opacity: 0.5 }}>
+          v{process.env.NEXT_PUBLIC_APP_VERSION}
+        </span>
+      </div>
+
       {/* ── Bug Report Modal ──────────────────────────────────────────────── */}
       {bugModalOpen && (
         <div

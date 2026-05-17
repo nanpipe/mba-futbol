@@ -13,9 +13,10 @@ import { TabLog } from '@/components/admin/tabs/TabLog'
 import { TabHistorial } from '@/components/admin/tabs/TabHistorial'
 import { TabNotifs } from '@/components/admin/tabs/TabNotifs'
 import { TabAjustes } from '@/components/admin/tabs/TabAjustes'
+import { TabBugs } from '@/components/admin/tabs/TabBugs'
 import type { Player, Partido, AdminAction } from '@/types/admin'
 
-type Tab = 'partidos' | 'equipos' | 'jugadores' | 'cartas' | 'log' | 'historial' | 'notifs' | 'ajustes'
+type Tab = 'partidos' | 'equipos' | 'jugadores' | 'cartas' | 'log' | 'historial' | 'notifs' | 'ajustes' | 'bugs'
 
 const MAIN_TABS: { id: Tab; label: string }[] = [
   { id: 'partidos',  label: 'partidos' },
@@ -26,6 +27,7 @@ const MAIN_TABS: { id: Tab; label: string }[] = [
 ]
 
 const ICON_TABS: { id: Tab; icon: string; title: string }[] = [
+  { id: 'bugs',      icon: '🐛', title: 'Bug Reports' },
   { id: 'ajustes',   icon: '⚙',  title: 'Configuración' },
   { id: 'historial', icon: '🕐', title: 'Historial' },
   { id: 'notifs',    icon: '🔔', title: 'Notificaciones' },
@@ -267,6 +269,7 @@ export default function AdminPage() {
         {tab === 'historial' && <TabHistorial active />}
         {tab === 'notifs'    && <TabNotifs partidos={partidos} players={players} onFlash={flash} />}
         {tab === 'ajustes'   && <TabAjustes active />}
+        {tab === 'bugs'      && <TabBugs active />}
       </div>
     </div>
   )

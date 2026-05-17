@@ -533,7 +533,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
               >
                 <option value="">— Selecciona jugador —</option>
                 {players
-                  .filter(p => p.aprobado && !p.baneado && p.role !== 'admin' && !inscripciones.some(i => i.profiles.id === p.id))
+                  .filter(p => p.aprobado && !p.baneado && !inscripciones.some(i => i.profiles.id === p.id))
                   .map(p => <option key={p.id} value={p.id}>{p.username}</option>)}
               </select>
             </div>

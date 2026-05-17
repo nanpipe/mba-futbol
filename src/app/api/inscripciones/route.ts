@@ -72,22 +72,19 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const { count: totalConfirmados } = await admin
-    .from('inscripciones')
-    .select('id', { count: 'exact', head: true })
-    .eq('partido_id', partido_id)
-    .eq('estado', 'confirmado')
+  const [{ count: totalJugadores }, { count: totalInvitados }, { data: uniformSetting }] = await Promise.all([
+    admin.from('inscripciones').select('id', { count: 'exact', head: true }).eq('partido_id', partido_id).eq('estado', 'confirmado'),
+    admin.from('invitados').select('id', { count: 'exact', head: true }).eq('partido_id', partido_id).eq('estado', 'confirmado'),
+    admin.from('app_settings').select('value').eq('key', 'usar_uniforme').maybeSingle(),
+  ])
+
+  const totalConfirmados = (totalJugadores ?? 0) + (totalInvitados ?? 0)
 
   // Check club setting: uniform priority enabled?
-  const { data: uniformSetting } = await admin
-    .from('app_settings')
-    .select('value')
-    .eq('key', 'usar_uniforme')
-    .maybeSingle()
   const usarUniforme = uniformSetting === null || (uniformSetting as { value: unknown })?.value !== false
 
   const tieneUniforme = usarUniforme ? ((profile as { uniform?: boolean })?.uniform ?? false) : true
-  const spotsLibres = (totalConfirmados ?? 0) < partido.cupos_total
+  const spotsLibres = totalConfirmados < partido.cupos_total
 
   // Helper: push all admins+superadmin (fire-and-forget)
   const pushAdmins = (titulo: string, cuerpo: string) => {

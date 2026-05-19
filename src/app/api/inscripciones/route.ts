@@ -86,9 +86,9 @@ export async function POST(req: NextRequest) {
   const tieneUniforme = usarUniforme ? ((profile as { uniform?: boolean })?.uniform ?? false) : true
   const spotsLibres = totalConfirmados < partido.cupos_total
 
-  // Helper: push all admins+superadmin (fire-and-forget)
-  const pushAdmins = (titulo: string, cuerpo: string) => {
-    ;(async () => {
+  // Helper: push all admins+superadmin — awaited so Vercel doesn't kill before completion
+  const pushAdmins = async (titulo: string, cuerpo: string) => {
+    try {
       const { data: adminProfiles } = await admin
         .from('profiles').select('id').in('role', ['admin', 'superadmin'])
       const adminIds = (adminProfiles ?? []).map((a: { id: string }) => a.id)
@@ -98,9 +98,9 @@ export async function POST(req: NextRequest) {
       if (!subs?.length) return
       const { sendPush } = await import('@/lib/push')
       for (const sub of subs) {
-        sendPush(sub, { title: titulo, body: cuerpo, url: '/admin' }).catch(() => {})
+        await sendPush(sub, { title: titulo, body: cuerpo, url: '/admin' }).catch(() => {})
       }
-    })().catch(() => {})
+    } catch { /* non-critical */ }
   }
 
   const dia = partido.fecha
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
     const { error } = await admin.from('inscripciones').insert({ partido_id, player_id: user.id, estado: 'confirmado' })
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
     await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'confirmado' } })
-    pushAdmins('✅ Nueva inscripción', `${profile.username} se inscribió (confirmado) — ${dia}`)
+    await pushAdmins('✅ Nueva inscripción', `${profile.username} se inscribió (confirmado) — ${dia}`)
     return NextResponse.json({ estado: 'confirmado' })
   } else if (tieneUniforme && !spotsLibres) {
     // Uniform + full → try to bump the most-recent non-uniform confirmed player
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
       if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
       await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'confirmado_prioridad' } })
       await logActivity({ user_id: toBump.player_id, accion: 'bumped_espera', detalles: { partido_id, fecha: partido.fecha, bumped_by: profile.username } })
-      pushAdmins('✅ Nueva inscripción (uniforme)', `${profile.username} entró confirmado — ${dia}`)
+      await pushAdmins('✅ Nueva inscripción (uniforme)', `${profile.username} entró confirmado — ${dia}`)
       return NextResponse.json({ estado: 'confirmado', prioridad: true })
     }
     // All confirmed slots taken by uniformed players → fall through to espera
@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
   })
   if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
   await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'espera', posicion_espera: posicion } })
-  pushAdmins('⏳ Nueva inscripción (espera)', `${profile.username} en lista de espera #${posicion} — ${dia}`)
+  await pushAdmins('⏳ Nueva inscripción (espera)', `${profile.username} en lista de espera #${posicion} — ${dia}`)
   return NextResponse.json({ estado: 'espera', posicion_espera: posicion })
 }
 
@@ -212,27 +212,29 @@ export async function DELETE(req: NextRequest) {
     detalles: { partido_id, estado_previo: inscripcion.estado, dia },
   })
 
-  // Admin push — fire-and-forget (best-effort, not critical)
-  ;(async () => {
+  // Admin push — awaited so Vercel doesn't kill before completion
+  try {
     const { data: adminProfiles } = await admin
       .from('profiles').select('id').in('role', ['admin', 'superadmin'])
     const adminIds = (adminProfiles ?? []).map((a: { id: string }) => a.id)
-    if (!adminIds.length) return
-    const { data: subs } = await admin
-      .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', adminIds)
-    if (!subs?.length) return
-    const { sendPush } = await import('@/lib/push')
-    const promoBody = promovidosNames.length
-      ? ` → ${promovidosNames.join(', ')} promovido${promovidosNames.length > 1 ? 's' : ''}`
-      : ''
-    for (const sub of subs) {
-      await sendPush(sub, {
-        title: '⚠️ Baja en el partido',
-        body: `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}${promoBody}`,
-        url: '/admin',
-      }).catch(() => {})
+    if (adminIds.length) {
+      const { data: subs } = await admin
+        .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', adminIds)
+      if (subs?.length) {
+        const { sendPush } = await import('@/lib/push')
+        const promoBody = promovidosNames.length
+          ? ` → ${promovidosNames.join(', ')} promovido${promovidosNames.length > 1 ? 's' : ''}`
+          : ''
+        for (const sub of subs) {
+          await sendPush(sub, {
+            title: '⚠️ Baja en el partido',
+            body: `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}${promoBody}`,
+            url: '/admin',
+          }).catch(() => {})
+        }
+      }
     }
-  })().catch(() => {})
+  } catch { /* non-critical */ }
 
   return NextResponse.json({ ok: true })
 }

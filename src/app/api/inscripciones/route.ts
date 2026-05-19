@@ -190,8 +190,16 @@ export async function DELETE(req: NextRequest) {
   const dia = (partidoInfo as { dia_semana?: string } | null)?.dia_semana ?? ''
   const estado = inscripcion.estado === 'confirmado' ? 'confirmado' : 'lista de espera'
 
+  let promovidosNames: string[] = []
   if (inscripcion.estado === 'confirmado') {
     await admin.rpc('promover_espera', { p_partido_id: partido_id })
+    // Find who got promoted: query notificaciones_pendientes for this partido (unsent rows)
+    const { data: pendientes } = await admin
+      .from('notificaciones_pendientes')
+      .select('username')
+      .eq('partido_id', partido_id)
+      .eq('enviado', false)
+    promovidosNames = (pendientes ?? []).map((p: { username: string }) => p.username)
     await internalFetch('/api/notify', { method: 'POST' }).catch(() => {})
   }
 
@@ -214,10 +222,13 @@ export async function DELETE(req: NextRequest) {
       .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', adminIds)
     if (!subs?.length) return
     const { sendPush } = await import('@/lib/push')
+    const promoBody = promovidosNames.length
+      ? ` → ${promovidosNames.join(', ')} promovido${promovidosNames.length > 1 ? 's' : ''}`
+      : ''
     for (const sub of subs) {
       await sendPush(sub, {
         title: '⚠️ Baja en el partido',
-        body: `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}`,
+        body: `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}${promoBody}`,
         url: '/admin',
       }).catch(() => {})
     }

@@ -323,11 +323,11 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
     // Delete existing teams (FK on delete set null clears invitados.equipo_id automatically)
     await admin.from('equipos').delete().eq('partido_id', partido_id as string)
 
-    // Create teams
-    const { data: tA } = await admin.from('equipos').insert({ partido_id, nombre: 'A' }).select().single()
-    const { data: tB } = await admin.from('equipos').insert({ partido_id, nombre: 'B' }).select().single()
+    // Create teams — always set default colors so colorLabel() never falls through to null
+    const { data: tA } = await admin.from('equipos').insert({ partido_id, nombre: 'A', color: 'blanco' }).select().single()
+    const { data: tB } = await admin.from('equipos').insert({ partido_id, nombre: 'B', color: 'negro' }).select().single()
     const tC = esMinitorneo
-      ? (await admin.from('equipos').insert({ partido_id, nombre: 'C' }).select().single()).data
+      ? (await admin.from('equipos').insert({ partido_id, nombre: 'C', color: 'morado' }).select().single()).data
       : null
 
     if (!tA || !tB || (esMinitorneo && !tC)) return NextResponse.json({ error: 'Error creando equipos' }, { status: 500 })
@@ -377,16 +377,18 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
     await admin.from('equipos').update({ confirmado: true }).eq('partido_id', partido_id as string)
     await admin.from('partidos').update({ equipos_confirmados: true }).eq('id', partido_id as string)
 
-    // Get player lists for notifications
+    // Get player lists for notifications (include email for fallback)
     const { data: jAll } = await admin
       .from('equipo_jugadores')
-      .select('equipo_id, player_id, profiles(username)')
+      .select('equipo_id, player_id, profiles(username, email)')
       .in('equipo_id', equipos.map(e => e.id))
 
+    type JugadorRow = { equipo_id: string; player_id: string; profiles: { username: string; email: string } }
+
     const nombresPorEquipo: Record<string, string[]> = { A: [], B: [], C: [] }
-    for (const row of (jAll ?? [])) {
+    for (const row of (jAll ?? []) as unknown as JugadorRow[]) {
       const eq = equipos.find(e => e.id === row.equipo_id)
-      const username = (row as unknown as { profiles: { username: string } }).profiles?.username ?? ''
+      const username = row.profiles?.username ?? ''
       if (eq) {
         if (!nombresPorEquipo[eq.nombre]) nombresPorEquipo[eq.nombre] = []
         nombresPorEquipo[eq.nombre].push(username)
@@ -394,16 +396,19 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
     }
 
     const colorLabels: Record<string, string> = { A: 'Blanco', B: 'Negro', C: 'Morado' }
+    const playerIds = (jAll ?? []).map((r: unknown) => (r as JugadorRow).player_id)
 
     // Push notifications
     const { data: subs } = await admin
       .from('push_subscriptions')
       .select('endpoint, p256dh, auth, player_id')
-      .in('player_id', (jAll ?? []).map(r => r.player_id))
+      .in('player_id', playerIds)
 
     const { sendPush } = await import('@/lib/push')
+    const subsPlayerIds = new Set((subs ?? []).map((s: { player_id: string }) => s.player_id))
+
     for (const sub of (subs ?? [])) {
-      const equipo = (jAll ?? []).find(j => j.player_id === sub.player_id)
+      const equipo = (jAll as unknown as JugadorRow[])?.find(j => j.player_id === sub.player_id)
       const nombreEq = equipos.find(e => e.id === equipo?.equipo_id)?.nombre ?? '?'
       const colorEq = colorLabels[nombreEq] ?? nombreEq
       await sendPush(sub, {
@@ -411,6 +416,20 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
         body: `Juegas con el equipo ${colorEq}. Revisa la alineación en la app.`,
         url: '/',
       }).catch(() => {})
+    }
+
+    // Email fallback — players without push subscription
+    const { sendEquipoConfirmado } = await import('@/lib/email')
+    const sinPush = (jAll as unknown as JugadorRow[])?.filter(j => !subsPlayerIds.has(j.player_id)) ?? []
+    for (const jugador of sinPush) {
+      const email = jugador.profiles?.email
+      const username = jugador.profiles?.username ?? '?'
+      const nombreEq = equipos.find(e => e.id === jugador.equipo_id)?.nombre ?? '?'
+      const colorEq = colorLabels[nombreEq] ?? nombreEq
+      const compañeros = (nombresPorEquipo[nombreEq] ?? []).filter(n => n !== username)
+      if (email) {
+        await sendEquipoConfirmado({ email, username, colorEq, compañeros }).catch(() => {})
+      }
     }
 
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'confirmar_equipos', detalles: { partido_id } })

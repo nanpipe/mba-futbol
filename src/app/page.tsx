@@ -108,10 +108,7 @@ export default function HomePage() {
   const [installPrompt, setInstallPrompt] = useState<Event & { prompt: () => void } | null>(null)
   const [isIos, setIsIos] = useState(false)
   const [isStandalone, setIsStandalone] = useState(false)
-  const [pullY, setPullY] = useState(0)
-  const [pulling, setPulling] = useState(false)
-  const touchStartY = useRef(0)
-  const PULL_THRESHOLD = 72
+
 
   // Bug report modal
   const [bugModalOpen, setBugModalOpen] = useState(false)
@@ -423,24 +420,6 @@ export default function HomePage() {
     : null
   const cuposLibres = cuposTotal - totalConfirmados
 
-  // Pull-to-refresh handlers (PWA standalone loses native browser pull-to-refresh)
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartY.current = e.touches[0].clientY
-  }
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (window.scrollY > 0) return // only activate when already at top
-    const delta = e.touches[0].clientY - touchStartY.current
-    if (delta > 0) {
-      setPullY(Math.min(delta, PULL_THRESHOLD + 24))
-      setPulling(true)
-    }
-  }
-  const handleTouchEnd = () => {
-    if (pullY >= PULL_THRESHOLD) window.location.reload()
-    setPullY(0)
-    setPulling(false)
-  }
-
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
@@ -464,45 +443,7 @@ export default function HomePage() {
   }
 
   return (
-    <div
-      style={{ minHeight: '100vh', paddingBottom: 80 }}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
-      {/* Pull-to-refresh indicator */}
-      {pulling && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: 50,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: Math.min(pullY, PULL_THRESHOLD + 24),
-            background: 'var(--bg)',
-            borderBottom: pullY >= PULL_THRESHOLD ? '1px solid var(--green)' : '1px solid var(--border)',
-            transition: 'border-color 0.15s',
-            overflow: 'hidden',
-          }}
-        >
-          <span
-            className="mono"
-            style={{
-              fontSize: 12,
-              color: pullY >= PULL_THRESHOLD ? 'var(--green)' : 'var(--text-muted)',
-              letterSpacing: '0.1em',
-              opacity: Math.min(pullY / PULL_THRESHOLD, 1),
-              transition: 'color 0.15s',
-            }}
-          >
-            {pullY >= PULL_THRESHOLD ? '↻ SOLTAR PARA ACTUALIZAR' : '↓ BAJAR PARA ACTUALIZAR'}
-          </span>
-        </div>
-      )}
+    <div style={{ minHeight: '100vh', paddingBottom: 80 }}>
       {/* Nav */}
       <nav style={{ borderBottom: '1px solid var(--border)', padding: '16px 0' }}>
         <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

@@ -3,6 +3,10 @@
 import { useState, useCallback, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { HistorialPartido } from '@/types/admin'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { Card } from '@/components/Card'
+import { SectionHeader } from '@/components/SectionHeader'
+import { ButtonGroup } from '@/components/ButtonGroup'
 
 interface Props {
   active: boolean
@@ -267,11 +271,11 @@ export function TabHistorial({ active }: Props) {
       </div>
 
       {loading ? (
-        <div className="mono pulsing" style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: 48 }}>Cargando...</div>
+        <LoadingSpinner />
       ) : historial.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: 48 }}>
+        <Card padding={48} style={{ textAlign: 'center' }}>
           <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>No hay partidos pasados registrados.</p>
-        </div>
+        </Card>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {historial.map(p => {
@@ -345,12 +349,12 @@ export function TabHistorial({ active }: Props) {
 
                     {/* ── Player list ── */}
                     <div>
-                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 10 }}>
-                        JUGADORES — {inscripciones.filter(i => i.estado === 'confirmado').length} confirmados
-                        {inscripciones.some(i => i.estado === 'espera') && ` · ${inscripciones.filter(i => i.estado === 'espera').length} espera`}
-                      </div>
+                      <SectionHeader
+                        title={`JUGADORES — ${inscripciones.filter(i => i.estado === 'confirmado').length} confirmados${inscripciones.some(i => i.estado === 'espera') ? ` · ${inscripciones.filter(i => i.estado === 'espera').length} espera` : ''}`}
+                        color="var(--text-muted)"
+                      />
                       {loadingIns ? (
-                        <div className="mono pulsing" style={{ fontSize: 12, color: 'var(--text-muted)' }}>Cargando...</div>
+                        <LoadingSpinner text="Cargando..." padding={0} />
                       ) : inscripciones.length === 0 ? (
                         <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>Sin inscritos registrados.</div>
                       ) : (
@@ -399,7 +403,7 @@ export function TabHistorial({ active }: Props) {
                         </div>
                         <div>
                           <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>ESTADO</div>
-                          <div style={{ display: 'flex', gap: 4 }}>
+                          <ButtonGroup gap={4}>
                             {(['confirmado', 'espera'] as const).map(e => (
                               <button
                                 key={e}
@@ -416,7 +420,7 @@ export function TabHistorial({ active }: Props) {
                                 {e}
                               </button>
                             ))}
-                          </div>
+                          </ButtonGroup>
                         </div>
                         <button
                           onClick={() => handleAgregar(p.id)}
@@ -432,7 +436,7 @@ export function TabHistorial({ active }: Props) {
                     {/* ── Confirm match happened ── */}
                     {!p.equipos_confirmados && (
                       <div>
-                        <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 8 }}>CONFIRMAR PARTIDO</div>
+                        <SectionHeader title="CONFIRMAR PARTIDO" color="var(--text-muted)" />
                         <button
                           onClick={() => handleConfirmar(p.id)}
                           disabled={savingConfirmar}
@@ -449,9 +453,7 @@ export function TabHistorial({ active }: Props) {
 
                     {/* ── Score entry ── */}
                     <div>
-                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 10 }}>
-                        {score ? 'EDITAR RESULTADO' : 'REGISTRAR RESULTADO'}
-                      </div>
+                      <SectionHeader title={score ? 'EDITAR RESULTADO' : 'REGISTRAR RESULTADO'} color="var(--text-muted)" />
                       {esMinitorneo ? (
                         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                           {([
@@ -510,7 +512,7 @@ export function TabHistorial({ active }: Props) {
 
                     {/* ── Foto del partido ── */}
                     <div>
-                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 10 }}>FOTO DEL PARTIDO</div>
+                      <SectionHeader title="FOTO DEL PARTIDO" color="var(--text-muted)" />
                       {p.foto_url && (
                         <div style={{ marginBottom: 10, borderRadius: 4, overflow: 'hidden', maxWidth: 340 }}>
                           <img
@@ -542,7 +544,7 @@ export function TabHistorial({ active }: Props) {
 
                     {/* ── Evaluaciones ── */}
                     <div>
-                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 10 }}>EVALUACIONES</div>
+                      <SectionHeader title="EVALUACIONES" color="var(--text-muted)" />
                       {p.evaluaciones_abiertas ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                           <div className="mono" style={{ fontSize: 12, color: '#a78bfa' }}>📊 Votación abierta — jugadores pueden evaluar.</div>

@@ -2,6 +2,10 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { ToggleSwitch } from '@/components/admin/ToggleSwitch'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { Card } from '@/components/Card'
+import { SectionHeader } from '@/components/SectionHeader'
+import { ButtonGroup } from '@/components/ButtonGroup'
 
 const PUSH_SETTINGS = [
   { key: 'notif_apertura',     label: 'Inscripciones abiertas',  desc: 'Cuando abre la ventana de inscripción para un partido' },
@@ -96,18 +100,16 @@ export function TabAjustes({ active }: Props) {
 
   return (
     <div id="tab-ajustes" className="fade-in">
-      <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 32 }}>
-        CONFIGURACIÓN
-      </div>
+      <SectionHeader title="CONFIGURACIÓN" color="var(--text-muted)" />
 
       {settingsLoading ? (
-        <div className="mono pulsing" style={{ fontSize: 13, color: 'var(--text-muted)', padding: 48, textAlign: 'center' }}>Cargando...</div>
+        <LoadingSpinner />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 560 }}>
 
           {/* Push notifications */}
-          <div className="card" style={{ padding: '20px 24px' }}>
-            <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--amber)', marginBottom: 20 }}>🔔 NOTIFICACIONES PUSH</div>
+          <Card padding="20px 24px">
+            <SectionHeader title="NOTIFICACIONES PUSH" icon="🔔" color="var(--amber)" />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {PUSH_SETTINGS.map(({ key, label, desc }) => (
                 <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
@@ -122,11 +124,11 @@ export function TabAjustes({ active }: Props) {
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
 
           {/* Email notifications */}
-          <div className="card" style={{ padding: '20px 24px' }}>
-            <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--amber)', marginBottom: 20 }}>✉️ NOTIFICACIONES EMAIL</div>
+          <Card padding="20px 24px">
+            <SectionHeader title="NOTIFICACIONES EMAIL" icon="✉️" color="var(--amber)" />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {EMAIL_SETTINGS.map(({ key, label, desc }) => (
                 <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
@@ -141,11 +143,11 @@ export function TabAjustes({ active }: Props) {
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
 
           {/* Club settings */}
-          <div className="card" style={{ padding: '20px 24px' }}>
-            <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--green)', marginBottom: 20 }}>⚽ CONFIGURACIÓN DEL CLUB</div>
+          <Card padding="20px 24px">
+            <SectionHeader title="CONFIGURACIÓN DEL CLUB" icon="⚽" color="var(--green)" />
 
             {/* Text fields */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 24 }}>
@@ -184,12 +186,12 @@ export function TabAjustes({ active }: Props) {
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
 
           {/* Test email */}
-          <div className="card" style={{ padding: '20px 24px' }}>
-            <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 16 }}>📧 ENVIAR EMAIL DE PRUEBA</div>
-            <div style={{ display: 'flex', gap: 8 }}>
+          <Card padding="20px 24px">
+            <SectionHeader title="ENVIAR EMAIL DE PRUEBA" icon="📧" color="var(--text-muted)" />
+            <ButtonGroup gap={8}>
               <input
                 type="email"
                 placeholder="correo@ejemplo.com"
@@ -205,7 +207,7 @@ export function TabAjustes({ active }: Props) {
               >
                 {testEmailSending ? 'Enviando...' : 'Enviar'}
               </button>
-            </div>
+            </ButtonGroup>
             {testEmailResult && (
               <div className="mono" style={{
                 fontSize: 12, marginTop: 10, padding: '8px 12px', borderRadius: 3,
@@ -214,13 +216,13 @@ export function TabAjustes({ active }: Props) {
                   : { color: 'var(--red)', background: '#2d0a0a', border: '1px solid #7f1d1d' }),
               }}>
                 {testEmailResult.ok ? '✓ ' : '✕ '}{testEmailResult.msg}
-              </div>
+            </div>
             )}
-          </div>
+          </Card>
 
           {/* Cron info */}
-          <div className="card" style={{ padding: '16px 24px' }}>
-            <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>⏱ CRON SCHEDULE</div>
+          <Card padding="16px 24px">
+            <SectionHeader title="CRON SCHEDULE" icon="⏱" color="var(--text-muted)" />
             <div className="mono" style={{ fontSize: 13 }}>
               <span style={{ color: 'var(--green)' }}>0 15 * * *</span>
               <span style={{ color: 'var(--text-muted)', marginLeft: 12 }}>→ 10:00 AM Colombia (15:00 UTC)</span>
@@ -228,7 +230,7 @@ export function TabAjustes({ active }: Props) {
             <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8 }}>
               Corre diariamente. Envía push + email de apertura e inscripciones. Verifica recordatorio (≤10h antes), cupos y promoción de invitados.
             </div>
-          </div>
+          </Card>
 
         </div>
       )}

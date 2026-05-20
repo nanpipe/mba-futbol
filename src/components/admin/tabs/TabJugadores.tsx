@@ -2,6 +2,10 @@
 
 import { useState } from 'react'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
+import { SectionHeader } from '@/components/SectionHeader'
+import { FormLabel } from '@/components/FormLabel'
+import { ButtonGroup } from '@/components/ButtonGroup'
+import { Card } from '@/components/Card'
 import type { Player, AdminAction } from '@/types/admin'
 
 interface Props {
@@ -88,9 +92,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
         {/* SUSPENDIDOS */}
         {baneados.length > 0 && (
           <div style={{ marginBottom: 40 }}>
-            <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--red)', marginBottom: 16 }}>
-              SUSPENDIDOS — {baneados.length}
-            </div>
+            <SectionHeader title="SUSPENDIDOS" count={baneados.length} color="var(--red)" />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {baneados.map(p => (
                 <div key={p.id} style={{
@@ -109,7 +111,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                       {p.fecha_liberacion && ` · hasta ${new Date(p.fecha_liberacion).toLocaleDateString('es-CO')}`}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <ButtonGroup gap={8}>
                     <button onClick={() => abrirEdit(p)} className="btn btn-ghost" style={{ fontSize: 11, padding: '8px 14px' }}>
                       Editar
                     </button>
@@ -120,7 +122,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                     >
                       Liberar
                     </button>
-                  </div>
+                  </ButtonGroup>
                 </div>
               ))}
             </div>
@@ -129,9 +131,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
 
         {/* ACTIVOS */}
         <div>
-          <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 16 }}>
-            MIEMBROS ACTIVOS — {activos.length}
-          </div>
+          <SectionHeader title="MIEMBROS ACTIVOS" count={activos.length} color="var(--text-muted)" />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {activos.map(p => {
               const hasPush = playerIdsWithPush.has(p.id)
@@ -197,7 +197,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           padding: 20, zIndex: 100, overflowY: 'auto',
         }}>
-          <div className="card fade-in" style={{ width: '100%', maxWidth: 420, margin: 'auto' }}>
+          <Card style={{ width: '100%', maxWidth: 420, margin: 'auto' }} padding={24}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
               <PlayerAvatar url={editModal.avatar_url} username={editModal.username} size={48} />
               <div>
@@ -210,19 +210,19 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
               <>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <div>
-                    <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>EMAIL</label>
+                    <FormLabel label="EMAIL" />
                     <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="email@ejemplo.com" />
                   </div>
                   <div>
-                    <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>NUEVA CONTRASEÑA</label>
+                    <FormLabel label="NUEVA CONTRASEÑA" />
                     <input type="password" value={editPassword} onChange={e => setEditPassword(e.target.value)} placeholder="Dejar vacío para no cambiar" autoComplete="new-password" />
                     <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>Mínimo 6 caracteres. Vacío = sin cambio.</div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
+                <ButtonGroup gap={12} marginTop={20}>
                   <button onClick={confirmarEdit} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>Guardar cambios</button>
                   <button onClick={cerrarEdit} className="btn btn-ghost">Cancelar</button>
-                </div>
+                </ButtonGroup>
               </>
             )}
             {!isSuperAdmin && (
@@ -233,7 +233,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
 
             {/* Danger zone */}
             <div style={{ marginTop: 28, borderTop: '1px solid #3a1a1a', paddingTop: 20 }}>
-              <div className="mono" style={{ fontSize: 10, letterSpacing: '0.15em', color: '#7f1d1d', marginBottom: 14 }}>ZONA DE RIESGO</div>
+              <SectionHeader title="ZONA DE RIESGO" color="#7f1d1d" />
 
               {!editModal.baneado && (
                 <div style={{ marginBottom: 14 }}>
@@ -247,11 +247,11 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                   {editSuspenderOpen && (
                     <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12, background: '#1a0808', border: '1px solid #3a1a1a', borderRadius: 3, padding: 14 }}>
                       <div>
-                        <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>RAZÓN</label>
+                        <FormLabel label="RAZÓN" />
                         <input type="text" value={editBanRazon} onChange={e => setEditBanRazon(e.target.value)} placeholder="Multa pendiente, no asistió..." />
                       </div>
                       <div>
-                        <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>FECHA DE LIBERACIÓN (opcional)</label>
+                        <FormLabel label="FECHA DE LIBERACIÓN (opcional)" />
                         <input type="date" value={editBanFecha} onChange={e => setEditBanFecha(e.target.value)} />
                         <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>Vacío = ban indefinido.</div>
                       </div>
@@ -298,7 +298,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                 )}
               </div>}
             </div>
-          </div>
+          </Card>
         </div>
       )}
     </>

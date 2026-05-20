@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { SectionHeader } from '@/components/SectionHeader'
+import { Card } from '@/components/Card'
 import type { Partido, Player } from '@/types/admin'
 
 const AUTO_NOTIFS = [
@@ -77,9 +79,7 @@ export function TabNotifs({ partidos, players, onFlash }: Props) {
   return (
     <div id="tab-notifs" className="fade-in" style={{ display: 'flex', justifyContent: 'center' }}>
       <div style={{ width: '100%', maxWidth: 480 }}>
-        <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 24 }}>
-          ENVIAR NOTIFICACIÓN
-        </div>
+        <SectionHeader title="ENVIAR NOTIFICACIÓN" />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Grupo */}
@@ -160,18 +160,18 @@ export function TabNotifs({ partidos, players, onFlash }: Props) {
         </div>
 
         {/* Auto-notifs info */}
-        <div className="card" style={{ marginTop: 32, borderColor: '#1a2a1a' }}>
-          <div className="mono" style={{ fontSize: 11, letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: 12 }}>NOTIFICACIONES AUTOMÁTICAS</div>
+        <Card style={{ marginTop: 32, borderColor: '#1a2a1a' }}>
+          <SectionHeader title="NOTIFICACIONES AUTOMÁTICAS" />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {AUTO_NOTIFS.map((item, i) => (
               <div key={i} className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item}</div>
             ))}
           </div>
-        </div>
+        </Card>
 
         {/* Diagnóstico */}
-        <div className="card" style={{ marginTop: 16, borderColor: '#1a2a1a' }}>
-          <div className="mono" style={{ fontSize: 11, letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: 12 }}>DIAGNÓSTICO</div>
+        <Card style={{ marginTop: 16, borderColor: '#1a2a1a' }}>
+          <SectionHeader title="DIAGNÓSTICO" />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
               <span style={{ color: 'var(--green)' }}>·</span>{' '}
@@ -189,7 +189,7 @@ export function TabNotifs({ partidos, players, onFlash }: Props) {
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   )

@@ -15,6 +15,10 @@ import { PlayerAvatar } from '@/components/PlayerAvatar'
 import { DraggablePlayerCard } from '@/components/admin/DraggablePlayerCard'
 import { DroppableZone } from '@/components/admin/DroppableZone'
 import { colorLabel } from '@/lib/design'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { Card } from '@/components/Card'
+import { SectionHeader } from '@/components/SectionHeader'
+import { ButtonGroup } from '@/components/ButtonGroup'
 import type { Partido, JugadorEquipo, RotacionEquipo, AdminAction } from '@/types/admin'
 
 interface Props {
@@ -378,7 +382,7 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
     <div id="tab-equipos" className="fade-in">
       {/* Match selector */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28, flexWrap: 'wrap' }}>
-        <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>PARTIDO</div>
+        <SectionHeader title="PARTIDO" color="var(--text-muted)" />
         <select
           value={equiposPartido?.id ?? ''}
           onChange={e => { const p = partidos.find(pt => pt.id === e.target.value); if (p) cargarEquipos(p) }}
@@ -396,11 +400,11 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
       </div>
 
       {!equiposPartido ? (
-        <div className="card" style={{ textAlign: 'center', padding: 48 }}>
+        <Card padding={48} style={{ textAlign: 'center' }}>
           <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>Selecciona un partido para gestionar los equipos.</p>
-        </div>
+        </Card>
       ) : equiposLoading ? (
-        <div className="mono pulsing" style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: 48 }}>Cargando...</div>
+        <LoadingSpinner />
       ) : (
         <>
           {/* Status row */}
@@ -418,7 +422,7 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
             const avgB = equipoB.length ? equipoB.reduce((s, p) => s + p.habilidad, 0) / equipoB.length : 0
             const diff = Math.abs(avgA - avgB)
             return (
-              <div className="card" style={{ padding: '12px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 16 }}>
+              <Card padding="12px 16px" style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 16 }}>
                 <div style={{ flex: 1, textAlign: 'center' }}>
                   <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4 }}>EQUIPO A</div>
                   <div className="display" style={{ fontSize: 22, color: 'var(--green)' }}>★{avgA.toFixed(1)}</div>
@@ -435,7 +439,7 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
                   <div className="display" style={{ fontSize: 22, color: 'var(--amber)' }}>★{avgB.toFixed(1)}</div>
                   <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>{equipoB.length} jugadores</div>
                 </div>
-              </div>
+              </Card>
             )
           })()}
 
@@ -491,7 +495,7 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
 
           {/* Action buttons */}
           {!equiposConfirmado && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+            <ButtonGroup gap={8} style={{ flexWrap: 'wrap', marginBottom: 12 }}>
               <button onClick={balancearAutomatico} disabled={equiposLoading} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px' }}>
                 ⚖️ Balancear automáticamente
               </button>
@@ -501,7 +505,7 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
               <button onClick={confirmarEquiposAction} disabled={equiposLoading || equiposDraft || (equipoA.length + equipoB.length + equipoC.length === 0)} className="btn btn-primary" style={{ fontSize: 12, padding: '10px 16px' }}>
                 ✓ Confirmar y notificar
               </button>
-            </div>
+            </ButtonGroup>
           )}
           <div style={{ marginBottom: 28 }}>
             <button onClick={resetearEquiposAction} disabled={equiposLoading} className="mono" style={{ fontSize: 11, padding: '8px 14px', background: 'none', border: '1px solid #7f1d1d', borderRadius: 3, color: '#7f1d1d', cursor: 'pointer', letterSpacing: '0.08em' }}>
@@ -514,7 +518,7 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginBottom: 24 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
                 <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)' }}>⚽ COLORES Y ROTACIONES</div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <ButtonGroup gap={8} style={{ flexWrap: 'wrap' }}>
                   <button onClick={swapColores} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>↔ Cambiar colores</button>
                   <button onClick={() => { aleatorizarRotacion('A'); aleatorizarRotacion('B') }} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px', color: 'var(--amber)', borderColor: '#92400e' }}>
                     🎲 Aleatorizar rotaciones
@@ -522,7 +526,7 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
                   <button onClick={guardarRotaciones} disabled={savingRotacion} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px', color: 'var(--green)', borderColor: '#16a34a' }}>
                     {savingRotacion ? '...' : '💾 Guardar'}
                   </button>
-                </div>
+                </ButtonGroup>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 {rotacionA && <RotacionPanel equipo="A" rotacion={rotacionA} setRotacion={setRotacionA} accent="var(--green)" jugadores={equipoA.map(j => j.username)} />}
@@ -634,7 +638,7 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
           {/* Evaluaciones */}
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24 }}>
             <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>EVALUACIONES ENTRE PARES</div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+            <ButtonGroup gap={8} style={{ flexWrap: 'wrap', marginBottom: 8 }}>
               {!evaluacionesAbiertas ? (
                 <>
                   <button onClick={abrirEvaluacionesAction} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px', color: 'var(--amber)', borderColor: '#92400e' }}>
@@ -651,7 +655,7 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
                   🏅 Cerrar y calcular badges
                 </button>
               )}
-            </div>
+            </ButtonGroup>
             <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.6 }}>
               {evaluacionesAbiertas
                 ? 'Los jugadores pueden votar reconocimientos. Al cerrar, se asignan badges.'

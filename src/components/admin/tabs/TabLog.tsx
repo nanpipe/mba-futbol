@@ -1,7 +1,12 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState } from 'react'
 import type { ActivityLog } from '@/types/admin'
+import { useFetchAdmin } from '@/hooks/useFetchAdmin'
+import { SectionHeader } from '@/components/SectionHeader'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { Card } from '@/components/Card'
+import { ErrorAlert } from '@/components/ErrorAlert'
 
 const LOG_FILTERS = [
   { id: 'todos',        label: 'Todos' },
@@ -21,24 +26,9 @@ interface Props {
 }
 
 export function TabLog({ active }: Props) {
-  const [logs, setLogs] = useState<ActivityLog[]>([])
-  const [loading, setLoading] = useState(false)
+  const { data: logs, loading, error, reload } = useFetchAdmin<ActivityLog>('logs', { active, key: 'logs' })
   const [logFilter, setLogFilter] = useState<FilterId>('todos')
   const [logSearch, setLogSearch] = useState('')
-
-  const cargar = useCallback(async () => {
-    setLoading(true)
-    const res = await fetch('/api/admin?accion=logs')
-    if (res.ok) {
-      const data = await res.json()
-      setLogs(data.logs ?? [])
-    }
-    setLoading(false)
-  }, [])
-
-  useEffect(() => {
-    if (active) cargar()
-  }, [active, cargar])
 
   const filteredLogs = logs.filter(log => {
     const matchesFilter = logFilter === 'todos' ||
@@ -52,10 +42,11 @@ export function TabLog({ active }: Props) {
   return (
     <div id="tab-log" className="fade-in">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
-          ACTIVIDAD — {filteredLogs.length}{logFilter !== 'todos' ? ` de ${logs.length}` : ''}
-        </div>
-        <button onClick={cargar} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>
+        <SectionHeader
+          title={`ACTIVIDAD${logFilter !== 'todos' ? ` — ${filteredLogs.length} de ${logs.length}` : ''}`}
+          count={logFilter === 'todos' ? filteredLogs.length : null}
+        />
+        <button onClick={reload} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>
           ↻ Refrescar
         </button>
       </div>
@@ -87,16 +78,18 @@ export function TabLog({ active }: Props) {
         ))}
       </div>
 
-      {loading ? (
-        <div className="mono pulsing" style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: 48 }}>Cargando...</div>
+      {error ? (
+        <ErrorAlert message={error} />
+      ) : loading ? (
+        <LoadingSpinner />
       ) : filteredLogs.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: 48 }}>
+        <Card padding={48} style={{ textAlign: 'center' }}>
           <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>Sin registros.</p>
-        </div>
+        </Card>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {filteredLogs.map(log => (
-            <div key={log.id} className="card" style={{ padding: '14px 16px' }}>
+            <Card key={log.id} padding="14px 16px">
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
                 <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>
                   {new Date(log.created_at).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', timeZone: 'America/Bogota' })}
@@ -131,7 +124,7 @@ export function TabLog({ active }: Props) {
                     ))}
                 </div>
               )}
-            </div>
+            </Card>
           ))}
         </div>
       )}

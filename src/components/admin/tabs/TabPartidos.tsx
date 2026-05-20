@@ -3,6 +3,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
+import { SectionHeader } from '@/components/SectionHeader'
+import { Card } from '@/components/Card'
+import { FormLabel } from '@/components/FormLabel'
+import { ButtonGroup } from '@/components/ButtonGroup'
 import type { Player, Partido, Inscripcion, Invitado, AdminAction } from '@/types/admin'
 
 interface Props {
@@ -206,7 +210,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
           {/* Lista de partidos */}
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>PRÓXIMOS PARTIDOS</div>
+              <SectionHeader title="Próximos Partidos" />
               <button
                 onClick={() => setCrearModal(true)}
                 className="btn btn-ghost"
@@ -283,7 +287,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
             {selectedPartido ? (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>INSCRITOS</div>
+                  <SectionHeader title="Inscritos" />
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {(() => {
                       const p = partidos.find(x => x.id === selectedPartido)
@@ -312,9 +316,9 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 </div>
 
                 {inscripciones.length === 0 ? (
-                  <div className="card" style={{ textAlign: 'center', padding: 32 }}>
+                  <Card padding={32} style={{ textAlign: 'center' }}>
                     <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>Sin inscripciones aún.</p>
-                  </div>
+                  </Card>
                 ) : (
                   <>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -420,9 +424,10 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                     {/* Invitados en espera */}
                     {invitados.some(inv => inv.estado === 'espera') && (
                       <div style={{ marginTop: 20 }}>
-                        <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 8 }}>
-                          INVITADOS EN ESPERA — {invitados.filter(inv => inv.estado === 'espera').length}
-                        </div>
+                        <SectionHeader
+                          title="Invitados en Espera"
+                          count={invitados.filter(inv => inv.estado === 'espera').length}
+                        />
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                           {invitados.filter(inv => inv.estado === 'espera').map(inv => (
                             <div key={inv.id} style={{
@@ -465,9 +470,9 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 </div>
               </>
             ) : (
-              <div className="card" style={{ textAlign: 'center', padding: 48 }}>
+              <Card padding={48} style={{ textAlign: 'center' }}>
                 <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>Selecciona un partido para ver los inscritos.</p>
-              </div>
+              </Card>
             )}
           </div>
         </div>
@@ -476,7 +481,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
       {/* Modal Promover con Swap */}
       {promoverModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100 }}>
-          <div className="card" style={{ width: '100%', maxWidth: 440 }}>
+          <Card style={{ width: '100%', maxWidth: 440 }}>
             <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Partido lleno — elegir swap</h3>
             <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.6 }}>
               Para promover a <strong style={{ color: 'var(--text)' }}>{promoverModal.profiles.username}</strong>, elige quién cede su cupo y pasa a espera:
@@ -491,7 +496,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 <option key={i.id} value={i.profiles.id}>{i.profiles.username}</option>
               ))}
             </select>
-            <div style={{ display: 'flex', gap: 12 }}>
+            <ButtonGroup gap={12}>
               <button
                 className="btn btn-primary"
                 style={{ flex: 1 }}
@@ -511,21 +516,21 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 Confirmar swap
               </button>
               <button className="btn btn-ghost" onClick={() => setPromoverModal(null)}>Cancelar</button>
-            </div>
-          </div>
+            </ButtonGroup>
+          </Card>
         </div>
       )}
 
       {/* Modal Agregar Jugador */}
       {agregarModal && selectedPartido && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100 }}>
-          <div className="card" style={{ width: '100%', maxWidth: 440 }}>
+          <Card style={{ width: '100%', maxWidth: 440 }}>
             <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Agregar jugador al partido</h3>
             <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.6 }}>
               Quedará registrado que fue añadido por ti como admin.
             </p>
             <div style={{ marginBottom: 16 }}>
-              <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>JUGADOR</label>
+              <FormLabel label="Jugador" />
               <select
                 value={agregarPlayerId}
                 onChange={e => setAgregarPlayerId(e.target.value)}
@@ -538,7 +543,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
               </select>
             </div>
             <div style={{ marginBottom: 20 }}>
-              <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>ESTADO</label>
+              <FormLabel label="Estado" />
               <div style={{ display: 'flex', gap: 8 }}>
                 {(['confirmado', 'espera'] as const).map(e => (
                   <button
@@ -559,7 +564,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 ))}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 12 }}>
+            <ButtonGroup gap={12}>
               <button
                 className="btn btn-primary"
                 style={{ flex: 1 }}
@@ -579,22 +584,22 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 Agregar
               </button>
               <button className="btn btn-ghost" onClick={() => setAgregarModal(false)}>Cancelar</button>
-            </div>
-          </div>
+            </ButtonGroup>
+          </Card>
         </div>
       )}
 
       {/* Modal Crear Partido */}
       {crearModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100 }}>
-          <div className="card fade-in" style={{ width: '100%', maxWidth: 400 }}>
+          <Card style={{ width: '100%', maxWidth: 400 }} padding={24}>
             <h3 className="display" style={{ fontSize: 24, marginBottom: 8 }}>Nuevo partido</h3>
             <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 24 }}>
               El día de la semana se detecta automáticamente de la fecha.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
-                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>TIPO</label>
+                <FormLabel label="Tipo" />
                 <div style={{ display: 'flex', gap: 8 }}>
                   {(['normal', 'minitorneo'] as const).map(t => (
                     <button
@@ -613,21 +618,21 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 </div>
               </div>
               <div>
-                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>FECHA</label>
+                <FormLabel label="Fecha" />
                 <input type="date" value={nuevaFecha} onChange={e => setNuevaFecha(e.target.value)} />
               </div>
               <div>
-                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>HORA DEL PARTIDO</label>
+                <FormLabel label="Hora del Partido" />
                 <input type="time" value={nuevaHora} onChange={e => setNuevaHora(e.target.value)} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>ABRIR INSCRIPCIONES</label>
+                  <FormLabel label="Abrir Inscripciones" />
                   <input type="time" value={nuevaHoraApertura} onChange={e => setNuevaHoraApertura(e.target.value)} />
                   <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>hora de apertura</div>
                 </div>
                 <div>
-                  <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>DÍAS ANTES</label>
+                  <FormLabel label="Días Antes" />
                   <input type="number" min="0" max="7" value={nuevosDiasAntes} onChange={e => setNuevosDiasAntes(e.target.value)} />
                   <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>días previos al partido</div>
                 </div>
@@ -639,55 +644,55 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 <input type="number" min="1" max="30" value={nuevosCupos} onChange={e => setNuevosCupos(e.target.value)} />
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+            <ButtonGroup gap={12} marginTop={24}>
               <button onClick={crearPartido} disabled={!nuevaFecha} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
                 {nuevoTipo === 'minitorneo' ? '🟣 Crear minitorneo' : 'Crear partido'}
               </button>
               <button onClick={() => { setCrearModal(false); setNuevoTipo('normal') }} className="btn btn-ghost">Cancelar</button>
-            </div>
-          </div>
+            </ButtonGroup>
+          </Card>
         </div>
       )}
 
       {/* Modal Editar Partido */}
       {editPartidoModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100 }}>
-          <div className="card fade-in" style={{ width: '100%', maxWidth: 400 }}>
+          <Card style={{ width: '100%', maxWidth: 400 }} padding={24}>
             <h3 className="display" style={{ fontSize: 24, marginBottom: 8 }}>Editar partido</h3>
             <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 24 }}>
               {editPartidoModal.dia_semana.toUpperCase()} · {editPartidoModal.fecha}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
-                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>FECHA</label>
+                <FormLabel label="Fecha" />
                 <input type="date" value={nuevaFecha} onChange={e => setNuevaFecha(e.target.value)} />
               </div>
               <div>
-                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>HORA DEL PARTIDO</label>
+                <FormLabel label="Hora del Partido" />
                 <input type="time" value={nuevaHora} onChange={e => setNuevaHora(e.target.value)} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>HORA APERTURA</label>
+                  <FormLabel label="Hora Apertura" />
                   <input type="time" value={nuevaHoraApertura} onChange={e => setNuevaHoraApertura(e.target.value)} />
                 </div>
                 <div>
-                  <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>DÍAS ANTES</label>
+                  <FormLabel label="Días Antes" />
                   <input type="number" min="0" max="7" value={nuevosDiasAntes} onChange={e => setNuevosDiasAntes(e.target.value)} />
                 </div>
               </div>
               <div>
-                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>CUPOS</label>
+                <FormLabel label="Cupos" />
                 <input type="number" min="1" max="30" value={nuevosCupos} onChange={e => setNuevosCupos(e.target.value)} />
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+            <ButtonGroup gap={12} marginTop={24}>
               <button onClick={editarPartido} disabled={!nuevaFecha} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
                 Guardar cambios
               </button>
               <button onClick={() => setEditPartidoModal(null)} className="btn btn-ghost">Cancelar</button>
-            </div>
-          </div>
+            </ButtonGroup>
+          </Card>
         </div>
       )}
     </>

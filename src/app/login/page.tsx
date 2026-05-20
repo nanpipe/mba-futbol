@@ -3,6 +3,10 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import { FormCenterLayout } from '@/components/FormCenterLayout'
+import { FormLabel } from '@/components/FormLabel'
+import { ErrorAlert } from '@/components/ErrorAlert'
+import { ButtonGroup } from '@/components/ButtonGroup'
 
 export default function LoginPage() {
   const supabase = createClient()
@@ -94,72 +98,59 @@ export default function LoginPage() {
 
   return (
     <>
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
-      <div style={{ width: '100%', maxWidth: 400 }}>
-        {/* Logo */}
-        <div style={{ marginBottom: 48, textAlign: 'center' }}>
-          <div className="display" style={{ fontSize: 48, letterSpacing: '0.05em', lineHeight: 1 }}>
-            MBA <span style={{ color: 'var(--green)' }}>FC</span>
-          </div>
-          <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.15em', marginTop: 8 }}>
-            INICIAR SESIÓN
-          </div>
+    <FormCenterLayout>
+      {/* Logo */}
+      <div style={{ marginBottom: 48, textAlign: 'center' }}>
+        <div className="display" style={{ fontSize: 48, letterSpacing: '0.05em', lineHeight: 1 }}>
+          MBA <span style={{ color: 'var(--green)' }}>FC</span>
+        </div>
+        <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.15em', marginTop: 8 }}>
+          INICIAR SESIÓN
+        </div>
+      </div>
+
+      <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div>
+          <FormLabel label="USUARIO O EMAIL" />
+          <input
+            type="text"
+            value={identifier}
+            onChange={e => setIdentifier(e.target.value)}
+            placeholder="tu_usuario o correo@ejemplo.com"
+            required
+            autoComplete="username"
+            inputMode="email"
+          />
         </div>
 
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div>
-            <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>
-              USUARIO O EMAIL
-            </label>
-            <input
-              type="text"
-              value={identifier}
-              onChange={e => setIdentifier(e.target.value)}
-              placeholder="tu_usuario o correo@ejemplo.com"
-              required
-              autoComplete="username"
-              inputMode="email"
-            />
-          </div>
+        <div>
+          <FormLabel label="CONTRASEÑA" />
+          <input
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder="••••••••"
+            required
+            autoComplete="current-password"
+          />
+        </div>
 
-          <div>
-            <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>
-              CONTRASEÑA
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              autoComplete="current-password"
-            />
-          </div>
+        {error && <ErrorAlert message={error} />}
 
-          {error && (
-            <div className="mono" style={{
-              fontSize: 13, color: 'var(--red)', padding: '10px 14px',
-              background: '#2d0a0a', borderRadius: 3, border: '1px solid #7f1d1d'
-            }}>
-              {error}
-            </div>
-          )}
+        <button type="submit" disabled={loading} className="btn btn-primary" style={{ marginTop: 8, padding: '14px' }}>
+          {loading ? 'Entrando...' : 'Entrar'}
+        </button>
+      </form>
 
-          <button type="submit" disabled={loading} className="btn btn-primary" style={{ marginTop: 8, padding: '14px' }}>
-            {loading ? 'Entrando...' : 'Entrar'}
-          </button>
-        </form>
+      <p className="mono" style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginTop: 24 }}>
+        <Link href="/recuperar" style={{ color: 'var(--text-dim)', textDecoration: 'none' }}>¿Olvidaste tu contraseña o usuario?</Link>
+      </p>
 
-        <p className="mono" style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginTop: 24 }}>
-          <Link href="/recuperar" style={{ color: 'var(--text-dim)', textDecoration: 'none' }}>¿Olvidaste tu contraseña o usuario?</Link>
-        </p>
-
-        <p className="mono" style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginTop: 12 }}>
-          ¿No tienes cuenta?{' '}
-          <Link href="/registro" style={{ color: 'var(--green)', textDecoration: 'none' }}>Regístrate</Link>
-        </p>
-      </div>
-    </div>
+      <p className="mono" style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginTop: 12 }}>
+        ¿No tienes cuenta?{' '}
+        <Link href="/registro" style={{ color: 'var(--green)', textDecoration: 'none' }}>Regístrate</Link>
+      </p>
+    </FormCenterLayout>
 
     {/* ── Modal dramático de bloqueo ── */}
     {bloqueado && (
@@ -214,7 +205,7 @@ export default function LoginPage() {
               </div>
 
               {pagarRespuesta === null && (
-                <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                <ButtonGroup gap={12} style={{ justifyContent: 'center' }}>
                   <button
                     onClick={() => setPagarRespuesta('si')}
                     className="btn btn-primary"
@@ -229,7 +220,7 @@ export default function LoginPage() {
                   >
                     No 😤
                   </button>
-                </div>
+                </ButtonGroup>
               )}
 
               {pagarRespuesta === 'no' && (

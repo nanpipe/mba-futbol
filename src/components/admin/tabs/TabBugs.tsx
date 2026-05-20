@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { SectionHeader } from '@/components/SectionHeader'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
 
 type BugEstado = 'nuevo' | 'revisado' | 'cerrado'
 
@@ -77,19 +79,13 @@ export function TabBugs({ active }: TabBugsProps) {
   const bugsVisibles = filtro === 'todos' ? bugs : bugs.filter(b => b.estado === filtro)
   const counts = bugs.reduce((acc, b) => { acc[b.estado] = (acc[b.estado] ?? 0) + 1; return acc }, {} as Record<BugEstado, number>)
 
-  if (loading) return (
-    <div className="mono pulsing" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.1em' }}>
-      CARGANDO...
-    </div>
-  )
+  if (loading) return <LoadingSpinner text="Cargando..." />
 
   return (
     <div>
       {/* Header + filtros */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-        <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
-          🐛 BUG REPORTS — {bugs.length} TOTAL
-        </div>
+        <SectionHeader title="Bug Reports" icon="🐛" count={bugs.length} />
         <div style={{ display: 'flex', gap: 6 }}>
           {(['todos', ...ESTADOS] as const).map(f => (
             <button
@@ -172,9 +168,7 @@ export function TabBugs({ active }: TabBugsProps) {
               {isExpanded && (
                 <div style={{ borderTop: '1px solid var(--border)', padding: '16px 16px 20px' }}>
                   {/* Description */}
-                  <div className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: 8 }}>
-                    DESCRIPCIÓN
-                  </div>
+                  <SectionHeader title="Descripción" />
                   <p style={{ fontSize: 14, lineHeight: 1.65, color: 'var(--text)', whiteSpace: 'pre-wrap', marginBottom: 20 }}>
                     {bug.descripcion}
                   </p>
@@ -182,9 +176,7 @@ export function TabBugs({ active }: TabBugsProps) {
                   {/* Screenshot */}
                   {bug.screenshot_url && (
                     <div style={{ marginBottom: 20 }}>
-                      <div className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: 8 }}>
-                        CAPTURA
-                      </div>
+                      <SectionHeader title="Captura" />
                       <a href={bug.screenshot_url} target="_blank" rel="noopener noreferrer">
                         <img
                           src={bug.screenshot_url}
@@ -197,9 +189,7 @@ export function TabBugs({ active }: TabBugsProps) {
 
                   {/* Estado selector */}
                   <div>
-                    <div className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: 10 }}>
-                      ESTADO
-                    </div>
+                    <SectionHeader title="Estado" />
                     <div style={{ display: 'flex', gap: 8 }}>
                       {ESTADOS.map(e => (
                         <button

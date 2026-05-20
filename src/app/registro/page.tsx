@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import { FormCenterLayout } from '@/components/FormCenterLayout'
+import { FormLabel } from '@/components/FormLabel'
+import { ErrorAlert } from '@/components/ErrorAlert'
 
 export default function RegistroPage() {
   const supabase = createClient()
@@ -101,8 +104,8 @@ export default function RegistroPage() {
 
   if (exito) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
-        <div style={{ maxWidth: 400, textAlign: 'center' }}>
+      <FormCenterLayout>
+        <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 48, marginBottom: 24 }}>⚽</div>
           <h2 className="display" style={{ fontSize: 32, marginBottom: 16 }}>¡Registro exitoso!</h2>
           <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 32 }}>
@@ -112,13 +115,13 @@ export default function RegistroPage() {
           </p>
           <Link href="/login" className="btn btn-primary">Ir al login</Link>
         </div>
-      </div>
+      </FormCenterLayout>
     )
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
-      <div style={{ width: '100%', maxWidth: 400 }}>
+    <FormCenterLayout>
+      <div style={{ padding: '40px 0' }}>
         <div style={{ marginBottom: 48, textAlign: 'center' }}>
           <div className="display" style={{ fontSize: 48, letterSpacing: '0.05em', lineHeight: 1 }}>
             MBA <span style={{ color: 'var(--green)' }}>FC</span>
@@ -130,9 +133,7 @@ export default function RegistroPage() {
 
         <form onSubmit={handleRegistro} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
-            <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>
-              USUARIO
-            </label>
+            <FormLabel label="USUARIO" />
             <input
               type="text"
               value={username}
@@ -147,9 +148,7 @@ export default function RegistroPage() {
           </div>
 
           <div>
-            <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>
-              EMAIL
-            </label>
+            <FormLabel label="EMAIL" />
             <input
               type="email"
               value={email}
@@ -164,9 +163,7 @@ export default function RegistroPage() {
           </div>
 
           <div>
-            <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>
-              CONTRASEÑA
-            </label>
+            <FormLabel label="CONTRASEÑA" />
             <input
               type="password"
               value={password}
@@ -178,9 +175,7 @@ export default function RegistroPage() {
           </div>
 
           <div>
-            <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>
-              CONFIRMAR CONTRASEÑA
-            </label>
+            <FormLabel label="CONFIRMAR CONTRASEÑA" />
             <input
               type="password"
               value={confirm}
@@ -191,15 +186,7 @@ export default function RegistroPage() {
             />
           </div>
 
-          {error && (
-            <div className="mono" style={{
-              fontSize: 13, color: 'var(--red)', padding: '10px 14px',
-              background: '#2d0a0a', borderRadius: 3, border: '1px solid #7f1d1d',
-              lineHeight: 1.5
-            }}>
-              {error}
-            </div>
-          )}
+          {error && <ErrorAlert message={error} />}
 
           <button type="submit" disabled={loading} className="btn btn-primary" style={{ marginTop: 8, padding: '14px' }}>
             {loading ? 'Creando cuenta...' : 'Crear cuenta'}
@@ -211,6 +198,6 @@ export default function RegistroPage() {
           <Link href="/login" style={{ color: 'var(--green)', textDecoration: 'none' }}>Inicia sesión</Link>
         </p>
       </div>
-    </div>
+    </FormCenterLayout>
   )
 }

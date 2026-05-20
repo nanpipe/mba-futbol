@@ -16,7 +16,7 @@ interface Props {
 }
 
 export function TabCartas({ active }: Props) {
-  const { data: cartas = [], loading, error, reload } = useFetchAdmin<Record<string, unknown>[]>('cartas', { active, key: 'cartas' })
+  const { data: cartas = [], loading, error, reload } = useFetchAdmin<Record<string, unknown>>('cartas', { active, key: 'cartas' })
   const [cartaNotas, setCartaNotas] = useState<Record<string, string>>({})
   const [cartaOverrides, setCartaOverrides] = useState<Record<string, Record<string, number>>>({})
   const [cartaActioning, setCartaActioning] = useState<string | null>(null)

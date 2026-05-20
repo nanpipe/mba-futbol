@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { ServiceWorkerRegistration } from '@/components/ServiceWorkerRegistration'
+import { PullToRefresh } from '@/components/PullToRefresh'
 
 export const metadata: Metadata = {
   title: 'MBA Fútbol Club',
@@ -21,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <ServiceWorkerRegistration />
-        {children}
+        <PullToRefresh>{children}</PullToRefresh>
       </body>
     </html>
   )

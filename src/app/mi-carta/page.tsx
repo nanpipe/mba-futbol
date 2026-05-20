@@ -5,6 +5,13 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { getTierStyle, calcTier } from '@/lib/tier'
 import { FifaCard } from '@/components/FifaCard'
+import { FormCenterLayout } from '@/components/FormCenterLayout'
+import { FormLabel } from '@/components/FormLabel'
+import { ErrorAlert } from '@/components/ErrorAlert'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { Card } from '@/components/Card'
+import { SectionHeader } from '@/components/SectionHeader'
+import { ButtonGroup } from '@/components/ButtonGroup'
 
 // ── Questions ──────────────────────────────────────────────────────────────────
 
@@ -268,9 +275,9 @@ export default function MiCartaPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div className="mono pulsing" style={{ color: 'var(--text-muted)', fontSize: 13, letterSpacing: '0.1em' }}>CARGANDO...</div>
-      </div>
+      <FormCenterLayout>
+        <LoadingSpinner text="CARGANDO..." />
+      </FormCenterLayout>
     )
   }
 
@@ -278,24 +285,26 @@ export default function MiCartaPage() {
   if (submitResult) {
     const ts = getTierStyle(submitResult.tier)
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', gap: 32 }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
-          <h2 className="display" style={{ fontSize: 32, letterSpacing: '0.05em', marginBottom: 8 }}>¡Evaluación enviada!</h2>
-          <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-            Tu carta está pendiente de aprobación por el admin.<br />
-            Aparecerá en tu perfil una vez aprobada.
-          </p>
+      <FormCenterLayout>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 32, padding: '40px 0' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
+            <h2 className="display" style={{ fontSize: 32, letterSpacing: '0.05em', marginBottom: 8 }}>¡Evaluación enviada!</h2>
+            <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+              Tu carta está pendiente de aprobación por el admin.<br />
+              Aparecerá en tu perfil una vez aprobada.
+            </p>
+          </div>
+          <div style={{ background: ts.bg, padding: '12px 24px', borderRadius: 8, textAlign: 'center' }}>
+            <div className="display" style={{ fontSize: 48, color: ts.text }}>{submitResult.ovr}</div>
+            <div className="mono" style={{ fontSize: 11, color: ts.text, opacity: 0.8, letterSpacing: '0.1em' }}>OVR — {ts.label}</div>
+          </div>
+          <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', textAlign: 'center' }}>
+            El admin revisará tus respuestas y puede ajustar los valores antes de aprobar.
+          </div>
+          <Link href="/perfil" className="btn btn-primary" style={{ padding: '12px 32px' }}>Ir a mi perfil</Link>
         </div>
-        <div style={{ background: ts.bg, padding: '12px 24px', borderRadius: 8, textAlign: 'center' }}>
-          <div className="display" style={{ fontSize: 48, color: ts.text }}>{submitResult.ovr}</div>
-          <div className="mono" style={{ fontSize: 11, color: ts.text, opacity: 0.8, letterSpacing: '0.1em' }}>OVR — {ts.label}</div>
-        </div>
-        <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', textAlign: 'center' }}>
-          El admin revisará tus respuestas y puede ajustar los valores antes de aprobar.
-        </div>
-        <Link href="/perfil" className="btn btn-primary" style={{ padding: '12px 32px' }}>Ir a mi perfil</Link>
-      </div>
+      </FormCenterLayout>
     )
   }
 
@@ -303,41 +312,45 @@ export default function MiCartaPage() {
   if (existingCarta?.aprobado) {
     const ec = existingCarta as Record<string, unknown>
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', gap: 32 }}>
-        <div style={{ textAlign: 'center' }}>
-          <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 8 }}>TU CARTA FIFA</div>
-          <p className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>Aprobada · Para actualizar contacta al admin</p>
+      <FormCenterLayout maxWidth={480}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 32, padding: '40px 0' }}>
+          <div style={{ textAlign: 'center' }}>
+            <SectionHeader title="TU CARTA FIFA" />
+            <p className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>Aprobada · Para actualizar contacta al admin</p>
+          </div>
+          <FifaCard size="lg" s={{
+            stat_res: ec.stat_res as number, stat_fis: ec.stat_fis as number,
+            stat_def: ec.stat_def as number, stat_ata: ec.stat_ata as number,
+            stat_tec: ec.stat_tec as number, stat_dis: ec.stat_dis as number,
+            ovr: ec.ovr as number, tier: ec.tier as string,
+            posicion_carta: ec.posicion_carta as string,
+            username, avatar_url: avatarUrl,
+          }} />
+          <Link href="/perfil" className="btn btn-ghost" style={{ padding: '10px 24px' }}>← Volver al perfil</Link>
         </div>
-        <FifaCard size="lg" s={{
-          stat_res: ec.stat_res as number, stat_fis: ec.stat_fis as number,
-          stat_def: ec.stat_def as number, stat_ata: ec.stat_ata as number,
-          stat_tec: ec.stat_tec as number, stat_dis: ec.stat_dis as number,
-          ovr: ec.ovr as number, tier: ec.tier as string,
-          posicion_carta: ec.posicion_carta as string,
-          username, avatar_url: avatarUrl,
-        }} />
-        <Link href="/perfil" className="btn btn-ghost" style={{ padding: '10px 24px' }}>← Volver al perfil</Link>
-      </div>
+      </FormCenterLayout>
     )
   }
 
   // Pending review
   if (existingCarta && !existingCarta.aprobado && !existingCarta.rechazado) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', gap: 24 }}>
-        <div style={{ textAlign: 'center', maxWidth: 400 }}>
-          <div style={{ fontSize: 40, marginBottom: 16 }}>⏳</div>
-          <h2 className="display" style={{ fontSize: 28, letterSpacing: '0.05em', marginBottom: 12 }}>Carta en revisión</h2>
-          <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7 }}>
-            Enviaste tu evaluación. El admin la está revisando.<br />
-            Aparecerá en tu perfil una vez aprobada.
-          </p>
-          <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 16 }}>
-            OVR calculado: <strong style={{ color: 'var(--amber)' }}>{existingCarta.ovr as number}</strong>
+      <FormCenterLayout>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, padding: '40px 0' }}>
+          <div style={{ textAlign: 'center', maxWidth: 400 }}>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>⏳</div>
+            <h2 className="display" style={{ fontSize: 28, letterSpacing: '0.05em', marginBottom: 12 }}>Carta en revisión</h2>
+            <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7 }}>
+              Enviaste tu evaluación. El admin la está revisando.<br />
+              Aparecerá en tu perfil una vez aprobada.
+            </p>
+            <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 16 }}>
+              OVR calculado: <strong style={{ color: 'var(--amber)' }}>{existingCarta.ovr as number}</strong>
+            </div>
           </div>
+          <Link href="/perfil" className="btn btn-ghost" style={{ padding: '10px 24px' }}>← Volver al perfil</Link>
         </div>
-        <Link href="/perfil" className="btn btn-ghost" style={{ padding: '10px 24px' }}>← Volver al perfil</Link>
-      </div>
+      </FormCenterLayout>
     )
   }
 
@@ -385,9 +398,7 @@ export default function MiCartaPage() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div>
-              <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 10 }}>
-                POSICIÓN EN EL CAMPO
-              </label>
+              <FormLabel label="POSICIÓN EN EL CAMPO" />
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {POSICIONES.map(p => (
                   <button key={p} onClick={() => setPosicion(p)}
@@ -404,9 +415,7 @@ export default function MiCartaPage() {
             </div>
 
             <div>
-              <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 10 }}>
-                PIERNA DOMINANTE
-              </label>
+              <FormLabel label="PIERNA DOMINANTE" />
               <div style={{ display: 'flex', gap: 8 }}>
                 {PIERNAS.map(p => (
                   <button key={p} onClick={() => setPierna(p)}
@@ -425,18 +434,16 @@ export default function MiCartaPage() {
 
           {/* Sections overview */}
           <div style={{ marginTop: 40, marginBottom: 32 }}>
-            <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 12 }}>
-              6 SECCIONES · 5 PREGUNTAS CADA UNA
-            </div>
+            <SectionHeader title="6 SECCIONES · 5 PREGUNTAS CADA UNA" />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {SECTIONS.map(s => (
-                <div key={s.key} className="card" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Card key={s.key} padding="12px 14px" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ fontSize: 20 }}>{s.emoji}</span>
                   <div>
                     <div className="mono" style={{ fontSize: 11, color: s.color, letterSpacing: '0.05em' }}>{s.label.toUpperCase()}</div>
                     <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>5 preguntas</div>
                   </div>
-                </div>
+                </Card>
               ))}
             </div>
           </div>
@@ -524,7 +531,7 @@ export default function MiCartaPage() {
           </div>
 
           {/* Nav buttons */}
-          <div style={{ display: 'flex', gap: 12, marginTop: 40 }}>
+          <ButtonGroup gap={12} marginTop={40}>
             <button onClick={() => setStep(step - 1)} className="btn btn-ghost" style={{ padding: '12px 24px', flex: '0 0 auto' }}>
               ← Atrás
             </button>
@@ -536,7 +543,7 @@ export default function MiCartaPage() {
             >
               {step === 6 ? 'Ver resumen →' : `Siguiente: ${SECTIONS[step].label} →`}
             </button>
-          </div>
+          </ButtonGroup>
           {!sectionComplete(currentSection.key) && (
             <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', textAlign: 'center', marginTop: 8 }}>
               Responde todas las preguntas para continuar
@@ -558,11 +565,11 @@ export default function MiCartaPage() {
             {SECTIONS.map(s => {
               const val = calcStatPreview(s.key)
               return (
-                <div key={s.key} className="card" style={{ padding: '16px', textAlign: 'center' }}>
+                <Card key={s.key} padding={16} style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 20, marginBottom: 6 }}>{s.emoji}</div>
                   <div className="display" style={{ fontSize: 36, color: s.color, lineHeight: 1 }}>{val || '—'}</div>
                   <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.1em', marginTop: 4 }}>{s.label.toUpperCase()}</div>
-                </div>
+                </Card>
               )
             })}
           </div>
@@ -581,21 +588,23 @@ export default function MiCartaPage() {
           })()}
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 32 }}>
-            <div className="card" style={{ padding: '10px 16px', display: 'flex', justifyContent: 'space-between' }}>
+            <Card padding="10px 16px" style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>Posición</span>
               <span className="mono" style={{ fontSize: 12 }}>{posicion}</span>
-            </div>
-            <div className="card" style={{ padding: '10px 16px', display: 'flex', justifyContent: 'space-between' }}>
+            </Card>
+            <Card padding="10px 16px" style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>Pierna dominante</span>
               <span className="mono" style={{ fontSize: 12 }}>{pierna}</span>
-            </div>
+            </Card>
           </div>
 
           {error && (
-            <div className="mono" style={{ color: 'var(--red)', fontSize: 12, marginBottom: 16, textAlign: 'center' }}>{error}</div>
+            <div style={{ marginBottom: 16 }}>
+              <ErrorAlert message={error} />
+            </div>
           )}
 
-          <div style={{ display: 'flex', gap: 12 }}>
+          <ButtonGroup gap={12}>
             <button onClick={() => setStep(6)} className="btn btn-ghost" style={{ padding: '12px 24px', flex: '0 0 auto' }}>
               ← Revisar
             </button>
@@ -607,7 +616,7 @@ export default function MiCartaPage() {
             >
               {submitting ? 'Enviando...' : '✓ Enviar evaluación'}
             </button>
-          </div>
+          </ButtonGroup>
           <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', textAlign: 'center', marginTop: 12, lineHeight: 1.6 }}>
             El admin revisará tus respuestas antes de publicar la carta.
           </div>
@@ -616,4 +625,3 @@ export default function MiCartaPage() {
     </div>
   )
 }
-

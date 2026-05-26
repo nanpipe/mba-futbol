@@ -5,6 +5,10 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { CATEGORIAS } from '@/lib/categorias'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
+import { FormCenterLayout } from '@/components/FormCenterLayout'
+import { ErrorAlert } from '@/components/ErrorAlert'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { Card } from '@/components/Card'
 
 interface Compañero {
   id: string
@@ -149,37 +153,36 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
 
   // ── States ───────────────────────────────────────────────────────────────
   if (estado === 'loading') return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-      <div className="mono pulsing" style={{ color: 'var(--text-muted)', fontSize: 13 }}>CARGANDO...</div>
-    </div>
+    <FormCenterLayout>
+      <LoadingSpinner text="CARGANDO..." />
+    </FormCenterLayout>
   )
 
-  const centered = (children: React.ReactNode) => (
-    <div style={{
-      minHeight: '100vh', display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center',
-      padding: '0 24px', textAlign: 'center', gap: 16,
-    }}>
-      {children}
-      <Link href="/" className="btn btn-ghost" style={{ marginTop: 8, fontSize: 12 }}>← Volver al inicio</Link>
-    </div>
+  if (estado === 'closed') return (
+    <FormCenterLayout>
+      <div style={{ textAlign: 'center', gap: 16, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{ fontSize: 48 }}>⏰</div>
+        <div className="display" style={{ fontSize: 28 }}>Votación cerrada</div>
+        <div className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+          Los reconocimientos de este partido no están disponibles.
+        </div>
+        <Link href="/" className="btn btn-ghost" style={{ marginTop: 8, fontSize: 12 }}>← Volver al inicio</Link>
+      </div>
+    </FormCenterLayout>
   )
 
-  if (estado === 'closed') return centered(<>
-    <div style={{ fontSize: 48 }}>⏰</div>
-    <div className="display" style={{ fontSize: 28 }}>Votación cerrada</div>
-    <div className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-      Los reconocimientos de este partido no están disponibles.
-    </div>
-  </>)
-
-  if (estado === 'not-participant') return centered(<>
-    <div style={{ fontSize: 48 }}>🚫</div>
-    <div className="display" style={{ fontSize: 28 }}>No participaste</div>
-    <div className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-      Solo los jugadores confirmados pueden votar.
-    </div>
-  </>)
+  if (estado === 'not-participant') return (
+    <FormCenterLayout>
+      <div style={{ textAlign: 'center', gap: 16, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{ fontSize: 48 }}>🚫</div>
+        <div className="display" style={{ fontSize: 28 }}>No participaste</div>
+        <div className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+          Solo los jugadores confirmados pueden votar.
+        </div>
+        <Link href="/" className="btn btn-ghost" style={{ marginTop: 8, fontSize: 12 }}>← Volver al inicio</Link>
+      </div>
+    </FormCenterLayout>
+  )
 
   if (estado === 'already') return (
     <div style={{ minHeight: '100vh', paddingBottom: 60 }}>
@@ -270,11 +273,8 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
         </div>
 
         {mensaje && (
-          <div className="mono" style={{
-            fontSize: 13, color: 'var(--red)', padding: '10px 14px',
-            background: '#2d0a0a', borderRadius: 3, border: '1px solid #7f1d1d', marginBottom: 20,
-          }}>
-            {mensaje}
+          <div style={{ marginBottom: 20 }}>
+            <ErrorAlert message={mensaje} />
           </div>
         )}
 
@@ -286,11 +286,10 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
               : null
 
             return (
-              <div
+              <Card
                 key={cat.id}
-                className="card"
+                padding="16px 20px"
                 style={{
-                  padding: '16px 20px',
                   border: winner ? '1px solid #16a34a' : '1px solid var(--border)',
                   transition: 'border-color 0.15s',
                 }}
@@ -320,7 +319,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
                     />
                   ))}
                 </div>
-              </div>
+              </Card>
             )
           })}
         </div>

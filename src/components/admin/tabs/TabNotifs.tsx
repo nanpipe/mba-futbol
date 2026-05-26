@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { SectionHeader } from '@/components/SectionHeader'
 import { Card } from '@/components/Card'
 import type { Partido, Player } from '@/types/admin'
+import { useClub } from '@/hooks/useClub'
 
 const AUTO_NOTIFS = [
   '🙋 Nuevo jugador solicita acceso → Admins',
@@ -44,7 +45,8 @@ interface Props {
 
 export function TabNotifs({ partidos, players, onFlash }: Props) {
   const supabase = createClient()
-  const [pushTitle, setPushTitle] = useState('MBA FC')
+  const club = useClub()
+  const [pushTitle, setPushTitle] = useState('')
   const [pushBody, setPushBody] = useState('¡Hay cupo en el partido! Entra a inscribirte ⚽')
   const [pushTarget, setPushTarget] = useState('')
   const [pushGroup, setPushGroup] = useState<PushGroup>('todos')
@@ -54,7 +56,7 @@ export function TabNotifs({ partidos, players, onFlash }: Props) {
   const enviarPush = async () => {
     setPushSending(true)
     const { data: { session } } = await supabase.auth.getSession()
-    const payload: Record<string, unknown> = { title: pushTitle, body: pushBody }
+    const payload: Record<string, unknown> = { title: pushTitle || club.nombre, body: pushBody }
     if (pushGroup === 'individual') {
       payload.player_id = pushTarget || undefined
     } else if (pushGroup !== 'todos') {
@@ -142,7 +144,7 @@ export function TabNotifs({ partidos, players, onFlash }: Props) {
 
           <div>
             <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>TÍTULO</label>
-            <input type="text" value={pushTitle} onChange={e => setPushTitle(e.target.value)} />
+            <input type="text" value={pushTitle} onChange={e => setPushTitle(e.target.value)} placeholder={club.nombre} />
           </div>
           <div>
             <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>MENSAJE</label>

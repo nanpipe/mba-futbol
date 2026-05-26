@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { calcularVentanaPartido } from '@/lib/partidos'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
 import { colorLabel } from '@/lib/design'
+import { useClub } from '@/hooks/useClub'
 
 interface Partido {
   id: string
@@ -88,6 +89,7 @@ interface VentanaInfo {
 
 export default function HomePage() {
   const supabase = createClient()
+  const club = useClub()
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<{ username: string; role: string; baneado: boolean; avatar_url: string | null } | null>(null)
   const [ventana, setVentana] = useState<VentanaInfo | null>(null)
@@ -447,7 +449,7 @@ export default function HomePage() {
       {/* Nav */}
       <nav style={{ borderBottom: '1px solid var(--border)', padding: '16px 0' }}>
         <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span className="display" style={{ fontSize: 20, letterSpacing: '0.1em' }}>MBA FC</span>
+          <span className="display" style={{ fontSize: 20, letterSpacing: '0.1em' }}>{club.nombre}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             {(profile?.role === 'admin' || profile?.role === 'superadmin') && (
               <Link href="/admin" className="mono" style={{ fontSize: 12, color: 'var(--amber)', letterSpacing: '0.08em', textDecoration: 'none' }}>

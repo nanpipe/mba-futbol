@@ -27,3 +27,7 @@ export function isClubActive(req: NextRequest): boolean {
   const status = getClubSubscriptionStatus(req)
   return status === 'active' || status === 'trialing'
 }
+
+export function getClubNombre(req: NextRequest): string {
+  return req.headers.get('x-club-nombre') ?? 'MBA FC'
+}

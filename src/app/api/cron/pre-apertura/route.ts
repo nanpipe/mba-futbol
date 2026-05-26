@@ -12,55 +12,67 @@ function verifyCron(req: NextRequest) {
 }
 
 // Called every minute by pg_cron.
-// Sends a "5-minute warning" push to all players before inscriptions open.
+// Sends "5-minute warning" push to all club players before inscriptions open.
+// Handles multiple clubs — processes all partidos returned by the RPC.
 export async function GET(req: NextRequest) {
   if (!verifyCron(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const admin = createAdminClient()
 
-  // Find partidos whose inscription window opens in 4–6 minutes (Colombia time)
-  // apertura datetime = (fecha - dias_antes_apertura days) at hora_apertura (America/Bogota)
+  // Find partidos whose inscription window opens in 4–6 minutes
   const { data: partidos } = await admin.rpc('partidos_pre_apertura')
 
   if (!partidos?.length) return NextResponse.json({ ok: true, enviados: 0 })
 
-  const partido = partidos[0] as {
-    id: string
-    dia_semana: string
-    hora_apertura: string
-  }
+  let totalEnviados = 0
 
-  // Push to all approved, non-banned players
-  const { data: subs } = await admin
-    .from('push_subscriptions')
-    .select('endpoint, p256dh, auth')
+  for (const partido of partidos as { id: string; club_id: string; dia_semana: string; hora_apertura: string }[]) {
+    // Get all approved, non-banned players from this club
+    const { data: clubProfiles } = await admin
+      .from('profiles')
+      .select('id')
+      .eq('club_id', partido.club_id)
+      .eq('aprobado', true)
+      .eq('baneado', false)
 
-  let enviados = 0
-  for (const sub of subs ?? []) {
-    try {
-      await sendPush(sub, {
-        title: '⏳ ¡Inscripciones en 5 minutos!',
-        body: `Las inscripciones para el partido del ${partido.dia_semana} abren en 5 minutos. ¡Prepárate!`,
-        url: '/',
-      })
-      enviados++
-    } catch (err: unknown) {
-      if ((err as { statusCode?: number }).statusCode === 410) {
-        await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+    const clubPlayerIds = (clubProfiles ?? []).map((p: { id: string }) => p.id)
+    if (clubPlayerIds.length === 0) continue
+
+    // Push only to that club's subscribed players
+    const { data: subs } = await admin
+      .from('push_subscriptions')
+      .select('endpoint, p256dh, auth')
+      .in('player_id', clubPlayerIds)
+
+    let enviados = 0
+    for (const sub of subs ?? []) {
+      try {
+        await sendPush(sub, {
+          title: '⏳ ¡Inscripciones en 5 minutos!',
+          body: `Las inscripciones para el partido del ${partido.dia_semana} abren en 5 minutos. ¡Prepárate!`,
+          url: '/',
+        })
+        enviados++
+      } catch (err: unknown) {
+        if ((err as { statusCode?: number }).statusCode === 410) {
+          await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+        }
       }
     }
+
+    // Mark as sent so it doesn't fire again this minute
+    await admin
+      .from('partidos')
+      .update({ notif_pre_apertura_sent: true })
+      .eq('id', partido.id)
+
+    await logActivity({
+      accion: 'cron_pre_apertura',
+      detalles: { partido_id: partido.id, club_id: partido.club_id, dia_semana: partido.dia_semana, enviados },
+    })
+
+    totalEnviados += enviados
   }
 
-  // Mark as sent so it doesn't fire again
-  await admin
-    .from('partidos')
-    .update({ notif_pre_apertura_sent: true })
-    .eq('id', partido.id)
-
-  await logActivity({
-    accion: 'cron_pre_apertura',
-    detalles: { partido_id: partido.id, dia_semana: partido.dia_semana, enviados },
-  })
-
-  return NextResponse.json({ ok: true, enviados, partido_id: partido.id })
+  return NextResponse.json({ ok: true, enviados: totalEnviados })
 }

@@ -7,6 +7,10 @@ import type { User } from '@supabase/supabase-js'
 import { posicionEmoji } from '@/lib/teamBalancer'
 import { FifaCard } from '@/components/FifaCard'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { Card } from '@/components/Card'
+import { SectionHeader } from '@/components/SectionHeader'
+import { ErrorAlert } from '@/components/ErrorAlert'
 
 const POSICIONES = ['portero', 'defensa', 'medio', 'delantero', 'cualquiera'] as const
 type Posicion = typeof POSICIONES[number]
@@ -30,12 +34,10 @@ interface Badge {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 28 }}>
-      <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 12 }}>
-        {title}
-      </div>
-      <div className="card" style={{ padding: '20px 20px 16px' }}>
+      <SectionHeader title={title} />
+      <Card padding="20px 20px 16px">
         {children}
-      </div>
+      </Card>
     </div>
   )
 }
@@ -242,7 +244,7 @@ export default function PerfilPage() {
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-      <div className="mono pulsing" style={{ color: 'var(--text-muted)', fontSize: 13, letterSpacing: '0.1em' }}>CARGANDO...</div>
+      <LoadingSpinner text="CARGANDO..." />
     </div>
   )
 
@@ -257,14 +259,20 @@ export default function PerfilPage() {
 
       <div className="container" style={{ paddingTop: 40, maxWidth: 480 }}>
         {mensaje && (
-          <div className="mono fade-in" style={{
-            fontSize: 13, padding: '12px 16px', borderRadius: 3, marginBottom: 24,
-            background: mensaje.tipo === 'ok' ? '#0f2d1a' : '#2d0a0a',
-            color: mensaje.tipo === 'ok' ? 'var(--green)' : 'var(--red)',
-            border: `1px solid ${mensaje.tipo === 'ok' ? '#16a34a' : '#7f1d1d'}`
-          }}>
-            {mensaje.texto}
-          </div>
+          mensaje.tipo === 'error' ? (
+            <div className="fade-in" style={{ marginBottom: 24 }}>
+              <ErrorAlert message={mensaje.texto} />
+            </div>
+          ) : (
+            <div className="mono fade-in" style={{
+              fontSize: 13, padding: '12px 16px', borderRadius: 3, marginBottom: 24,
+              background: '#0f2d1a',
+              color: 'var(--green)',
+              border: '1px solid #16a34a'
+            }}>
+              {mensaje.texto}
+            </div>
+          )
         )}
 
         {/* Avatar + identity */}
@@ -295,7 +303,7 @@ export default function PerfilPage() {
         </div>
 
         {/* Stats */}
-        <div className="card" style={{ padding: '16px 20px', marginBottom: 28, display: 'flex', gap: 0 }}>
+        <Card padding="16px 20px" style={{ marginBottom: 28, display: 'flex', gap: 0 }}>
           <div style={{ flex: 1, textAlign: 'center', borderRight: '1px solid var(--border)' }}>
             <div className="display" style={{ fontSize: 28, color: 'var(--green)' }}>{totalMatches}</div>
             <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>PARTIDOS</div>
@@ -304,13 +312,11 @@ export default function PerfilPage() {
             <div className="display" style={{ fontSize: 28, color: 'var(--amber)' }}>{badges.length}</div>
             <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>RECONOCIMIENTOS</div>
           </div>
-        </div>
+        </Card>
 
         {/* FIFA Card */}
         <div style={{ marginBottom: 28 }}>
-          <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 12 }}>
-            MI CARTA FIFA
-          </div>
+          <SectionHeader title="MI CARTA FIFA" />
           {carta?.aprobado ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
               <FifaCard size="md" s={{
@@ -331,13 +337,13 @@ export default function PerfilPage() {
               </Link>
             </div>
           ) : carta && !carta.aprobado && !carta.rechazado ? (
-            <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
+            <Card padding="20px" style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 28, marginBottom: 8 }}>⏳</div>
               <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Carta en revisión</div>
               <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>OVR estimado: <strong style={{ color: 'var(--amber)' }}>{carta.ovr as number}</strong></div>
-            </div>
+            </Card>
           ) : (
-            <div className="card" style={{ padding: '20px', textAlign: 'center' }}>
+            <Card padding="20px" style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 28, marginBottom: 8 }}>🃏</div>
               <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
                 {carta?.rechazado ? 'Carta rechazada — puedes volver a enviar' : 'Aún no tienes carta FIFA'}
@@ -345,7 +351,7 @@ export default function PerfilPage() {
               <Link href="/mi-carta" className="btn btn-ghost" style={{ fontSize: 12, padding: '8px 20px' }}>
                 {carta?.rechazado ? 'Volver a evaluar →' : 'Crear mi carta →'}
               </Link>
-            </div>
+            </Card>
           )}
         </div>
 

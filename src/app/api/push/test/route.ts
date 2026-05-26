@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPush } from '@/lib/push'
 import { logActivity } from '@/lib/activityLog'
+import { getClubNombre } from '@/lib/club'
 
 export async function POST(req: NextRequest) {
   const admin = createAdminClient()
@@ -18,7 +19,8 @@ export async function POST(req: NextRequest) {
   let parsed: Record<string, unknown>
   try { parsed = await req.json() } catch { return NextResponse.json({ error: 'JSON inválido' }, { status: 400 }) }
 
-  const title = typeof parsed.title === 'string' ? parsed.title.slice(0, 256) : 'MBA FC'
+  const clubNombre = getClubNombre(req)
+  const title = typeof parsed.title === 'string' ? parsed.title.slice(0, 256) : clubNombre
   const body = typeof parsed.body === 'string' ? parsed.body.slice(0, 512) : 'Notificación de prueba ⚽'
   const player_id = typeof parsed.player_id === 'string' ? parsed.player_id : undefined
   const group = typeof parsed.group === 'string' ? parsed.group : undefined
@@ -58,7 +60,7 @@ export async function POST(req: NextRequest) {
 
   for (const sub of subs) {
     try {
-      await sendPush(sub, { title: title || 'MBA FC', body: body || 'Notificación de prueba ⚽', url: '/' })
+      await sendPush(sub, { title: title || clubNombre, body: body || 'Notificación de prueba ⚽', url: '/' })
       enviados++
     } catch (err: unknown) {
       const status = (err as { statusCode?: number }).statusCode

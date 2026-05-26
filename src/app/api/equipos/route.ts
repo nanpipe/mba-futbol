@@ -80,6 +80,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
+  const clubId = getClubId(req)
 
   const adminUser = await getAdminUser(supabase)
   if (!adminUser) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
@@ -327,10 +328,10 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
     await admin.from('equipos').delete().eq('partido_id', partido_id as string)
 
     // Create teams — always set default colors so colorLabel() never falls through to null
-    const { data: tA } = await admin.from('equipos').insert({ partido_id, nombre: 'A', color: 'blanco' }).select().single()
-    const { data: tB } = await admin.from('equipos').insert({ partido_id, nombre: 'B', color: 'negro' }).select().single()
+    const { data: tA } = await admin.from('equipos').insert({ club_id: clubId, partido_id, nombre: 'A', color: 'blanco' }).select().single()
+    const { data: tB } = await admin.from('equipos').insert({ club_id: clubId, partido_id, nombre: 'B', color: 'negro' }).select().single()
     const tC = esMinitorneo
-      ? (await admin.from('equipos').insert({ partido_id, nombre: 'C', color: 'morado' }).select().single()).data
+      ? (await admin.from('equipos').insert({ club_id: clubId, partido_id, nombre: 'C', color: 'morado' }).select().single()).data
       : null
 
     if (!tA || !tB || (esMinitorneo && !tC)) return NextResponse.json({ error: 'Error creando equipos' }, { status: 500 })

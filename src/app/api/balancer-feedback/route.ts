@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isUUID } from '@/lib/validation'
+import { getClubId } from '@/lib/club'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,9 +15,10 @@ async function getAdminUser(supabase: Awaited<ReturnType<typeof createClient>>) 
 }
 
 // GET /api/balancer-feedback — fetch all feedback (admin only)
-export async function GET() {
+export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
+  const clubId = getClubId(req)
 
   const adminUser = await getAdminUser(supabase)
   if (!adminUser) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
@@ -24,6 +26,7 @@ export async function GET() {
   const { data } = await admin
     .from('balancer_feedback')
     .select('id, feedback, created_at')
+    .eq('club_id', clubId)
     .order('created_at', { ascending: false })
     .limit(50)
 
@@ -34,6 +37,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
+  const clubId = getClubId(req)
 
   const adminUser = await getAdminUser(supabase)
   if (!adminUser) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
@@ -45,6 +49,7 @@ export async function POST(req: NextRequest) {
   if (body.feedback.trim().length > 1000) return NextResponse.json({ error: 'Feedback muy largo (máx 1000 chars)' }, { status: 400 })
 
   await admin.from('balancer_feedback').insert({
+    club_id: clubId,
     feedback: body.feedback.trim(),
     admin_id: adminUser.id,
   })

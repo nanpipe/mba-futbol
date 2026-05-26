@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { isUUID } from '@/lib/validation'
 import { balancearEquipos, type JugadorEquipo } from '@/lib/teamBalancer'
 import { logActivity } from '@/lib/activityLog'
+import { getClubId } from '@/lib/club'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +20,7 @@ async function getAdminUser(supabase: Awaited<ReturnType<typeof createClient>>) 
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
+  const clubId = getClubId(req)
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
@@ -29,6 +31,7 @@ export async function GET(req: NextRequest) {
   const { data: equipos } = await admin
     .from('equipos')
     .select('id, nombre, confirmado, color, portero_fijo, portero_fijo_id, rotacion_banca, rotacion_portero')
+    .eq('club_id', clubId)
     .eq('partido_id', partido_id)
 
   if (!equipos || equipos.length === 0) return NextResponse.json({ ok: true, equipos: null })

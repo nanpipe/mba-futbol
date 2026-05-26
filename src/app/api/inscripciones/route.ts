@@ -5,6 +5,7 @@ import { calcularVentanaPartido } from '@/lib/partidos'
 import { safeError, isUUID } from '@/lib/validation'
 import { internalFetch } from '@/lib/internalFetch'
 import { logActivity } from '@/lib/activityLog'
+import { getClubId } from '@/lib/club'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +15,7 @@ type InscripcionConUniform = { id: string; player_id: string; profiles: { unifor
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
+  const clubId = getClubId(req)
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
@@ -47,6 +49,7 @@ export async function POST(req: NextRequest) {
   const { data: partido } = await admin
     .from('partidos')
     .select('id, cupos_total, fecha, hora, hora_apertura, dias_antes_apertura')
+    .eq('club_id', clubId)
     .eq('id', partido_id)
     .single()
 
@@ -75,7 +78,7 @@ export async function POST(req: NextRequest) {
   const [{ count: totalJugadores }, { count: totalInvitados }, { data: uniformSetting }] = await Promise.all([
     admin.from('inscripciones').select('id', { count: 'exact', head: true }).eq('partido_id', partido_id).eq('estado', 'confirmado'),
     admin.from('invitados').select('id', { count: 'exact', head: true }).eq('partido_id', partido_id).eq('estado', 'confirmado'),
-    admin.from('app_settings').select('value').eq('key', 'usar_uniforme').maybeSingle(),
+    admin.from('app_settings').select('value').eq('club_id', clubId).eq('key', 'usar_uniforme').maybeSingle(),
   ])
 
   const totalConfirmados = (totalJugadores ?? 0) + (totalInvitados ?? 0)
@@ -115,7 +118,7 @@ export async function POST(req: NextRequest) {
     // No uniform → always espera
   } else if (tieneUniforme && spotsLibres) {
     // Uniform + spots free → confirmed
-    const { error } = await admin.from('inscripciones').insert({ partido_id, player_id: user.id, estado: 'confirmado' })
+    const { error } = await admin.from('inscripciones').insert({ club_id: clubId, partido_id, player_id: user.id, estado: 'confirmado' })
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
     await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'confirmado' } })
     await pushAdmins('✅ Nueva inscripción', `${profile.username} se inscribió (confirmado) — ${dia}`)
@@ -134,7 +137,7 @@ export async function POST(req: NextRequest) {
     if (toBump) {
       await admin.rpc('incrementar_posiciones_espera', { p_partido_id: partido_id })
       await admin.from('inscripciones').update({ estado: 'espera', posicion_espera: 1 }).eq('id', toBump.id)
-      const { error } = await admin.from('inscripciones').insert({ partido_id, player_id: user.id, estado: 'confirmado' })
+      const { error } = await admin.from('inscripciones').insert({ club_id: clubId, partido_id, player_id: user.id, estado: 'confirmado' })
       if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
       await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'confirmado_prioridad' } })
       await logActivity({ user_id: toBump.player_id, accion: 'bumped_espera', detalles: { partido_id, fecha: partido.fecha, bumped_by: profile.username } })
@@ -147,7 +150,7 @@ export async function POST(req: NextRequest) {
   // Fall-through: go to waiting list
   const { data: posicion } = await admin.rpc('siguiente_posicion_espera', { p_partido_id: partido_id })
   const { error } = await admin.from('inscripciones').insert({
-    partido_id, player_id: user.id, estado: 'espera', posicion_espera: posicion
+    club_id: clubId, partido_id, player_id: user.id, estado: 'espera', posicion_espera: posicion
   })
   if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
   await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'espera', posicion_espera: posicion } })
@@ -159,6 +162,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
+  const clubId = getClubId(req)
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })

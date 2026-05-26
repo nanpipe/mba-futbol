@@ -5,6 +5,7 @@ import { calcularVentanaPartido } from '@/lib/partidos'
 import { isUUID, isString, safeError } from '@/lib/validation'
 import { sendPush } from '@/lib/push'
 import { logActivity } from '@/lib/activityLog'
+import { getClubId } from '@/lib/club'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,13 +15,14 @@ const MAX_INVITADOS = 3
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
+  const clubId = getClubId(req)
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
   // Check club setting: invitados enabled?
   const { data: invSetting } = await admin
-    .from('app_settings').select('value').eq('key', 'usar_invitados').maybeSingle()
+    .from('app_settings').select('value').eq('club_id', clubId).eq('key', 'usar_invitados').maybeSingle()
   if (invSetting !== null && (invSetting as { value: unknown })?.value === false) {
     return NextResponse.json({ error: 'El sistema de invitados está desactivado.' }, { status: 403 })
   }
@@ -40,6 +42,7 @@ export async function POST(req: NextRequest) {
   const { data: partido } = await admin
     .from('partidos')
     .select('id, fecha, hora, hora_apertura, dias_antes_apertura')
+    .eq('club_id', clubId)
     .eq('id', partido_id)
     .single()
 

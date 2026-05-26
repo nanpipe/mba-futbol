@@ -5,6 +5,7 @@ import { safeError, isUUID, isString, isEmail, isDate, isIntInRange } from '@/li
 import { internalFetch } from '@/lib/internalFetch'
 import { logActivity } from '@/lib/activityLog'
 import { sendTestEmail } from '@/lib/email'
+import { getClubId } from '@/lib/club'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,12 +43,14 @@ export async function GET(req: NextRequest) {
   const adminUser = await verificarAdmin(supabase)
   if (!adminUser) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
+  const clubId = getClubId(req)
   const accion = req.nextUrl.searchParams.get('accion')
 
   if (accion === 'logs') {
     const { data } = await admin
       .from('activity_log')
       .select('*')
+      .eq('club_id', clubId)
       .order('created_at', { ascending: false })
       .limit(300)
     return NextResponse.json({ ok: true, logs: data ?? [] })
@@ -57,6 +60,7 @@ export async function GET(req: NextRequest) {
     const { data } = await admin
       .from('profiles')
       .select('id, username, email, created_at, ip_registro')
+      .eq('club_id', clubId)
       .eq('aprobado', false)
       .neq('role', 'admin')
       .order('created_at', { ascending: false })
@@ -67,6 +71,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await admin
       .from('evaluaciones_carta')
       .select('*, profiles!evaluaciones_carta_player_id_fkey(username, avatar_url)')
+      .eq('club_id', clubId)
       .order('created_at', { ascending: false })
     if (error) return NextResponse.json({ error: error.message, detail: error.details, hint: error.hint }, { status: 500 })
     return NextResponse.json({ ok: true, cartas: data ?? [], count: data?.length ?? 0 })
@@ -82,7 +87,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (accion === 'settings') {
-    const { data } = await admin.from('app_settings').select('key, value, updated_at')
+    const { data } = await admin.from('app_settings').select('key, value, updated_at').eq('club_id', clubId)
     const settings: Record<string, unknown> = {}
     for (const row of (data ?? [])) {
       settings[(row as { key: string; value: unknown }).key] = (row as { key: string; value: unknown }).value
@@ -101,6 +106,7 @@ export async function POST(req: NextRequest) {
   const adminUser = await verificarAdmin(supabase)
   if (!adminUser) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
+  const clubId = getClubId(req)
   let body: Record<string, unknown>
   try {
     body = await req.json()
@@ -120,8 +126,8 @@ export async function POST(req: NextRequest) {
     const { player_id } = body
     if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
 
-    const { data: info } = await admin.from('profiles').select('username').eq('id', player_id as string).single()
-    const { error } = await admin.from('profiles').update({ aprobado: true }).eq('id', player_id as string)
+    const { data: info } = await admin.from('profiles').select('username').eq('club_id', clubId).eq('id', player_id as string).single()
+    const { error } = await admin.from('profiles').update({ aprobado: true }).eq('club_id', clubId).eq('id', player_id as string)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
 
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'aprobar_jugador', detalles: { player_id, username: (info as { username?: string })?.username }, ip })
@@ -133,7 +139,7 @@ export async function POST(req: NextRequest) {
     const { player_id } = body
     if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
 
-    const { data: info } = await admin.from('profiles').select('username, role').eq('id', player_id as string).single()
+    const { data: info } = await admin.from('profiles').select('username, role').eq('club_id', clubId).eq('id', player_id as string).single()
     if (isPrivileged((info as { role?: string })?.role)) return ERR_PRIVILEGED
     const { error } = await admin.auth.admin.deleteUser(player_id as string)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
@@ -147,7 +153,7 @@ export async function POST(req: NextRequest) {
     const { player_id } = body
     if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
 
-    const { data: info } = await admin.from('profiles').select('username, email, role').eq('id', player_id as string).single()
+    const { data: info } = await admin.from('profiles').select('username, email, role').eq('club_id', clubId).eq('id', player_id as string).single()
     const infoTyped = info as { username?: string; email?: string; role?: string } | null
     if (isPrivileged(infoTyped?.role)) return ERR_PRIVILEGED
 
@@ -184,7 +190,7 @@ export async function POST(req: NextRequest) {
     const razonSafe = isString(razon, 0, 300) ? (razon as string).trim() : 'Multa pendiente'
     const fechaSafe = isDate(fecha_liberacion) ? (fecha_liberacion as string) : null
 
-    const { data: info } = await admin.from('profiles').select('username, role').eq('id', player_id as string).single()
+    const { data: info } = await admin.from('profiles').select('username, role').eq('club_id', clubId).eq('id', player_id as string).single()
     if (isPrivileged((info as { role?: string })?.role)) return ERR_PRIVILEGED
     const { error } = await admin
       .from('profiles')
@@ -224,11 +230,11 @@ export async function POST(req: NextRequest) {
     const { player_id } = body
     if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
 
-    const { data: info } = await admin.from('profiles').select('username').eq('id', player_id as string).single()
+    const { data: info } = await admin.from('profiles').select('username').eq('club_id', clubId).eq('id', player_id as string).single()
     const { error } = await admin
       .from('profiles')
       .update({ baneado: false, fecha_ban: null, fecha_liberacion: null, razon_ban: null })
-      .eq('id', player_id)
+      .eq('club_id', clubId).eq('id', player_id)
 
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'liberar_ban', detalles: { player_id, username: (info as { username?: string })?.username }, ip })
@@ -365,6 +371,7 @@ export async function POST(req: NextRequest) {
     ])
     if (promotedProfile && promotedPartido) {
       await admin.from('notificaciones_pendientes').insert({
+        club_id: clubId,
         player_id: (ins as { player_id: string }).player_id,
         email: (promotedProfile as { email: string }).email,
         username: (promotedProfile as { username: string }).username,
@@ -410,7 +417,7 @@ export async function POST(req: NextRequest) {
       .eq('partido_id', partido_id as string).eq('player_id', player_id as string).maybeSingle()
     if (existing) return NextResponse.json({ error: 'El jugador ya está inscrito en este partido' }, { status: 409 })
 
-    const { data: targetProfile } = await admin.from('profiles').select('username, aprobado').eq('id', player_id as string).single()
+    const { data: targetProfile } = await admin.from('profiles').select('username, aprobado').eq('club_id', clubId).eq('id', player_id as string).single()
     if (!targetProfile?.aprobado) return NextResponse.json({ error: 'El jugador no está aprobado' }, { status: 400 })
 
     let posicion_espera: number | null = null
@@ -429,6 +436,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { error } = await admin.from('inscripciones').insert({
+      club_id: clubId,
       partido_id,
       player_id,
       estado,
@@ -464,6 +472,7 @@ export async function POST(req: NextRequest) {
     const { error } = await admin
       .from('partidos')
       .insert({
+        club_id: clubId,
         fecha: fecha as string,
         dia_semana,
         hora: isString(hora, 4, 8) ? (hora as string) : '19:00:00',
@@ -531,10 +540,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 })
     }
 
-    const { data: targetProf } = await admin.from('profiles').select('role').eq('id', player_id as string).single()
+    const { data: targetProf } = await admin.from('profiles').select('role').eq('club_id', clubId).eq('id', player_id as string).single()
     if (isPrivileged((targetProf as { role?: string })?.role)) return ERR_PRIVILEGED
 
-    const { error } = await admin.from('profiles').update(updates).eq('id', player_id as string)
+    const { error } = await admin.from('profiles').update(updates).eq('club_id', clubId).eq('id', player_id as string)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'editar_jugador', detalles: { player_id, ...updates }, ip })
     return NextResponse.json({ ok: true, mensaje: 'Jugador actualizado.' })
@@ -548,7 +557,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Contraseña debe tener entre 6 y 128 caracteres' }, { status: 400 })
     }
 
-    const { data: targetProf } = await admin.from('profiles').select('role').eq('id', player_id as string).single()
+    const { data: targetProf } = await admin.from('profiles').select('role').eq('club_id', clubId).eq('id', player_id as string).single()
     if (isPrivileged((targetProf as { role?: string })?.role)) return ERR_PRIVILEGED
 
     const { error } = await admin.auth.admin.updateUserById(player_id as string, { password: (password as string) })
@@ -562,11 +571,11 @@ export async function POST(req: NextRequest) {
     const { player_id } = body
     if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
 
-    const { data: current } = await admin.from('profiles').select('uniform, username, role').eq('id', player_id as string).single()
+    const { data: current } = await admin.from('profiles').select('uniform, username, role').eq('club_id', clubId).eq('id', player_id as string).single()
     if (isPrivileged((current as { role?: string })?.role)) return ERR_PRIVILEGED
     const nuevoValor = !((current as { uniform?: boolean })?.uniform ?? false)
 
-    const { error } = await admin.from('profiles').update({ uniform: nuevoValor }).eq('id', player_id as string)
+    const { error } = await admin.from('profiles').update({ uniform: nuevoValor }).eq('club_id', clubId).eq('id', player_id as string)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'toggle_uniform', detalles: { player_id, username: (current as { username?: string })?.username, uniform: nuevoValor }, ip })
     return NextResponse.json({ ok: true, uniform: nuevoValor, mensaje: nuevoValor ? 'Uniforme activado.' : 'Uniforme desactivado.' })
@@ -580,7 +589,7 @@ export async function POST(req: NextRequest) {
     if (typeof posicion !== 'string' || !POSICIONES.includes(posicion)) {
       return NextResponse.json({ error: 'Posición inválida' }, { status: 400 })
     }
-    const { error } = await admin.from('profiles').update({ posicion }).eq('id', player_id as string)
+    const { error } = await admin.from('profiles').update({ posicion }).eq('club_id', clubId).eq('id', player_id as string)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'actualizar_posicion', detalles: { player_id, posicion }, ip })
     return NextResponse.json({ ok: true, mensaje: `Posición actualizada a ${posicion}.` })
@@ -643,6 +652,7 @@ export async function POST(req: NextRequest) {
     const { partido_id } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
     const { data: partido } = await admin.from('partidos').select('dia_semana').eq('id', partido_id as string).single()
+    // TODO: scope to club players
     const { data: subs } = await admin.from('push_subscriptions').select('endpoint, p256dh, auth')
     const { sendPush } = await import('@/lib/push')
     let enviados = 0
@@ -722,11 +732,12 @@ export async function POST(req: NextRequest) {
       ? value
       : value === true || value === 'true'
     const { error } = await admin.from('app_settings').upsert({
+      club_id: clubId,
       key,
       value: storedValue,
       updated_at: new Date().toISOString(),
       updated_by: adminUser.id,
-    }, { onConflict: 'key' })
+    }, { onConflict: 'club_id,key' })
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'guardar_setting', detalles: { key, value }, ip })
     return NextResponse.json({ ok: true, mensaje: `${key} → ${value}` })

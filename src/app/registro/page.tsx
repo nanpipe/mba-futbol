@@ -16,6 +16,21 @@ export default function RegistroPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [exito, setExito] = useState(false)
+  const [clubId, setClubId] = useState<string | null>(null)
+  const [clubNombre, setClubNombre] = useState('MBA FC')
+
+  // Fetch club context from middleware-resolved header
+  useState(() => {
+    fetch('/api/club')
+      .then(r => r.json())
+      .then(d => {
+        if (d.club) {
+          setClubId(d.club.id)
+          setClubNombre(d.club.nombre)
+        }
+      })
+      .catch(() => {})
+  })
 
   const handleRegistro = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -76,6 +91,7 @@ export default function RegistroPage() {
         data: {
           username: usernameClean,
           ip_registro: ip,
+          club_id: clubId,  // picked up by handle_new_user() trigger
         }
       }
     })
@@ -124,7 +140,7 @@ export default function RegistroPage() {
       <div style={{ padding: '40px 0' }}>
         <div style={{ marginBottom: 48, textAlign: 'center' }}>
           <div className="display" style={{ fontSize: 48, letterSpacing: '0.05em', lineHeight: 1 }}>
-            MBA <span style={{ color: 'var(--green)' }}>FC</span>
+            {clubNombre}
           </div>
           <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.15em', marginTop: 8 }}>
             CREAR CUENTA

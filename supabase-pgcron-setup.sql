@@ -36,7 +36,7 @@ SELECT cron.schedule(
   'mbafc-pre-apertura',
   '* * * * *',
   $job$
-    SELECT extensions.http_get(
+    SELECT net.http_get(
       url := 'https://mba-futbol.vercel.app/api/cron/pre-apertura',
       headers := '{"Authorization":"Bearer YOUR_CRON_SECRET"}'::jsonb
     )
@@ -50,7 +50,7 @@ SELECT cron.schedule(
   'mbafc-notificaciones',
   '0 15 * * *',
   $job$
-    SELECT extensions.http_get(
+    SELECT net.http_get(
       url := 'https://mba-futbol.vercel.app/api/cron/notificaciones',
       headers := '{"Authorization":"Bearer YOUR_CRON_SECRET"}'::jsonb
     );

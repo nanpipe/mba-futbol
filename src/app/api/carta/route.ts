@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logActivity } from '@/lib/activityLog'
 import { calcTier } from '@/lib/tier'
+import { getClubId } from '@/lib/club'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,10 +27,12 @@ export async function GET(req: NextRequest) {
 
   const targetId = req.nextUrl.searchParams.get('player_id') ?? user.id
   const admin = createAdminClient()
+  const clubId = getClubId(req)
 
   const { data: carta } = await admin
     .from('evaluaciones_carta')
     .select('*')
+    .eq('club_id', clubId)
     .eq('player_id', targetId)
     .single()
 
@@ -50,6 +53,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
   const admin = createAdminClient()
+  const clubId = getClubId(req)
 
   // Verify player is approved
   const { data: playerProf } = await supabase.from('profiles').select('aprobado').eq('id', user.id).single()
@@ -93,6 +97,7 @@ export async function POST(req: NextRequest) {
   const tier = calcTier(ovr)
 
   const row = {
+    club_id: clubId,
     player_id: user.id,
     answers: answersObj,
     ...statValues,
@@ -129,7 +134,8 @@ export async function PUT(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
   const admin = createAdminClient()
-  const { data: prof } = await admin.from('profiles').select('role, username').eq('id', user.id).single()
+  const clubId = getClubId(req)
+  const { data: prof } = await admin.from('profiles').select('role, username').eq('club_id', clubId).eq('id', user.id).single()
   if ((prof as { role?: string })?.role !== 'admin' && (prof as { role?: string })?.role !== 'superadmin') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }

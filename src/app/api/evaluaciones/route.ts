@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { isUUID } from '@/lib/validation'
 import { logActivity } from '@/lib/activityLog'
 import { CATEGORIAS } from '@/lib/categorias'
+import { getClubId } from '@/lib/club'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,6 +54,7 @@ export async function tallyAndAssign(
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
+  const clubId = getClubId(req)
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
@@ -63,6 +65,7 @@ export async function GET(req: NextRequest) {
   const { data: partido } = await admin
     .from('partidos')
     .select('evaluaciones_abiertas, fecha, dia_semana')
+    .eq('club_id', clubId)
     .eq('id', partido_id)
     .single()
 
@@ -166,6 +169,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
+  const clubId = getClubId(req)
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
@@ -179,6 +183,7 @@ export async function POST(req: NextRequest) {
   const { data: partido } = await admin
     .from('partidos')
     .select('evaluaciones_abiertas')
+    .eq('club_id', clubId)
     .eq('id', partido_id)
     .single()
 
@@ -225,7 +230,7 @@ export async function POST(req: NextRequest) {
     if (!validTargets.has(votado_id as string)) continue
     if (seen.has(categoria)) continue
     seen.add(categoria)
-    rows.push({ partido_id, votante_id: user.id, votado_id, categoria })
+    rows.push({ club_id: clubId, partido_id, votante_id: user.id, votado_id, categoria })
   }
 
   if (rows.length === 0) return NextResponse.json({ error: 'No hay votos válidos.' }, { status: 400 })

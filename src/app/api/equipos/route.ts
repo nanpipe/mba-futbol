@@ -110,10 +110,12 @@ export async function POST(req: NextRequest) {
         .eq('estado', 'confirmado'),
       admin
         .from('player_knowledge')
-        .select('username, skill_override, roles, traits, notes'),
+        .select('username, skill_override, roles, traits, notes')
+        .eq('club_id', clubId),
       admin
         .from('balancer_feedback')
         .select('feedback, created_at')
+        .eq('club_id', clubId)
         .order('created_at', { ascending: true }),
     ])
 
@@ -338,7 +340,7 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
 
     // Insert regular players (profiles FK)
     const makeRows = (list: { id: string }[], equipo_id: string) =>
-      list.filter(p => !invSet.has(p.id)).map(p => ({ equipo_id, player_id: p.id }))
+      list.filter(p => !invSet.has(p.id)).map(p => ({ club_id: clubId, equipo_id, player_id: p.id }))
 
     const rowsA = makeRows(equipoA ?? [], tA.id)
     const rowsB = makeRows(equipoB ?? [], tB.id)

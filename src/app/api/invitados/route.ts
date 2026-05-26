@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
   const { error } = await admin
     .from('invitados')
     .insert({
+      club_id: clubId,
       partido_id,
       player_id: user.id,
       nombre: (nombre as string).trim(),

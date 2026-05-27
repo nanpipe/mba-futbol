@@ -15,6 +15,16 @@ export async function tallyAndAssign(
   admin: ReturnType<typeof createAdminClient>,
   partido_id: string
 ): Promise<{ badges_asignados: number }> {
+  // Fetch club_id from partidos (required for player_badges NOT NULL constraint)
+  const { data: partidoInfo } = await admin
+    .from('partidos')
+    .select('club_id')
+    .eq('id', partido_id)
+    .single()
+
+  if (!partidoInfo?.club_id) return { badges_asignados: 0 }
+  const club_id = partidoInfo.club_id
+
   const { data: votos } = await admin
     .from('votos_reconocimiento')
     .select('votado_id, categoria')
@@ -38,6 +48,7 @@ export async function tallyAndAssign(
     )
     if (!winnerId) continue
     await admin.from('player_badges').upsert({
+      club_id,
       player_id: winnerId,
       badge_id: cat.id,
       badge_emoji: cat.emoji,

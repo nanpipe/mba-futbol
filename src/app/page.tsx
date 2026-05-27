@@ -169,7 +169,7 @@ export default function HomePage() {
         .limit(1)
         .single()
       if (ultimo) {
-        const [{ data: ins }, { data: bdgs, error: bdgsError }] = await Promise.all([
+        const [{ data: ins }, { data: bdgs }] = await Promise.all([
           supabase
             .from('inscripciones')
             .select('id, player_id, estado, posicion_espera, profiles!player_id(username)')
@@ -180,10 +180,6 @@ export default function HomePage() {
             .select('badge_id, badge_emoji, badge_nombre, profiles!player_badges_player_id_fkey(username)')
             .eq('partido_id', ultimo.id),
         ])
-        console.log('[cargarUltimo] partido:', ultimo.id, 'fecha:', ultimo.fecha, 'evaluaciones_abiertas:', ultimo.evaluaciones_abiertas)
-        console.log('[cargarUltimo] badges query error:', bdgsError)
-        console.log('[cargarUltimo] badges raw:', bdgs)
-        console.log('[cargarUltimo] badges count:', bdgs?.length ?? 0)
         setUltimoPartido({
           partido: ultimo,
           inscripciones: (ins as unknown as Inscripcion[]) ?? [],

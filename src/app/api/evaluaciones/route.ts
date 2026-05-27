@@ -47,7 +47,7 @@ export async function tallyAndAssign(
       ['', 0]
     )
     if (!winnerId) continue
-    await admin.from('player_badges').upsert({
+    const { error: upsertErr } = await admin.from('player_badges').upsert({
       club_id,
       player_id: winnerId,
       badge_id: cat.id,
@@ -55,7 +55,11 @@ export async function tallyAndAssign(
       badge_nombre: cat.nombre,
       partido_id,
     }, { onConflict: 'player_id,badge_id,partido_id' })
-    badges_asignados++
+    if (upsertErr) {
+      console.error('[tallyAndAssign] upsert error for cat', cat.id, ':', upsertErr.message, upsertErr.code)
+    } else {
+      badges_asignados++
+    }
   }
 
   return { badges_asignados }

@@ -4,7 +4,6 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { isUUID } from '@/lib/validation'
 import { logActivity } from '@/lib/activityLog'
 import { CATEGORIAS } from '@/lib/categorias'
-import { getClubId } from '@/lib/club'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,10 +68,13 @@ export async function tallyAndAssign(
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
-  const clubId = getClubId(req)
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+  const { data: profile } = await admin.from('profiles').select('club_id').eq('id', user.id).single()
+  if (!profile?.club_id) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
+  const clubId = profile.club_id
 
   const partido_id = req.nextUrl.searchParams.get('partido_id')
   if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
@@ -184,10 +186,13 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
-  const clubId = getClubId(req)
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+  const { data: profile } = await admin.from('profiles').select('club_id').eq('id', user.id).single()
+  if (!profile?.club_id) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
+  const clubId = profile.club_id
 
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON inválido' }, { status: 400 }) }

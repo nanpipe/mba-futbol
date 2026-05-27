@@ -2,26 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isUUID } from '@/lib/validation'
-import { getClubId } from '@/lib/club'
 
 export const dynamic = 'force-dynamic'
 
 async function getAdminUser(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
-  const { data: p } = await supabase.from('profiles').select('role, username').eq('id', user.id).single()
+  const { data: p } = await supabase.from('profiles').select('role, username, club_id').eq('id', user.id).single()
   if (p?.role !== 'admin' && p?.role !== 'superadmin') return null
-  return { ...user, username: (p as { username?: string })?.username ?? 'admin' }
+  return { ...user, username: (p as { username?: string })?.username ?? 'admin', club_id: (p as { club_id?: string })?.club_id }
 }
 
 // GET /api/balancer-feedback — fetch all feedback (admin only)
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
-  const clubId = getClubId(req)
 
   const adminUser = await getAdminUser(supabase)
   if (!adminUser) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  if (!adminUser.club_id) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
+  const clubId = adminUser.club_id
 
   const { data } = await admin
     .from('balancer_feedback')
@@ -37,10 +37,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
-  const clubId = getClubId(req)
 
   const adminUser = await getAdminUser(supabase)
   if (!adminUser) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  if (!adminUser.club_id) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
+  const clubId = adminUser.club_id
 
   let body: { feedback: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON inválido' }, { status: 400 }) }
@@ -65,10 +66,11 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
-  const clubId = getClubId(req)
 
   const adminUser = await getAdminUser(supabase)
   if (!adminUser) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  if (!adminUser.club_id) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
+  const clubId = adminUser.club_id
 
   let body: { id: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON inválido' }, { status: 400 }) }

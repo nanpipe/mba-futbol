@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubId } from '@/lib/club'
-
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
-  const clubId = getClubId(req)
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+  const { data: profile } = await admin.from('profiles').select('club_id').eq('id', user.id).single()
+  if (!profile?.club_id) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
+  const clubId = profile.club_id
 
   const sub = await req.json()
   if (!sub?.endpoint || !sub?.keys?.p256dh || !sub?.keys?.auth) {

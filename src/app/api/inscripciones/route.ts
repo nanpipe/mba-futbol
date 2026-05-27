@@ -5,7 +5,6 @@ import { calcularVentanaPartido } from '@/lib/partidos'
 import { safeError, isUUID } from '@/lib/validation'
 import { internalFetch } from '@/lib/internalFetch'
 import { logActivity } from '@/lib/activityLog'
-import { getClubId } from '@/lib/club'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,16 +14,18 @@ type InscripcionConUniform = { id: string; player_id: string; profiles: { unifor
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
-  const clubId = getClubId(req)
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('baneado, fecha_liberacion, username, uniform, aprobado')
+    .select('baneado, fecha_liberacion, username, uniform, aprobado, club_id')
     .eq('id', user.id)
     .single()
+
+  if (!profile?.club_id) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
+  const clubId = profile.club_id
 
   if (!profile?.aprobado) {
     return NextResponse.json({ error: 'Tu cuenta aún no ha sido aprobada por el administrador.' }, { status: 403 })
@@ -167,10 +168,13 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
-  const clubId = getClubId(req)
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+  const { data: profileForClub } = await admin.from('profiles').select('club_id').eq('id', user.id).single()
+  if (!profileForClub?.club_id) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
+  const clubId = profileForClub.club_id
 
   let body: { partido_id?: unknown }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Cuerpo inválido' }, { status: 400 }) }

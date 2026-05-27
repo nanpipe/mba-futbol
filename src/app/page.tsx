@@ -549,7 +549,7 @@ export default function HomePage() {
               )}
             </div>
 
-            {ultimoPartido && ultimoPartido.inscripciones.length > 0 && (
+            {ultimoPartido && !ultimoPartido.partido.evaluaciones_abiertas && (ultimoPartido.badges.length > 0 || ultimoPartido.partido.foto_url) && (
               <div style={{ marginTop: 40 }} className="fade-in">
                 <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 4 }}>
                   ÚLTIMO PARTIDO — {ultimoPartido.partido.dia_semana.toUpperCase()}
@@ -559,7 +559,7 @@ export default function HomePage() {
                 </div>
 
                 {/* Eval closed: show photo + winner + badge results */}
-                {!ultimoPartido.partido.evaluaciones_abiertas && (ultimoPartido.badges.length > 0 || ultimoPartido.partido.foto_url) ? (
+                {!ultimoPartido.partido.evaluaciones_abiertas && (ultimoPartido.badges.length > 0 || ultimoPartido.partido.foto_url) && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {/* Match photo */}
                     {ultimoPartido.partido.foto_url && (
@@ -628,23 +628,6 @@ export default function HomePage() {
                         </div>
                       ))}
                     </div>
-                  </div>
-                ) : (
-                  /* Eval open or no badges: show player list */
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {ultimoPartido.inscripciones.map((ins, idx) => (
-                      <div key={ins.id} style={{
-                        display: 'flex', alignItems: 'center', gap: 12,
-                        padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 3,
-                        border: ins.player_id === user?.id ? '1px solid #16a34a' : '1px solid transparent'
-                      }}>
-                        <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', width: 20 }}>{idx + 1}</span>
-                        <span style={{ fontSize: 15, flex: 1 }}>{ins.profiles.username}</span>
-                        {ins.player_id === user?.id && (
-                          <span className="mono" style={{ fontSize: 10, color: 'var(--green)', letterSpacing: '0.1em' }}>TÚ</span>
-                        )}
-                      </div>
-                    ))}
                   </div>
                 )}
               </div>

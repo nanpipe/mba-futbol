@@ -85,6 +85,8 @@ interface VentanaInfo {
   partido: Partido | null
   abreEn: string | null
   msHastaAbre: number
+  proximoPartido?: { dia_semana: string; fecha: string } | null
+  abreEnDate?: string | null  // ISO string of when inscriptions open
 }
 
 export default function HomePage() {
@@ -219,7 +221,14 @@ export default function HomePage() {
     if (!abierta) {
       abreEnRef.current = abreEn
       cargarUltimo() // fire-and-forget, updates state when done
-      setVentana({ abierta: false, partido: null, abreEn: null, msHastaAbre: abreEn.getTime() - now.getTime() })
+      setVentana({
+        abierta: false,
+        partido: null,
+        abreEn: null,
+        msHastaAbre: abreEn.getTime() - now.getTime(),
+        proximoPartido: { dia_semana: partido.dia_semana, fecha: partido.fecha },
+        abreEnDate: abreEn.toISOString(),
+      })
       setLoading(false)
       return
     }
@@ -538,10 +547,27 @@ export default function HomePage() {
               <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 16 }}>
                 INSCRIPCIONES CERRADAS
               </div>
-              <p style={{ color: 'var(--text-muted)', fontSize: 15, lineHeight: 1.6, marginBottom: 8 }}>
-                Las inscripciones abren los <strong style={{ color: 'var(--text)' }}>{club.settings?.hora_apertura_martes ?? 'domingos a las 10:00 am'}</strong> para el {club.settings?.dia_juego_1 ?? 'martes'}<br />
-                y los <strong style={{ color: 'var(--text)' }}>{club.settings?.hora_apertura_viernes ?? 'jueves a las 10:00 am'}</strong> para el {club.settings?.dia_juego_2 ?? 'viernes'}.
-              </p>
+              {ventana?.proximoPartido && ventana?.abreEnDate ? (() => {
+                const abre = new Date(ventana.abreEnDate)
+                const diaApertura = abre.toLocaleDateString('es-CO', { weekday: 'long' })
+                const fechaApertura = abre.toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })
+                const horaApertura = abre.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+                const diaPartido = ventana.proximoPartido.dia_semana
+                const fechaPartido = new Date(ventana.proximoPartido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })
+                return (
+                  <p style={{ color: 'var(--text-muted)', fontSize: 15, lineHeight: 1.6, marginBottom: 8 }}>
+                    Las inscripciones abren el{' '}
+                    <strong style={{ color: 'var(--text)' }}>{diaApertura} {fechaApertura} a las {horaApertura}</strong>
+                    {' '}para el partido del{' '}
+                    <strong style={{ color: 'var(--text)' }}>{diaPartido} {fechaPartido}</strong>.
+                  </p>
+                )
+              })() : (
+                <p style={{ color: 'var(--text-muted)', fontSize: 15, lineHeight: 1.6, marginBottom: 8 }}>
+                  Las inscripciones abren los <strong style={{ color: 'var(--text)' }}>{club.settings?.hora_apertura_martes ?? 'domingos a las 10:00 am'}</strong> para el {club.settings?.dia_juego_1 ?? 'martes'}<br />
+                  y los <strong style={{ color: 'var(--text)' }}>{club.settings?.hora_apertura_viernes ?? 'jueves a las 10:00 am'}</strong> para el {club.settings?.dia_juego_2 ?? 'viernes'}.
+                </p>
+              )}
               {countdown && (
                 <div className="display" style={{ fontSize: 36, color: 'var(--green)', marginTop: 24 }}>
                   {countdown}

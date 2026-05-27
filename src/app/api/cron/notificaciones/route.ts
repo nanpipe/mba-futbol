@@ -116,9 +116,17 @@ export async function GET(req: NextRequest) {
     .in('fecha', [ayerStr, dosDiasAtrasStr])
 
   for (const p of pasados ?? []) {
-    if (p.fecha === ayerStr && (p.equipos_confirmados as boolean) && !(p.evaluaciones_abiertas as boolean)) {
-      await admin.from('partidos').update({ evaluaciones_abiertas: true }).eq('id', p.id)
-      await logActivity({ accion: 'auto_abrir_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha } })
+    if (p.fecha === ayerStr && !(p.evaluaciones_abiertas as boolean)) {
+      // Auto-open if at least 4 confirmed players (real match happened)
+      const { count: insCount } = await admin
+        .from('inscripciones')
+        .select('id', { count: 'exact', head: true })
+        .eq('partido_id', p.id)
+        .eq('estado', 'confirmado')
+      if ((insCount ?? 0) >= 4) {
+        await admin.from('partidos').update({ evaluaciones_abiertas: true }).eq('id', p.id)
+        await logActivity({ accion: 'auto_abrir_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha, confirmados: insCount } })
+      }
     }
     if (p.fecha === dosDiasAtrasStr && (p.evaluaciones_abiertas as boolean)) {
       await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', p.id)

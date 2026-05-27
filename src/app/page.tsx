@@ -559,7 +559,7 @@ export default function HomePage() {
                 </div>
 
                 {/* Eval closed: show photo + winner + badge results */}
-                {!ultimoPartido.partido.evaluaciones_abiertas && ultimoPartido.badges.length > 0 ? (
+                {!ultimoPartido.partido.evaluaciones_abiertas && (ultimoPartido.badges.length > 0 || ultimoPartido.partido.foto_url) ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {/* Match photo */}
                     {ultimoPartido.partido.foto_url && (

@@ -116,7 +116,7 @@ export function TabCartas({ active }: Props) {
                           </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: 8 }}>
                           {STATS.map(stat => {
                             const key = `stat_${stat}` as string
                             const original = carta[key] as number

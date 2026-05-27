@@ -116,7 +116,7 @@ export default function AdminPage() {
   return (
     <div style={{ minHeight: '100vh', paddingBottom: 80 }}>
       {/* Nav */}
-      <nav style={{ borderBottom: '1px solid var(--border)', padding: '16px 0' }}>
+      <nav style={{ borderBottom: '1px solid var(--border)', padding: '16px 0', position: 'sticky', top: 0, zIndex: 30, background: 'var(--bg)' }}>
         <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <Link href="/" className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', textDecoration: 'none' }}>← INICIO</Link>
@@ -219,7 +219,7 @@ export default function AdminPage() {
 
         {/* Main text tabs */}
         <div style={{ marginBottom: 40, borderBottom: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
+          <div className="hide-scrollbar" style={{ display: 'flex', overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
             {MAIN_TABS.map(({ id, label }) => (
               <button key={id} onClick={() => setTab(id)} className="mono" style={{
                 padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer',

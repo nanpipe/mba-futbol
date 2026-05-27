@@ -144,6 +144,9 @@ hr { border: none; border-top: 1px solid var(--border); }
 }
 .pulsing { animation: pulse 2s ease-in-out infinite; }
 
+/* Scrollbar hiding utility */
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+
 /* Admin: partidos grid — side-by-side on desktop, stacked on mobile */
 .admin-partidos-grid {
   display: grid;

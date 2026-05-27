@@ -380,7 +380,7 @@ export default function PerfilPage() {
 
         {/* Position */}
         <Section title="MI POSICIÓN">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, marginBottom: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(60px, 1fr))', gap: 6, marginBottom: 14 }}>
             {POSICIONES.map(p => (
               <button
                 key={p}

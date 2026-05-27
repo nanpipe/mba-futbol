@@ -195,9 +195,9 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 20, zIndex: 100, overflowY: 'auto',
+          padding: 20, zIndex: 200, overflowY: 'auto',
         }}>
-          <Card style={{ width: '100%', maxWidth: 420, margin: 'auto' }} padding={24}>
+          <Card style={{ width: '100%', maxWidth: 420, margin: 'auto', overflowY: 'auto', maxHeight: '80vh' }} padding={24}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
               <PlayerAvatar url={editModal.avatar_url} username={editModal.username} size={48} />
               <div>

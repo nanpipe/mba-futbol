@@ -333,13 +333,15 @@ export function TabHistorial({ active }: Props) {
 
                 {/* Badges */}
                 {badges.length > 0 && (
-                  <div style={{ paddingLeft: 20, paddingRight: 20, paddingBottom: isExpanded ? 0 : 12, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {badges.map((b, i) => (
-                      <div key={i} className="mono" style={{ fontSize: 11, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 2, padding: '3px 8px' }}>
-                        {b.badge_emoji} {b.badge_nombre}
-                        {b.profiles && <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>· {b.profiles.username}</span>}
-                      </div>
-                    ))}
+                  <div style={{ paddingLeft: 20, paddingRight: 20, paddingBottom: isExpanded ? 0 : 12, maxWidth: '100%', overflowX: 'auto' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {badges.map((b, i) => (
+                        <div key={i} className="mono" style={{ fontSize: 11, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 2, padding: '3px 8px', flexShrink: 0 }}>
+                          {b.badge_emoji} {b.badge_nombre}
+                          {b.profiles && <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>· {b.profiles.username}</span>}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -367,11 +369,11 @@ export function TabHistorial({ active }: Props) {
                               border: `1px solid ${ins.estado === 'espera' ? '#1a2a1a' : 'var(--border)'}`,
                               borderRadius: 3,
                             }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <span className={`badge ${ins.estado === 'confirmado' ? 'badge-green' : 'badge-amber'}`} style={{ fontSize: 10 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                                <span className={`badge ${ins.estado === 'confirmado' ? 'badge-green' : 'badge-amber'}`} style={{ fontSize: 10, flexShrink: 0 }}>
                                   {ins.estado === 'confirmado' ? '✓' : '⏳'}
                                 </span>
-                                <span style={{ fontSize: 14 }}>{ins.profiles.username}</span>
+                                <span style={{ fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ins.profiles.username}</span>
                               </div>
                               <button
                                 onClick={() => handleRemover(ins, p.id)}
@@ -466,7 +468,7 @@ export function TabHistorial({ active }: Props) {
                               <input
                                 type="number" min="0" max="99" value={val}
                                 onChange={e => set(e.target.value)}
-                                style={{ width: 72, padding: '8px 10px', textAlign: 'center', fontSize: 18, fontWeight: 700 }}
+                                style={{ width: '4rem', padding: '8px 10px', textAlign: 'center', fontSize: 18, fontWeight: 700 }}
                               />
                             </div>
                           ))}
@@ -486,7 +488,7 @@ export function TabHistorial({ active }: Props) {
                             <input
                               type="number" min="0" max="99" value={golesA}
                               onChange={e => setGolesA(e.target.value)}
-                              style={{ width: 72, padding: '8px 10px', textAlign: 'center', fontSize: 22, fontWeight: 700 }}
+                              style={{ width: '4rem', padding: '8px 10px', textAlign: 'center', fontSize: 22, fontWeight: 700 }}
                             />
                           </div>
                           <div className="mono" style={{ fontSize: 20, color: 'var(--text-dim)', paddingBottom: 8 }}>–</div>
@@ -495,7 +497,7 @@ export function TabHistorial({ active }: Props) {
                             <input
                               type="number" min="0" max="99" value={golesB}
                               onChange={e => setGolesB(e.target.value)}
-                              style={{ width: 72, padding: '8px 10px', textAlign: 'center', fontSize: 22, fontWeight: 700 }}
+                              style={{ width: '4rem', padding: '8px 10px', textAlign: 'center', fontSize: 22, fontWeight: 700 }}
                             />
                           </div>
                           <button

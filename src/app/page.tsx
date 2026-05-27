@@ -456,7 +456,7 @@ export default function HomePage() {
   return (
     <div style={{ minHeight: '100vh', paddingBottom: 80 }}>
       {/* Nav */}
-      <nav style={{ borderBottom: '1px solid var(--border)', padding: '16px 0' }}>
+      <nav style={{ borderBottom: '1px solid var(--border)', padding: '16px 0', position: 'sticky', top: 0, zIndex: 30, background: 'var(--bg)' }}>
         <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span className="display" style={{ fontSize: 20, letterSpacing: '0.1em' }}>{club.nombre}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -569,7 +569,7 @@ export default function HomePage() {
                 </p>
               )}
               {countdown && (
-                <div className="display" style={{ fontSize: 36, color: 'var(--green)', marginTop: 24 }}>
+                <div className="display" style={{ fontSize: 36, color: 'var(--green)', marginTop: 24, fontFamily: 'DM Mono, monospace' }}>
                   {countdown}
                 </div>
               )}
@@ -893,9 +893,10 @@ export default function HomePage() {
                               <div key={j.id} style={{
                                 display: 'flex', alignItems: 'center', gap: 12,
                                 padding: '9px 16px', background: isMe ? bg : 'transparent',
+                                minHeight: 44,
                               }}>
                                 <PlayerAvatar url={j.avatar_url} username={j.username} size={28} borderColor={isMe ? border : 'var(--border)'} />
-                                <span style={{ fontSize: 14, flex: 1, color: isMe ? 'var(--text)' : 'var(--text-muted)' }}>{j.username}</span>
+                                <span style={{ fontSize: 14, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isMe ? 'var(--text)' : 'var(--text-muted)' }}>{j.username}</span>
                                 {isPorteroFijo && <span style={{ fontSize: 13 }}>🧤</span>}
                                 {isMe && <span className="mono" style={{ fontSize: 10, color: accent, letterSpacing: '0.1em' }}>TÚ</span>}
                               </div>
@@ -985,8 +986,8 @@ export default function HomePage() {
                       padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 3,
                       border: ins.player_id === user.id ? '1px solid #16a34a' : '1px solid transparent'
                     }}>
-                      <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', width: 20 }}>{idx + 1}</span>
-                      <span style={{ fontSize: 15, flex: 1 }}>{ins.profiles.username}</span>
+                      <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', width: 20, flexShrink: 0 }}>{idx + 1}</span>
+                      <span style={{ fontSize: 15, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ins.profiles.username}</span>
                       {ins.player_id === user.id && (
                         <span className="mono" style={{ fontSize: 10, color: 'var(--green)', letterSpacing: '0.1em' }}>TÚ</span>
                       )}
@@ -1007,8 +1008,8 @@ export default function HomePage() {
                           border: ins.player_id === user.id ? '1px solid #92400e' : '1px solid transparent',
                           opacity: 0.7
                         }}>
-                          <span className="mono" style={{ fontSize: 11, color: 'var(--amber)', width: 20 }}>#{idx + 1}</span>
-                          <span style={{ fontSize: 15 }}>{ins.profiles.username}</span>
+                          <span className="mono" style={{ fontSize: 11, color: 'var(--amber)', width: 20, flexShrink: 0 }}>#{idx + 1}</span>
+                          <span style={{ fontSize: 15, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ins.profiles.username}</span>
                           {ins.player_id === user.id && (
                             <span className="mono" style={{ fontSize: 10, color: 'var(--amber)', letterSpacing: '0.1em' }}>TÚ</span>
                           )}

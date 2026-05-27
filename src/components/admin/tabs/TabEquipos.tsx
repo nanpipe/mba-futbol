@@ -450,7 +450,7 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
             onDragStart={e => setActiveDragId(e.active.id as string)}
             onDragEnd={handleDragEnd}
           >
-            <div style={{ display: 'grid', gridTemplateColumns: equiposPartido?.tipo === 'minitorneo' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 16, marginBottom: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: equiposPartido?.tipo === 'minitorneo' ? 'repeat(auto-fit, minmax(120px, 1fr))' : '1fr 1fr', gap: 16, marginBottom: 24 }}>
               <div>
                 <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--green)', marginBottom: 8 }}>🤍 BLANCO — {equipoA.length}</div>
                 <DroppableZone equipo="A" isConfirmado={equiposConfirmado}>

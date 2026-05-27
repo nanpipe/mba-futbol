@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
+  const clubId = getClubId(req)
 
   const adminUser = await getAdminUser(supabase)
   if (!adminUser) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
@@ -70,7 +71,7 @@ export async function DELETE(req: NextRequest) {
 
   if (!isUUID(body.id)) return NextResponse.json({ error: 'id inválido' }, { status: 400 })
 
-  await admin.from('balancer_feedback').delete().eq('id', body.id)
+  await admin.from('balancer_feedback').delete().eq('id', body.id).eq('club_id', clubId)
 
   return NextResponse.json({ ok: true })
 }

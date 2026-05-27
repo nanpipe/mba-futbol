@@ -5,9 +5,8 @@ import { calcularVentanaPartido } from '@/lib/partidos'
 
 function verifyCron(req: NextRequest) {
   const secret = process.env.CRON_SECRET
-  // In production, CRON_SECRET is required — fail closed
-  if (!secret) return process.env.NODE_ENV !== 'production'
-  return req.headers.get('Authorization') === `Bearer ${secret}`
+  if (!secret || req.headers.get('Authorization') !== `Bearer ${secret}`) return false
+  return true
 }
 
 // GET /api/cron/cupos — runs daily at noon Colombia time (17:00 UTC)

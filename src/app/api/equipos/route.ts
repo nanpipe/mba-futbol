@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { isUUID } from '@/lib/validation'
 import { balancearEquipos, type JugadorEquipo } from '@/lib/teamBalancer'
 import { logActivity } from '@/lib/activityLog'
-import { getClubId } from '@/lib/club'
+import { getClubId, getClubNombre } from '@/lib/club'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
   const [{ data: jugadores }, { data: invitadosEnEquipo }] = await Promise.all([
     admin
       .from('equipo_jugadores')
-      .select('equipo_id, player_id, profiles(id, username, avatar_url, posicion, habilidad)')
+      .select('equipo_id, player_id, profiles(id, username, avatar_url, posicion)')
       .in('equipo_id', equipos.map(e => e.id)),
     admin
       .from('invitados')
@@ -434,7 +434,7 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
       const colorEq = colorLabels[nombreEq] ?? nombreEq
       const compañeros = (nombresPorEquipo[nombreEq] ?? []).filter(n => n !== username)
       if (email) {
-        await sendEquipoConfirmado({ email, username, colorEq, compañeros }).catch(() => {})
+        await sendEquipoConfirmado({ email, username, colorEq, compañeros, clubNombre: getClubNombre(req) }).catch(() => {})
       }
     }
 

@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
 
   if (existing?.username) {
-    return NextResponse.json({ ip, blocked: true, existingUsername: existing.username })
+    return NextResponse.json({ blocked: true })
   }
 
   return NextResponse.json({ ip, blocked: false })

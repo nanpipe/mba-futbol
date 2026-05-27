@@ -7,8 +7,8 @@ export const dynamic = 'force-dynamic'
 
 function verifyCron(req: NextRequest) {
   const secret = process.env.CRON_SECRET
-  if (!secret) return process.env.NODE_ENV !== 'production'
-  return req.headers.get('Authorization') === `Bearer ${secret}`
+  if (!secret || req.headers.get('Authorization') !== `Bearer ${secret}`) return false
+  return true
 }
 
 // Called every minute by pg_cron.

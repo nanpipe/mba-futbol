@@ -5,20 +5,21 @@ import { safeError, isUUID, isString, isEmail, isDate, isIntInRange } from '@/li
 import { internalFetch } from '@/lib/internalFetch'
 import { logActivity } from '@/lib/activityLog'
 import { sendTestEmail } from '@/lib/email'
-import { getClubId } from '@/lib/club'
+import { getClubNombre } from '@/lib/club'
 
 export const dynamic = 'force-dynamic'
 
 async function verificarAdmin(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
-  const { data: profile } = await supabase.from('profiles').select('role, username').eq('id', user.id).single()
+  const { data: profile } = await supabase.from('profiles').select('role, username, club_id').eq('id', user.id).single()
   const role = (profile as { role?: string })?.role
   if (role !== 'admin' && role !== 'superadmin') return null
   return {
     ...user,
     username: (profile as { username?: string })?.username ?? 'admin',
     role: role as 'admin' | 'superadmin',
+    club_id: (profile as { club_id?: string })?.club_id,
   }
 }
 
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest) {
   const adminUser = await verificarAdmin(supabase)
   if (!adminUser) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-  const clubId = getClubId(req)
+  const clubId = adminUser.club_id
   const accion = req.nextUrl.searchParams.get('accion')
 
   if (accion === 'logs') {
@@ -106,7 +107,7 @@ export async function POST(req: NextRequest) {
   const adminUser = await verificarAdmin(supabase)
   if (!adminUser) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-  const clubId = getClubId(req)
+  const clubId = adminUser.club_id
   let body: Record<string, unknown>
   try {
     body = await req.json()
@@ -200,6 +201,7 @@ export async function POST(req: NextRequest) {
         fecha_liberacion: fechaSafe,
         razon_ban: razonSafe,
       })
+      .eq('club_id', clubId)
       .eq('id', player_id)
 
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
@@ -652,8 +654,11 @@ export async function POST(req: NextRequest) {
     const { partido_id } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
     const { data: partido } = await admin.from('partidos').select('dia_semana').eq('id', partido_id as string).single()
-    // TODO: scope to club players
-    const { data: subs } = await admin.from('push_subscriptions').select('endpoint, p256dh, auth')
+    const { data: clubProfiles } = await admin.from('profiles').select('id').eq('club_id', clubId).eq('aprobado', true).eq('baneado', false)
+    const clubPlayerIds = (clubProfiles ?? []).map((p: { id: string }) => p.id)
+    const { data: subs } = clubPlayerIds.length > 0
+      ? await admin.from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', clubPlayerIds)
+      : { data: [] }
     const { sendPush } = await import('@/lib/push')
     let enviados = 0
     for (const sub of subs ?? []) {
@@ -723,9 +728,14 @@ export async function POST(req: NextRequest) {
       'email_apertura', 'email_recordatorio',
       'usar_uniforme', 'usar_invitados', 'usuarios_pueden_cambiar_username',
       'club_nombre', 'club_ciudad', 'club_dias_juego',
+      'hora_partido', 'dias_display', 'dia_juego_1', 'dia_juego_2',
+      'hora_apertura_martes', 'hora_apertura_viernes', 'hora_promo_invitados',
     ]
     if (typeof key !== 'string' || !ALLOWED_KEYS.includes(key)) {
       return NextResponse.json({ error: 'Clave inválida' }, { status: 400 })
+    }
+    if (typeof value === 'string' && value.length > 200) {
+      return NextResponse.json({ error: 'Valor demasiado largo (máx 200 caracteres)' }, { status: 400 })
     }
     // Booleans stored as bool, strings stored as string
     const storedValue = typeof value === 'string' && value !== 'true' && value !== 'false'
@@ -747,7 +757,7 @@ export async function POST(req: NextRequest) {
   if (accion === 'enviar_email_prueba') {
     const { email } = body
     if (!isEmail(email)) return NextResponse.json({ error: 'Email inválido' }, { status: 400 })
-    const result = await sendTestEmail({ email: (email as string).trim().toLowerCase() })
+    const result = await sendTestEmail({ email: (email as string).trim().toLowerCase(), clubNombre: getClubNombre(req) })
     if (!result.ok) return NextResponse.json({ error: result.error ?? 'Error enviando email' }, { status: 500 })
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'enviar_email_prueba', detalles: { email }, ip })
     return NextResponse.json({ ok: true, mensaje: `Email de prueba enviado a ${email}`, id: result.id })

@@ -16,8 +16,8 @@ import { tallyAndAssign } from '@/app/api/evaluaciones/route'
 
 function verifyCron(req: NextRequest) {
   const secret = process.env.CRON_SECRET
-  if (!secret) return process.env.NODE_ENV !== 'production'
-  return req.headers.get('Authorization') === `Bearer ${secret}`
+  if (!secret || req.headers.get('Authorization') !== `Bearer ${secret}`) return false
+  return true
 }
 
 async function sendToMany(
@@ -73,6 +73,18 @@ async function getClubPlayerIds(
   return ids
 }
 
+async function getClubNombreById(
+  admin: AdminClient,
+  clubId: string,
+  cache: Map<string, string>
+): Promise<string> {
+  if (cache.has(clubId)) return cache.get(clubId)!
+  const { data } = await admin.from('clubs').select('nombre').eq('id', clubId).single()
+  const nombre = (data as { nombre?: string } | null)?.nombre ?? 'MBA Fútbol Club'
+  cache.set(clubId, nombre)
+  return nombre
+}
+
 export async function GET(req: NextRequest) {
   if (!verifyCron(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -95,6 +107,7 @@ export async function GET(req: NextRequest) {
 
   const settingsCache = new Map<string, Settings>()
   const playerIdsCache = new Map<string, string[]>()
+  const clubNombreCache = new Map<string, string>()
 
   // ── Load upcoming partidos (all clubs) ───────────────────────────────────
   const { data: partidos } = await admin
@@ -144,6 +157,7 @@ export async function GET(req: NextRequest) {
 
     const settings = await getClubSettings(admin, clubId, settingsCache)
     const clubPlayerIds = await getClubPlayerIds(admin, clubId, playerIdsCache)
+    const clubNombre = await getClubNombreById(admin, clubId, clubNombreCache)
 
     const sendApertura      = settings['notif_apertura']      !== false
     const sendDiaAntes      = settings['notif_dia_antes']     !== false
@@ -183,6 +197,7 @@ export async function GET(req: NextRequest) {
             diaSemana: partido.dia_semana,
             fechaPartido: partido.fecha,
             hora: matchHora,
+            clubNombre,
           })
           if (r.ok) results.apertura_email++
         }
@@ -263,6 +278,7 @@ export async function GET(req: NextRequest) {
               username: (p as { username: string }).username,
               diaSemana: partido.dia_semana,
               hora: matchHora,
+              clubNombre,
             })
             if (r.ok) results.recordatorio_email++
           }
@@ -349,7 +365,9 @@ export async function GET(req: NextRequest) {
       const fechaFormateada = fecha.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', timeZone: 'America/Bogota' })
       const { sendPromovido } = await import('@/lib/email')
       const { sendPush: sp } = await import('@/lib/push')
-      const emailResult = await sendPromovido({ email: notif.email, username: notif.username, fechaPartido: fechaFormateada, diaSemana })
+      const notifClubId = (notif as Record<string, unknown>).club_id as string | undefined
+      const notifClubNombre = notifClubId ? await getClubNombreById(admin, notifClubId, clubNombreCache) : 'MBA Fútbol Club'
+      const emailResult = await sendPromovido({ email: notif.email, username: notif.username, fechaPartido: fechaFormateada, diaSemana, clubNombre: notifClubNombre })
       const { data: subs } = await admin.from('push_subscriptions').select('endpoint, p256dh, auth').eq('player_id', notif.player_id)
       for (const sub of subs ?? []) {
         try {

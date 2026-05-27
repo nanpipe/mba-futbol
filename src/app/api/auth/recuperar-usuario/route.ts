@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sendUsernameEmail } from '@/lib/email'
 import { isEmail } from '@/lib/validation'
 import { logActivity } from '@/lib/activityLog'
+import { getClubNombre } from '@/lib/club'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +31,7 @@ export async function POST(req: NextRequest) {
   await sendUsernameEmail({
     email: (email as string).trim().toLowerCase(),
     username: profile.username,
+    clubNombre: getClubNombre(req),
   })
 
   await logActivity({ accion: 'recuperar_usuario', detalles: { email: (email as string).trim().toLowerCase() }, ip: req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? req.headers.get('x-real-ip') ?? undefined })

@@ -2,6 +2,18 @@
 
 import { useState, useEffect } from 'react'
 
+export interface ClubSettings {
+  hora_partido?: string
+  hora_apertura_martes?: string
+  hora_apertura_viernes?: string
+  dia_juego_1?: string
+  dia_juego_2?: string
+  dia_apertura_1?: string
+  dia_apertura_2?: string
+  hora_promo_invitados?: string
+  dias_display?: string
+}
+
 export interface ClubInfo {
   id: string
   nombre: string
@@ -16,6 +28,7 @@ export interface ClubInfo {
   hora_default: string | null
   hora_apertura_default: string | null
   dias_antes_apertura_default: number | null
+  settings?: ClubSettings
 }
 
 const FALLBACK: ClubInfo = {
@@ -32,6 +45,7 @@ const FALLBACK: ClubInfo = {
   hora_default: null,
   hora_apertura_default: null,
   dias_antes_apertura_default: null,
+  settings: undefined,
 }
 
 // Module-level cache — survives re-renders, resets on cold reload
@@ -49,9 +63,10 @@ export function useClub(): ClubInfo {
     }
     fetch('/api/club')
       .then(r => r.json())
-      .then(({ club }) => {
+      .then(({ club, settings }) => {
         if (club) {
-          _cache = club as ClubInfo
+          const full: ClubInfo = { ...(club as ClubInfo), settings: settings ?? undefined }
+          _cache = full
           _cacheTs = Date.now()
           setClub(_cache)
         }

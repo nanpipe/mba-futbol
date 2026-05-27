@@ -435,7 +435,7 @@ export default function HomePage() {
   if (!user) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 32 }}>
-        <Header />
+        <Header club={club} />
         <div style={{ display: 'flex', gap: 12 }}>
           <Link href="/login" className="btn btn-primary">Iniciar sesión</Link>
           <Link href="/registro" className="btn btn-ghost">Registrarse</Link>
@@ -527,7 +527,7 @@ export default function HomePage() {
 
       <div className="container" style={{ paddingTop: 48 }}>
         {/* Header */}
-        <Header />
+        <Header club={club} />
 
         <div style={{ height: 48 }} />
 
@@ -539,8 +539,8 @@ export default function HomePage() {
                 INSCRIPCIONES CERRADAS
               </div>
               <p style={{ color: 'var(--text-muted)', fontSize: 15, lineHeight: 1.6, marginBottom: 8 }}>
-                Las inscripciones abren los <strong style={{ color: 'var(--text)' }}>domingos a las 10:00 am</strong> para el martes<br />
-                y los <strong style={{ color: 'var(--text)' }}>jueves a las 10:00 am</strong> para el viernes.
+                Las inscripciones abren los <strong style={{ color: 'var(--text)' }}>{club.settings?.hora_apertura_martes ?? 'domingos a las 10:00 am'}</strong> para el {club.settings?.dia_juego_1 ?? 'martes'}<br />
+                y los <strong style={{ color: 'var(--text)' }}>{club.settings?.hora_apertura_viernes ?? 'jueves a las 10:00 am'}</strong> para el {club.settings?.dia_juego_2 ?? 'viernes'}.
               </p>
               {countdown && (
                 <div className="display" style={{ fontSize: 36, color: 'var(--green)', marginTop: 24 }}>
@@ -555,7 +555,7 @@ export default function HomePage() {
                   ÚLTIMO PARTIDO — {ultimoPartido.partido.dia_semana.toUpperCase()}
                 </div>
                 <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 16 }}>
-                  {new Date(ultimoPartido.partido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })} · 7:00 PM
+                  {new Date(ultimoPartido.partido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })} · {club.settings?.hora_partido ?? '7:00 PM'}
                 </div>
 
                 {/* Eval closed: show photo + winner + badge results */}
@@ -647,7 +647,7 @@ export default function HomePage() {
                 <span className="mono" style={{ fontSize: 14, color: 'var(--text-muted)' }}>
                   {ventana.partido?.fecha
                     ? new Date(ventana.partido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })
-                    : ''} · 7:00 PM
+                    : ''} · {club.settings?.hora_partido ?? '7:00 PM'}
                 </span>
               </div>
             </div>
@@ -776,7 +776,7 @@ export default function HomePage() {
                 )}
 
                 <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 8, lineHeight: 1.6 }}>
-                  Los invitados están en lista de espera. Si quedan cupos a las 2:00 PM del día del partido, entran automáticamente.
+                  Los invitados están en lista de espera. Si quedan cupos a las {club.settings?.hora_promo_invitados ?? '2:00 PM'} del día del partido, entran automáticamente.
                 </div>
               </div>
             )}
@@ -1036,7 +1036,7 @@ export default function HomePage() {
               ÚLTIMO PARTIDO — {ultimoPartido.partido.dia_semana.toUpperCase()}
             </div>
             <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 16 }}>
-              {new Date(ultimoPartido.partido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })} · 7:00 PM
+              {new Date(ultimoPartido.partido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })} · {club.settings?.hora_partido ?? '7:00 PM'}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {ultimoPartido.partido.foto_url && (
@@ -1248,16 +1248,23 @@ export default function HomePage() {
   )
 }
 
-function Header() {
+function Header({ club }: { club?: import('@/hooks/useClub').ClubInfo }) {
+  const nombre = club?.nombre ?? 'MBA FC'
+  const lines = nombre.split(' ')
+  const diasDisplay = club?.settings?.dias_display ?? 'MAR · VIE'
+  const horaPartido = club?.settings?.hora_partido ?? '7:00 PM'
   return (
     <div>
       <div className="display" style={{ fontSize: 64, lineHeight: 0.9, letterSpacing: '0.03em' }}>
-        MBA<br />
-        <span style={{ color: 'var(--green)' }}>FÚTBOL</span><br />
-        CLUB
+        {lines.map((line, i) => (
+          <span key={i}>
+            {i === 1 ? <span style={{ color: 'var(--green)' }}>{line}</span> : line}
+            {i < lines.length - 1 && <br />}
+          </span>
+        ))}
       </div>
       <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.1em', marginTop: 16 }}>
-        MAR · VIE · 7:00 PM
+        {diasDisplay} · {horaPartido}
       </div>
     </div>
   )

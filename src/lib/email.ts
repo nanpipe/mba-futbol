@@ -18,20 +18,22 @@ export async function sendPromovido({
   username,
   fechaPartido,
   diaSemana,
+  clubNombre = 'MBA Fútbol Club',
 }: {
   email: string
   username: string
   fechaPartido: string
   diaSemana: string
+  clubNombre?: string
 }): Promise<{ ok: boolean; error?: string; id?: string }> {
   try {
   const result = await resend.emails.send({
     from: FROM,
     to: email,
-    subject: '⚽ ¡Tienes cupo! MBA Fútbol Club',
+    subject: `⚽ ¡Tienes cupo! ${clubNombre}`,
     html: `
       <div style="font-family: 'Georgia', serif; max-width: 480px; margin: 0 auto; background: #0a0a0a; color: #f0f0f0; padding: 40px 32px; border-radius: 8px;">
-        <div style="font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #888; margin-bottom: 32px;">MBA Fútbol Club</div>
+        <div style="font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #888; margin-bottom: 32px;">${esc(clubNombre)}</div>
         <h1 style="font-size: 28px; font-weight: 400; margin: 0 0 16px 0; line-height: 1.2;">
           ¡Entraste al partido, <strong>${esc(username)}</strong>!
         </h1>
@@ -46,7 +48,7 @@ export async function sendPromovido({
           Si no puedes asistir, entra a la app y libera tu cupo para que otro compañero pueda jugar.
         </p>
         <hr style="border: none; border-top: 1px solid #222; margin: 32px 0;" />
-        <p style="color: #444; font-size: 12px; margin: 0; letter-spacing: 1px;">MBA FÚTBOL CLUB</p>
+        <p style="color: #444; font-size: 12px; margin: 0; letter-spacing: 1px;">${esc(clubNombre.toUpperCase())}</p>
       </div>
     `,
   })
@@ -63,21 +65,23 @@ export async function sendAperturaEmail({
   diaSemana,
   fechaPartido,
   hora,
+  clubNombre = 'MBA Fútbol Club',
 }: {
   email: string
   username: string
   diaSemana: string
   fechaPartido: string
   hora: string
+  clubNombre?: string
 }): Promise<{ ok: boolean; error?: string; id?: string }> {
   try {
     const result = await resend.emails.send({
       from: FROM,
       to: email,
-      subject: '⚽ ¡Inscripciones abiertas! MBA Fútbol Club',
+      subject: `⚽ ¡Inscripciones abiertas! ${clubNombre}`,
       html: `
         <div style="font-family: 'Georgia', serif; max-width: 480px; margin: 0 auto; background: #0a0a0a; color: #f0f0f0; padding: 40px 32px; border-radius: 8px;">
-          <div style="font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #888; margin-bottom: 32px;">MBA Fútbol Club</div>
+          <div style="font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #888; margin-bottom: 32px;">${esc(clubNombre)}</div>
           <h1 style="font-size: 28px; font-weight: 400; margin: 0 0 16px 0; line-height: 1.2;">
             ¡Hola <strong>${esc(username)}</strong>! Ya están abiertas las inscripciones.
           </h1>
@@ -93,7 +97,7 @@ export async function sendAperturaEmail({
             Ver partido →
           </a>
           <hr style="border: none; border-top: 1px solid #222; margin: 32px 0;" />
-          <p style="color: #444; font-size: 12px; margin: 0; letter-spacing: 1px;">MBA FÚTBOL CLUB</p>
+          <p style="color: #444; font-size: 12px; margin: 0; letter-spacing: 1px;">${esc(clubNombre.toUpperCase())}</p>
         </div>
       `,
     })
@@ -109,20 +113,22 @@ export async function sendRecordatorioEmail({
   username,
   diaSemana,
   hora,
+  clubNombre = 'MBA Fútbol Club',
 }: {
   email: string
   username: string
   diaSemana: string
   hora: string
+  clubNombre?: string
 }): Promise<{ ok: boolean; error?: string; id?: string }> {
   try {
     const result = await resend.emails.send({
       from: FROM,
       to: email,
-      subject: '⏰ Recordatorio de partido — MBA Fútbol Club',
+      subject: `⏰ Recordatorio de partido — ${clubNombre}`,
       html: `
         <div style="font-family: 'Georgia', serif; max-width: 480px; margin: 0 auto; background: #0a0a0a; color: #f0f0f0; padding: 40px 32px; border-radius: 8px;">
-          <div style="font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #888; margin-bottom: 32px;">MBA Fútbol Club</div>
+          <div style="font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #888; margin-bottom: 32px;">${esc(clubNombre)}</div>
           <h1 style="font-size: 28px; font-weight: 400; margin: 0 0 16px 0; line-height: 1.2;">
             ¡Hoy es día de partido, <strong>${esc(username)}</strong>!
           </h1>
@@ -137,7 +143,7 @@ export async function sendRecordatorioEmail({
             Si no puedes asistir, entra a la app y libera tu cupo para que otro compañero pueda jugar 🙏
           </p>
           <hr style="border: none; border-top: 1px solid #222; margin: 32px 0;" />
-          <p style="color: #444; font-size: 12px; margin: 0; letter-spacing: 1px;">MBA FÚTBOL CLUB</p>
+          <p style="color: #444; font-size: 12px; margin: 0; letter-spacing: 1px;">${esc(clubNombre.toUpperCase())}</p>
         </div>
       `,
     })
@@ -150,17 +156,19 @@ export async function sendRecordatorioEmail({
 
 export async function sendTestEmail({
   email,
+  clubNombre = 'MBA Fútbol Club',
 }: {
   email: string
+  clubNombre?: string
 }): Promise<{ ok: boolean; error?: string; id?: string }> {
   try {
     const result = await resend.emails.send({
       from: FROM,
       to: email,
-      subject: '✅ Email de prueba — MBA Fútbol Club',
+      subject: `✅ Email de prueba — ${clubNombre}`,
       html: `
         <div style="font-family: 'Georgia', serif; max-width: 480px; margin: 0 auto; background: #0a0a0a; color: #f0f0f0; padding: 40px 32px; border-radius: 8px;">
-          <div style="font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #888; margin-bottom: 32px;">MBA Fútbol Club</div>
+          <div style="font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #888; margin-bottom: 32px;">${esc(clubNombre)}</div>
           <h1 style="font-size: 28px; font-weight: 400; margin: 0 0 16px 0; line-height: 1.2;">
             Email de prueba ✅
           </h1>
@@ -171,7 +179,7 @@ export async function sendTestEmail({
             <p style="margin: 0; font-size: 14px; color: #4ade80;">Sistema: <strong>OPERATIVO ✓</strong></p>
           </div>
           <hr style="border: none; border-top: 1px solid #222; margin: 32px 0;" />
-          <p style="color: #444; font-size: 12px; margin: 0; letter-spacing: 1px;">MBA FÚTBOL CLUB</p>
+          <p style="color: #444; font-size: 12px; margin: 0; letter-spacing: 1px;">${esc(clubNombre.toUpperCase())}</p>
         </div>
       `,
     })
@@ -187,11 +195,13 @@ export async function sendEquipoConfirmado({
   username,
   colorEq,
   compañeros,
+  clubNombre = 'MBA Fútbol Club',
 }: {
   email: string
   username: string
   colorEq: string
   compañeros: string[]
+  clubNombre?: string
 }): Promise<{ ok: boolean; error?: string; id?: string }> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://mba-futbol.vercel.app'
   const listHtml = compañeros.length
@@ -201,10 +211,10 @@ export async function sendEquipoConfirmado({
     const result = await resend.emails.send({
       from: FROM,
       to: email,
-      subject: `⚽ Equipo ${esc(colorEq)} confirmado — MBA Fútbol Club`,
+      subject: `⚽ Equipo ${esc(colorEq)} confirmado — ${clubNombre}`,
       html: `
         <div style="font-family: 'Georgia', serif; max-width: 480px; margin: 0 auto; background: #0a0a0a; color: #f0f0f0; padding: 40px 32px; border-radius: 8px;">
-          <div style="font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #888; margin-bottom: 32px;">MBA Fútbol Club</div>
+          <div style="font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #888; margin-bottom: 32px;">${esc(clubNombre)}</div>
           <h1 style="font-size: 28px; font-weight: 400; margin: 0 0 16px 0; line-height: 1.2;">
             ¡Hola <strong>${esc(username)}</strong>! Ya están confirmados los equipos.
           </h1>
@@ -219,7 +229,7 @@ export async function sendEquipoConfirmado({
             Ver alineación →
           </a>
           <hr style="border: none; border-top: 1px solid #222; margin: 32px 0;" />
-          <p style="color: #444; font-size: 12px; margin: 0; letter-spacing: 1px;">MBA FÚTBOL CLUB</p>
+          <p style="color: #444; font-size: 12px; margin: 0; letter-spacing: 1px;">${esc(clubNombre.toUpperCase())}</p>
         </div>
       `,
     })
@@ -233,18 +243,20 @@ export async function sendEquipoConfirmado({
 export async function sendUsernameEmail({
   email,
   username,
+  clubNombre = 'MBA Fútbol Club',
 }: {
   email: string
   username: string
+  clubNombre?: string
 }): Promise<{ ok: boolean; error?: string; id?: string }> {
   try {
     const result = await resend.emails.send({
       from: FROM,
       to: email,
-      subject: '\u{1F464} Tu usuario — MBA Fútbol Club',
+      subject: `\u{1F464} Tu usuario — ${clubNombre}`,
       html: `
         <div style="font-family: 'Georgia', serif; max-width: 480px; margin: 0 auto; background: #0a0a0a; color: #f0f0f0; padding: 40px 32px; border-radius: 8px;">
-          <div style="font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #888; margin-bottom: 32px;">MBA Fútbol Club</div>
+          <div style="font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #888; margin-bottom: 32px;">${esc(clubNombre)}</div>
           <h1 style="font-size: 28px; font-weight: 400; margin: 0 0 16px 0; line-height: 1.2;">Tu nombre de usuario</h1>
           <p style="color: #aaa; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">Solicitaste recuperar tu usuario. Aquí está:</p>
           <div style="background: #1a1a1a; border-left: 3px solid #4ade80; padding: 20px 24px; border-radius: 4px; margin-bottom: 32px;">
@@ -252,7 +264,7 @@ export async function sendUsernameEmail({
           </div>
           <p style="color: #aaa; font-size: 14px; line-height: 1.6; margin: 0 0 32px 0;">Si no solicitaste esto, puedes ignorar este correo.</p>
           <hr style="border: none; border-top: 1px solid #222; margin: 32px 0;" />
-          <p style="color: #444; font-size: 12px; margin: 0; letter-spacing: 1px;">MBA FÚTBOL CLUB</p>
+          <p style="color: #444; font-size: 12px; margin: 0; letter-spacing: 1px;">${esc(clubNombre.toUpperCase())}</p>
         </div>
       `,
     })

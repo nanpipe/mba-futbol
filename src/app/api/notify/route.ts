@@ -34,12 +34,21 @@ export async function POST(req: NextRequest) {
         day: 'numeric', month: 'long', timeZone: 'America/Bogota'
       })
 
+      // Club name for email branding
+      const clubId = (notif as Record<string, unknown>).club_id as string | undefined
+      let clubNombre = 'MBA Fútbol Club'
+      if (clubId) {
+        const { data: clubRow } = await admin.from('clubs').select('nombre').eq('id', clubId).single()
+        if ((clubRow as { nombre?: string } | null)?.nombre) clubNombre = (clubRow as { nombre: string }).nombre
+      }
+
       // Email
       const emailResult = await sendPromovido({
         email: notif.email,
         username: notif.username,
         fechaPartido: fechaFormateada,
         diaSemana,
+        clubNombre,
       })
 
       // Push — enviar a todas las suscripciones del jugador

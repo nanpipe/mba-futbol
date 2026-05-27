@@ -61,12 +61,14 @@ export async function POST(req: NextRequest) {
   }
 
   // Check not already inscribed
-  const { data: yaInscrito } = await admin
+  const { data: yaInscrito, error: checkErr } = await admin
     .from('inscripciones')
     .select('id, estado')
     .eq('partido_id', partido_id)
     .eq('player_id', user.id)
     .single()
+
+  if (checkErr && checkErr.code !== 'PGRST116') return NextResponse.json({ error: 'Error verificando inscripción.' }, { status: 500 })
 
   if (yaInscrito) {
     return NextResponse.json(
@@ -135,8 +137,10 @@ export async function POST(req: NextRequest) {
     const toBump = (confirmed as unknown as InscripcionConUniform[])?.find(i => !i.profiles?.uniform)
 
     if (toBump) {
-      await admin.rpc('incrementar_posiciones_espera', { p_partido_id: partido_id })
-      await admin.from('inscripciones').update({ estado: 'espera', posicion_espera: 1 }).eq('id', toBump.id)
+      const { error: rpcErr } = await admin.rpc('incrementar_posiciones_espera', { p_partido_id: partido_id })
+      if (rpcErr) console.error('[inscripciones] incrementar_posiciones_espera failed:', rpcErr.message)
+      const { error: bumpErr } = await admin.from('inscripciones').update({ estado: 'espera', posicion_espera: 1 }).eq('id', toBump.id)
+      if (bumpErr) console.error('[inscripciones] bump update failed:', bumpErr.message)
       const { error } = await admin.from('inscripciones').insert({ club_id: clubId, partido_id, player_id: user.id, estado: 'confirmado' })
       if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
       await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'confirmado_prioridad' } })
@@ -148,7 +152,8 @@ export async function POST(req: NextRequest) {
   }
 
   // Fall-through: go to waiting list
-  const { data: posicion } = await admin.rpc('siguiente_posicion_espera', { p_partido_id: partido_id })
+  const { data: posicion, error: posErr } = await admin.rpc('siguiente_posicion_espera', { p_partido_id: partido_id })
+  if (posErr) console.error('[inscripciones] siguiente_posicion_espera failed:', posErr.message)
   const { error } = await admin.from('inscripciones').insert({
     club_id: clubId, partido_id, player_id: user.id, estado: 'espera', posicion_espera: posicion
   })
@@ -196,7 +201,8 @@ export async function DELETE(req: NextRequest) {
 
   let promovidosNames: string[] = []
   if (inscripcion.estado === 'confirmado') {
-    await admin.rpc('promover_espera', { p_partido_id: partido_id })
+    const { error: promErr } = await admin.rpc('promover_espera', { p_partido_id: partido_id })
+    if (promErr) console.error('[inscripciones] promover_espera failed:', promErr.message)
     // Find who got promoted: query notificaciones_pendientes for this partido (unsent rows)
     const { data: pendientes } = await admin
       .from('notificaciones_pendientes')

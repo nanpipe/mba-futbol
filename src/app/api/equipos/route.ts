@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
     const { data: pTipo } = await admin.from('partidos').select('tipo').eq('id', partido_id as string).single()
     const esMinitorneo = (pTipo as { tipo?: string })?.tipo === 'minitorneo'
 
-    const [{ data: ins }, { data: invs }, { data: knowledge }, { data: feedbackRows }] = await Promise.all([
+    const [insRes, invsRes, knowledgeRes, feedbackRes] = await Promise.all([
       admin
         .from('inscripciones')
         .select('player_id, profiles!player_id(id, username, avatar_url, posicion, habilidad)')
@@ -118,6 +118,14 @@ export async function POST(req: NextRequest) {
         .eq('club_id', clubId)
         .order('created_at', { ascending: true }),
     ])
+    if (insRes.error) return NextResponse.json({ error: 'Error cargando jugadores.' }, { status: 500 })
+    if (invsRes.error) return NextResponse.json({ error: 'Error cargando invitados.' }, { status: 500 })
+    if (knowledgeRes.error) console.error('[equipos] player_knowledge query failed:', knowledgeRes.error.message)
+    if (feedbackRes.error) console.error('[equipos] feedback query failed:', feedbackRes.error.message)
+    const ins = insRes.data
+    const invs = invsRes.data
+    const knowledge = knowledgeRes.data
+    const feedbackRows = feedbackRes.data
 
     const jugadores: JugadorEquipo[] = (ins ?? [])
       .map(i => (i as unknown as { profiles: JugadorEquipo }).profiles)

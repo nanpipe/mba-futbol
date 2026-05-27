@@ -29,7 +29,7 @@ export default function RegistroPage() {
           setClubNombre(d.club.nombre)
         }
       })
-      .catch(() => {})
+      .catch((err) => console.error('[registro] club fetch failed:', err))
   })
 
   const handleRegistro = async (e: React.FormEvent) => {
@@ -112,7 +112,7 @@ export default function RegistroPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: usernameClean }),
-    }).catch(() => {})
+    }).catch((err) => console.error('[registro] notify/signup failed:', err))
 
     setExito(true)
     setLoading(false)

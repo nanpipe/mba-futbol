@@ -48,11 +48,15 @@ export async function POST(req: NextRequest) {
   if (!body.feedback?.trim()) return NextResponse.json({ error: 'Feedback vacío' }, { status: 400 })
   if (body.feedback.trim().length > 1000) return NextResponse.json({ error: 'Feedback muy largo (máx 1000 chars)' }, { status: 400 })
 
-  await admin.from('balancer_feedback').insert({
+  const { error: fbErr } = await admin.from('balancer_feedback').insert({
     club_id: clubId,
     feedback: body.feedback.trim(),
     admin_id: adminUser.id,
   })
+  if (fbErr) {
+    console.error('[balancer-feedback] insert error:', fbErr.message)
+    return NextResponse.json({ error: 'Error guardando feedback.' }, { status: 500 })
+  }
 
   return NextResponse.json({ ok: true })
 }

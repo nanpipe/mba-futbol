@@ -694,11 +694,21 @@ export async function POST(req: NextRequest) {
         .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', playerIds)
       const { sendPush } = await import('@/lib/push')
       for (const sub of (subs ?? [])) {
-        await sendPush(sub, {
-          title: '📊 ¿Cómo jugaron?',
-          body: 'Las evaluaciones del partido están abiertas. Evalúa a tus compañeros.',
-          url: `/evaluar/${partido_id}`,
-        }).then(() => { pushEnviados++ }).catch(() => {})
+        try {
+          await sendPush(sub, {
+            title: '📊 ¿Cómo jugaron?',
+            body: 'Las evaluaciones del partido están abiertas. Evalúa a tus compañeros.',
+            url: `/evaluar/${partido_id}`,
+          })
+          pushEnviados++
+        } catch (err) {
+          const code = (err as { statusCode?: number }).statusCode
+          if (code === 410) {
+            await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+          } else {
+            console.error('[admin] sendPush failed:', err)
+          }
+        }
       }
     }
 

@@ -34,16 +34,21 @@ export async function POST(req: NextRequest) {
 
   let enviados = 0
   for (const sub of subs ?? []) {
-    await sendPush(sub, {
-      title: '🙋 Nueva solicitud de acceso',
-      body: `@${username} quiere unirse al equipo. Revisa en el panel de admin.`,
-      url: '/admin',
-    }).catch(err => {
-      if ((err as { statusCode?: number }).statusCode === 410) {
-        admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint).then(() => {})
+    try {
+      await sendPush(sub, {
+        title: '🙋 Nueva solicitud de acceso',
+        body: `@${username} quiere unirse al equipo. Revisa en el panel de admin.`,
+        url: '/admin',
+      })
+      enviados++
+    } catch (err) {
+      const code = (err as { statusCode?: number }).statusCode
+      if (code === 410) {
+        await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+      } else {
+        console.error('[notify/signup] sendPush failed:', err)
       }
-    })
-    enviados++
+    }
   }
 
   await logActivity({

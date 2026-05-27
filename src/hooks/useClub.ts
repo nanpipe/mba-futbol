@@ -71,7 +71,9 @@ export function useClub(): ClubInfo {
           setClub(_cache)
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.error('[useClub] fetch failed:', err)
+      })
   }, [])
 
   return club

@@ -286,14 +286,19 @@ export default function HomePage() {
     if (!ventana || ventana.abierta || !abreEnRef.current) return
     const interval = setInterval(() => {
       const ms = (abreEnRef.current?.getTime() ?? 0) - Date.now()
-      if (ms <= 0) { clearInterval(interval); return }
+      if (ms <= 0) {
+        clearInterval(interval)
+        setCountdown('')
+        if (user) cargarDatos(user)
+        return
+      }
       const h = Math.floor(ms / 3600000)
       const m = Math.floor((ms % 3600000) / 60000)
       const s = Math.floor((ms % 60000) / 1000)
       setCountdown(`${h}h ${m}m ${s}s`)
     }, 1000)
     return () => clearInterval(interval)
-  }, [ventana])
+  }, [ventana, user, cargarDatos])
 
   const inscribirse = async () => {
     if (!ventana?.partido || !user) return

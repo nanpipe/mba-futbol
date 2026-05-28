@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isRateLimited, getClientIp } from '@/lib/rateLimit'
+
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req)
+  if (isRateLimited(`push-subscribe:${ip}`, 10, 60 * 60 * 1000)) {
+    return NextResponse.json({ error: 'Demasiados intentos. Intenta más tarde.' }, { status: 429 })
+  }
+
   const supabase = await createClient()
   const admin = createAdminClient()
 

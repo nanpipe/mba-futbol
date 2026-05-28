@@ -4,10 +4,16 @@ import { sendUsernameEmail } from '@/lib/email'
 import { isEmail } from '@/lib/validation'
 import { logActivity } from '@/lib/activityLog'
 import { getClubNombre } from '@/lib/club'
+import { isRateLimited, getClientIp } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req)
+  if (isRateLimited(`recuperar-usuario:${ip}`, 5, 15 * 60 * 1000)) {
+    return NextResponse.json({ error: 'Demasiados intentos. Intenta más tarde.' }, { status: 429 })
+  }
+
   let body: Record<string, unknown>
   try {
     body = await req.json()

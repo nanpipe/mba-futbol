@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { isUUID } from '@/lib/validation'
 import { logActivity } from '@/lib/activityLog'
 import { CATEGORIAS } from '@/lib/categorias'
+import { isRateLimited, getClientIp } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
@@ -184,6 +185,11 @@ export async function GET(req: NextRequest) {
 
 // ── POST /api/evaluaciones — submit votes ─────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req)
+  if (isRateLimited(`evaluaciones-post:${ip}`, 10, 60 * 60 * 1000)) {
+    return NextResponse.json({ error: 'Demasiados intentos. Intenta más tarde.' }, { status: 429 })
+  }
+
   const supabase = await createClient()
   const admin = createAdminClient()
 

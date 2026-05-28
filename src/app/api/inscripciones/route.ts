@@ -5,6 +5,7 @@ import { calcularVentanaPartido } from '@/lib/partidos'
 import { safeError, isUUID } from '@/lib/validation'
 import { internalFetch } from '@/lib/internalFetch'
 import { logActivity } from '@/lib/activityLog'
+import { isRateLimited, getClientIp } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +13,11 @@ type InscripcionConUniform = { id: string; player_id: string; profiles: { unifor
 
 // POST /api/inscripciones — inscribirse a un partido
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req)
+  if (isRateLimited(`inscripciones-post:${ip}`, 20, 60 * 60 * 1000)) {
+    return NextResponse.json({ error: 'Demasiados intentos. Intenta más tarde.' }, { status: 429 })
+  }
+
   const supabase = await createClient()
   const admin = createAdminClient()
 

@@ -69,6 +69,8 @@ export interface Partido {
   goles_a?: number | null
   goles_b?: number | null
   notif_apertura_sent?: boolean
+  notif_apertura_at?: string | null
+  notif_recordatorio_at?: string | null
   tipo?: 'normal' | 'minitorneo'
   puntos_blanco?: number | null
   puntos_negro?: number | null

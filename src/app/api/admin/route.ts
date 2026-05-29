@@ -451,7 +451,7 @@ export async function POST(req: NextRequest) {
 
   // ── Crear partido ──────────────────────────────────────────────────────────
   if (accion === 'crear_partido') {
-    const { fecha, hora, cupos_total, hora_apertura, dias_antes_apertura, tipo } = body
+    const { fecha, hora, cupos_total, hora_apertura, dias_antes_apertura, tipo, notif_apertura_at, notif_recordatorio_at } = body
 
     if (!isDate(fecha)) return NextResponse.json({ error: 'Fecha inválida' }, { status: 400 })
     if (!isIntInRange(cupos_total, 2, 30)) return NextResponse.json({ error: 'Cupos debe ser entre 2 y 30' }, { status: 400 })
@@ -474,11 +474,30 @@ export async function POST(req: NextRequest) {
         dias_antes_apertura: parseInt(String(dias_antes_apertura), 10),
         inscripcion_abierta: false,
         tipo: tipoPartido,
+        ...(notif_apertura_at ? { notif_apertura_at } : {}),
+        ...(notif_recordatorio_at ? { notif_recordatorio_at } : {}),
       })
 
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'crear_partido', detalles: { fecha, dia_semana, hora, cupos_total, tipo: tipoPartido }, ip })
     return NextResponse.json({ ok: true, mensaje: `${tipoPartido === 'minitorneo' ? '🟣 Minitorneo' : 'Partido'} del ${dia_semana} ${fecha} creado.` })
+  }
+
+  // ── Actualizar tiempos de notificación de un partido ───────────────────────
+  if (accion === 'actualizar_notif') {
+    const { partido_id, notif_apertura_at, notif_recordatorio_at } = body
+    if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
+
+    const { error } = await admin.from('partidos').update({
+      ...(notif_apertura_at !== undefined ? { notif_apertura_at: notif_apertura_at || null } : {}),
+      ...(notif_recordatorio_at !== undefined ? { notif_recordatorio_at: notif_recordatorio_at || null } : {}),
+      notif_apertura_sent: false,
+      notif_recordatorio_sent: false,
+    }).eq('id', partido_id as string).eq('club_id', adminUser.club_id)
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'actualizar_notif_partido', detalles: { partido_id, notif_apertura_at, notif_recordatorio_at } })
+    return NextResponse.json({ ok: true })
   }
 
   // ── Editar partido ─────────────────────────────────────────────────────────

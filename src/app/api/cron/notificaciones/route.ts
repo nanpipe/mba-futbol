@@ -8,9 +8,9 @@ import { tallyAndAssign } from '@/app/api/evaluaciones/route'
 
 // Single daily cron — runs at 15:00 UTC = 10:00 AM Colombia
 // Handles 5 tasks in one pass:
-//   1. Pre-apertura email/push when inscription window opens
+//   1. Apertura push/email — fires when notif_apertura_at timestamp is due
 //   2. Día-antes reminder to confirmed players 1 day before match
-//   3. Same-day recordatorio ≤10h before match
+//   3. Recordatorio push/email — fires when notif_recordatorio_at timestamp is due
 //   4. Cupos disponibles push to non-inscribed club players
 //   5. Drain notificaciones_pendientes (promotion emails/push)
 
@@ -109,14 +109,6 @@ export async function GET(req: NextRequest) {
   const playerIdsCache = new Map<string, string[]>()
   const clubNombreCache = new Map<string, string>()
 
-  // ── Load upcoming partidos (all clubs) ───────────────────────────────────
-  const { data: partidos } = await admin
-    .from('partidos')
-    .select('id, club_id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_apertura_sent, notif_recordatorio_sent, notif_dia_antes_sent, cupos_total, evaluaciones_abiertas, equipos_confirmados')
-    .gte('fecha', hoy)
-    .order('fecha', { ascending: true })
-    .limit(20)
-
   // ── Auto-open/close evaluaciones ─────────────────────────────────────────
   const ayer = new Date(now); ayer.setDate(now.getDate() - 1)
   const ayerStr = ayer.toISOString().split('T')[0]
@@ -148,79 +140,151 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // ── Per-partido notifications ─────────────────────────────────────────────
+  // ── Apertura notifications (timestamp-based) ──────────────────────────────
+  const { data: aperturaDue } = await admin
+    .from('partidos')
+    .select('id, club_id, fecha, dia_semana, hora, notif_apertura_at')
+    .lte('notif_apertura_at', now.toISOString())
+    .eq('notif_apertura_sent', false)
+    .not('notif_apertura_at', 'is', null)
+
+  for (const partido of aperturaDue ?? []) {
+    const clubId = (partido as { club_id: string }).club_id
+    const clubPlayerIds = await getClubPlayerIds(admin, clubId, playerIdsCache)
+    const clubNombre = await getClubNombreById(admin, clubId, clubNombreCache)
+    const settings = await getClubSettings(admin, clubId, settingsCache)
+    const emailApertura = settings['email_apertura'] !== false
+    const matchHora = partido.hora?.substring(0, 5) ?? '19:00'
+
+    // Push → all club players
+    const { data: subs } = await admin
+      .from('push_subscriptions')
+      .select('endpoint, p256dh, auth')
+      .in('player_id', clubPlayerIds)
+
+    results.apertura += await sendToMany(admin, subs ?? [], {
+      title: '⚽ ¡Inscripciones abiertas!',
+      body: `Partido del ${partido.dia_semana}. ¡Corre a inscribirte!`,
+      url: '/',
+    })
+
+    // Email → approved club players
+    if (emailApertura) {
+      const { data: profiles } = await admin
+        .from('profiles')
+        .select('email, username')
+        .eq('club_id', clubId)
+        .eq('aprobado', true)
+        .eq('baneado', false)
+        .neq('role', 'admin')
+      for (const p of (profiles ?? [])) {
+        const r = await sendAperturaEmail({
+          email: (p as { email: string }).email,
+          username: (p as { username: string }).username,
+          diaSemana: partido.dia_semana,
+          fechaPartido: partido.fecha,
+          hora: matchHora,
+          clubNombre,
+        })
+        if (r.ok) results.apertura_email++
+      }
+    }
+
+    await admin.from('partidos').update({ notif_apertura_sent: true }).eq('id', partido.id)
+
+    // Close still-open evaluaciones from past matches
+    const { data: evalAbiertas } = await admin
+      .from('partidos')
+      .select('id, fecha')
+      .eq('club_id', clubId)
+      .eq('evaluaciones_abiertas', true)
+      .lt('fecha', hoy)
+    for (const ep of evalAbiertas ?? []) {
+      await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', ep.id)
+      const { badges_asignados } = await tallyAndAssign(admin, ep.id)
+      await logActivity({ accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: ep.id, fecha: ep.fecha, razon: 'nueva_apertura', badges_asignados } })
+    }
+  }
+
+  // ── Recordatorio notifications (timestamp-based) ──────────────────────────
+  const { data: recordatorioDue } = await admin
+    .from('partidos')
+    .select('id, club_id, fecha, dia_semana, hora, notif_recordatorio_at')
+    .lte('notif_recordatorio_at', now.toISOString())
+    .eq('notif_recordatorio_sent', false)
+    .not('notif_recordatorio_at', 'is', null)
+
+  for (const partido of recordatorioDue ?? []) {
+    const clubId = (partido as { club_id: string }).club_id
+    const settings = await getClubSettings(admin, clubId, settingsCache)
+    const emailRecordatorio = settings['email_recordatorio'] !== false
+    const clubNombre = await getClubNombreById(admin, clubId, clubNombreCache)
+    const matchHora = partido.hora?.substring(0, 5) ?? '19:00'
+
+    const { data: inscripciones } = await admin
+      .from('inscripciones')
+      .select('player_id')
+      .eq('partido_id', partido.id)
+      .eq('estado', 'confirmado')
+
+    const confirmedIds = (inscripciones ?? []).map((i: { player_id: string }) => i.player_id)
+    if (confirmedIds.length > 0) {
+      // Push
+      const { data: subs } = await admin
+        .from('push_subscriptions')
+        .select('endpoint, p256dh, auth')
+        .in('player_id', confirmedIds)
+
+      results.recordatorio += await sendToMany(admin, subs ?? [], {
+        title: '⏰ Partido hoy',
+        body: `Recuerda: partido del ${partido.dia_semana} esta noche. ¡Nos vemos!`,
+        url: '/',
+      })
+
+      // Email
+      if (emailRecordatorio) {
+        const { data: profiles } = await admin
+          .from('profiles')
+          .select('email, username')
+          .in('id', confirmedIds)
+        for (const p of (profiles ?? [])) {
+          const r = await sendRecordatorioEmail({
+            email: (p as { email: string }).email,
+            username: (p as { username: string }).username,
+            diaSemana: partido.dia_semana,
+            hora: matchHora,
+            clubNombre,
+          })
+          if (r.ok) results.recordatorio_email++
+        }
+      }
+    }
+
+    await admin.from('partidos').update({ notif_recordatorio_sent: true }).eq('id', partido.id)
+  }
+
+  // ── Load upcoming partidos for remaining checks (dia_antes, cupos, invitados) ─
+  const { data: partidos } = await admin
+    .from('partidos')
+    .select('id, club_id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_dia_antes_sent, cupos_total, evaluaciones_abiertas, equipos_confirmados')
+    .gte('fecha', hoy)
+    .order('fecha', { ascending: true })
+    .limit(20)
+
   for (const partido of partidos ?? []) {
     const clubId = (partido as { club_id: string }).club_id
-    const { abierta, cierra } = calcularVentanaPartido(partido)
-    const hoursToMatch = (cierra.getTime() - now.getTime()) / (1000 * 60 * 60)
+    const { abierta } = calcularVentanaPartido(partido)
     const matchHora = partido.hora?.substring(0, 5) ?? '19:00'
 
     const settings = await getClubSettings(admin, clubId, settingsCache)
     const clubPlayerIds = await getClubPlayerIds(admin, clubId, playerIdsCache)
-    const clubNombre = await getClubNombreById(admin, clubId, clubNombreCache)
 
-    const sendApertura      = settings['notif_apertura']      !== false
-    const sendDiaAntes      = settings['notif_dia_antes']     !== false
-    const sendRecordatorio  = settings['notif_recordatorio']  !== false
-    const sendCupos         = settings['notif_cupos']         !== false
-    const sendInvitados     = settings['notif_invitados']     !== false
-    const emailApertura     = settings['email_apertura']      !== false
-    const emailRecordatorio = settings['email_recordatorio']  !== false
+    const sendDiaAntes  = settings['notif_dia_antes']  !== false
+    const sendCupos     = settings['notif_cupos']      !== false
+    const sendInvitados = settings['notif_invitados']  !== false
 
-    // ── 1. Apertura: window just opened, not yet notified ──────────────────
-    if (sendApertura && !partido.notif_apertura_sent && abierta) {
-      // Push → all club players
-      const { data: subs } = await admin
-        .from('push_subscriptions')
-        .select('endpoint, p256dh, auth')
-        .in('player_id', clubPlayerIds)
-
-      results.apertura += await sendToMany(admin, subs ?? [], {
-        title: '⚽ ¡Inscripciones abiertas!',
-        body: `Ya puedes anotarte para el partido del ${partido.dia_semana}. ¡Entra ahora!`,
-        url: '/',
-      })
-
-      // Email → approved club players
-      if (emailApertura) {
-        const { data: profiles } = await admin
-          .from('profiles')
-          .select('email, username')
-          .eq('club_id', clubId)
-          .eq('aprobado', true)
-          .eq('baneado', false)
-          .neq('role', 'admin')
-        for (const p of (profiles ?? [])) {
-          const r = await sendAperturaEmail({
-            email: (p as { email: string }).email,
-            username: (p as { username: string }).username,
-            diaSemana: partido.dia_semana,
-            fechaPartido: partido.fecha,
-            hora: matchHora,
-            clubNombre,
-          })
-          if (r.ok) results.apertura_email++
-        }
-      }
-
-      await admin.from('partidos').update({ notif_apertura_sent: true }).eq('id', partido.id)
-
-      // Close still-open evaluaciones from past matches
-      const { data: evalAbiertas } = await admin
-        .from('partidos')
-        .select('id, fecha')
-        .eq('club_id', clubId)
-        .eq('evaluaciones_abiertas', true)
-        .lt('fecha', hoy)
-      for (const ep of evalAbiertas ?? []) {
-        await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', ep.id)
-        const { badges_asignados } = await tallyAndAssign(admin, ep.id)
-        await logActivity({ accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: ep.id, fecha: ep.fecha, razon: 'nueva_apertura', badges_asignados } })
-      }
-    }
-
-    // ── 2. Día antes: tomorrow's match, not yet notified ──────────────────
-    if (sendDiaAntes && !partido.notif_dia_antes_sent && partido.fecha === mananaStr) {
+    // ── Día antes: tomorrow's match, not yet notified ──────────────────────
+    if (sendDiaAntes && !(partido as { notif_dia_antes_sent?: boolean }).notif_dia_antes_sent && partido.fecha === mananaStr) {
       const { data: inscripciones } = await admin
         .from('inscripciones')
         .select('player_id')
@@ -244,51 +308,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── 3. Recordatorio: match in ≤10h, not yet notified ──────────────────
-    if (sendRecordatorio && !partido.notif_recordatorio_sent && hoursToMatch > 0 && hoursToMatch <= 10) {
-      const { data: inscripciones } = await admin
-        .from('inscripciones')
-        .select('player_id')
-        .eq('partido_id', partido.id)
-        .eq('estado', 'confirmado')
-
-      const confirmedIds = (inscripciones ?? []).map((i: { player_id: string }) => i.player_id)
-      if (confirmedIds.length > 0) {
-        // Push
-        const { data: subs } = await admin
-          .from('push_subscriptions')
-          .select('endpoint, p256dh, auth')
-          .in('player_id', confirmedIds)
-
-        results.recordatorio += await sendToMany(admin, subs ?? [], {
-          title: '⏰ Recordatorio de partido',
-          body: `Hoy a las ${matchHora} es el partido del ${partido.dia_semana}. Si no puedes ir, cancela tu cupo 🙏`,
-          url: '/',
-        })
-
-        // Email
-        if (emailRecordatorio) {
-          const { data: profiles } = await admin
-            .from('profiles')
-            .select('email, username')
-            .in('id', confirmedIds)
-          for (const p of (profiles ?? [])) {
-            const r = await sendRecordatorioEmail({
-              email: (p as { email: string }).email,
-              username: (p as { username: string }).username,
-              diaSemana: partido.dia_semana,
-              hora: matchHora,
-              clubNombre,
-            })
-            if (r.ok) results.recordatorio_email++
-          }
-        }
-
-        await admin.from('partidos').update({ notif_recordatorio_sent: true }).eq('id', partido.id)
-      }
-    }
-
-    // ── 4. Cupos disponibles ───────────────────────────────────────────────
+    // ── Cupos disponibles ──────────────────────────────────────────────────
     if (sendCupos && abierta) {
       const { count: confirmados } = await admin
         .from('inscripciones')
@@ -323,7 +343,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── 5. Invitee promotion: today's match ───────────────────────────────
+    // ── Invitee promotion: today's match ───────────────────────────────────
     if (sendInvitados && partido.fecha === hoy) {
       const { count: confirmados } = await admin
         .from('inscripciones')

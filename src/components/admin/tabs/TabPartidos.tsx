@@ -41,6 +41,13 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
   const [nuevaHoraApertura, setNuevaHoraApertura] = useState('10:00')
   const [nuevosDiasAntes, setNuevosDiasAntes] = useState('2')
   const [nuevoTipo, setNuevoTipo] = useState<'normal' | 'minitorneo'>('normal')
+  const [notifAperturaAt, setNotifAperturaAt] = useState('')
+  const [notifRecordatorioAt, setNotifRecordatorioAt] = useState('')
+
+  // Inline notif edit
+  const [editNotifPartidoId, setEditNotifPartidoId] = useState<string | null>(null)
+  const [editNotifAperturaAt, setEditNotifAperturaAt] = useState('')
+  const [editNotifRecordatorioAt, setEditNotifRecordatorioAt] = useState('')
 
   // Modales de inscripciones
   const [promoverModal, setPromoverModal] = useState<Inscripcion | null>(null)
@@ -158,6 +165,8 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
       hora_apertura: nuevaHoraApertura + ':00',
       dias_antes_apertura: nuevosDiasAntes,
       tipo: nuevoTipo,
+      notif_apertura_at: notifAperturaAt ? new Date(notifAperturaAt).toISOString() : '',
+      notif_recordatorio_at: notifRecordatorioAt ? new Date(notifRecordatorioAt).toISOString() : '',
     })
     setCrearModal(false)
     setNuevaFecha('')
@@ -166,7 +175,21 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
     setNuevaHoraApertura('10:00')
     setNuevosDiasAntes('2')
     setNuevoTipo('normal')
+    setNotifAperturaAt('')
+    setNotifRecordatorioAt('')
     await onPartidoChanged()
+  }
+
+  const guardarNotifPartido = async (partidoId: string) => {
+    const ok = await accionAdmin('actualizar_notif', {
+      partido_id: partidoId,
+      notif_apertura_at: editNotifAperturaAt ? new Date(editNotifAperturaAt).toISOString() : '',
+      notif_recordatorio_at: editNotifRecordatorioAt ? new Date(editNotifRecordatorioAt).toISOString() : '',
+    })
+    if (ok) {
+      setEditNotifPartidoId(null)
+      await onPartidoChanged()
+    }
   }
 
   const abrirEditPartido = (p: Partido) => {
@@ -236,7 +259,8 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                   espera = rows.filter((r: { estado: string }) => r.estado === 'espera').length
                 }
                 return (
-                  <div key={p.id} style={{ display: 'flex', gap: 4, alignItems: 'stretch' }}>
+                  <div key={p.id}>
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'stretch' }}>
                     <button onClick={() => setSelectedPartido(p.id)} style={{
                       flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       padding: '12px 16px',
@@ -271,11 +295,74 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                         style={{ flex: 1, padding: '0 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14 }}
                       >✏</button>
                       <button
+                        onClick={() => {
+                          setEditNotifPartidoId(p.id)
+                          setEditNotifAperturaAt(p.notif_apertura_at ? new Date(p.notif_apertura_at).toISOString().slice(0, 16) : '')
+                          setEditNotifRecordatorioAt(p.notif_recordatorio_at ? new Date(p.notif_recordatorio_at).toISOString().slice(0, 16) : '')
+                        }}
+                        title="Editar notificaciones"
+                        style={{ flex: 1, padding: '0 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--amber)', fontSize: 12 }}
+                      >🔔</button>
+                      <button
                         onClick={() => { if (window.confirm(`¿Eliminar partido del ${p.dia_semana} ${p.fecha}?`)) eliminarPartido(p.id) }}
                         title="Eliminar partido"
                         style={{ flex: 1, padding: '0 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--red)', fontSize: 14 }}
                       >✕</button>
                     </div>
+                  </div>
+                  {/* Inline notif schedule display */}
+                  {editNotifPartidoId !== p.id && (
+                    <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', paddingLeft: 4, marginTop: -2, marginBottom: 2 }}>
+                      {p.notif_apertura_at
+                        ? <span>📣 Apertura: {new Date(p.notif_apertura_at).toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' })}</span>
+                        : <span style={{ color: 'var(--text-dim)' }}>📣 Sin notif. apertura</span>
+                      }
+                      {' · '}
+                      {p.notif_recordatorio_at
+                        ? <span>⏰ Rec: {new Date(p.notif_recordatorio_at).toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' })}</span>
+                        : <span style={{ color: 'var(--text-dim)' }}>⏰ Sin recordatorio</span>
+                      }
+                    </div>
+                  )}
+                  {/* Inline notif edit form */}
+                  {editNotifPartidoId === p.id && (
+                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 3, padding: '12px 14px', marginTop: 2, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div>
+                        <label className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>NOTIF. APERTURA</label>
+                        <input
+                          type="datetime-local"
+                          value={editNotifAperturaAt}
+                          onChange={e => setEditNotifAperturaAt(e.target.value)}
+                          style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 3, padding: '6px 8px', fontFamily: 'DM Mono, monospace', fontSize: 12 }}
+                        />
+                      </div>
+                      <div>
+                        <label className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>NOTIF. RECORDATORIO</label>
+                        <input
+                          type="datetime-local"
+                          value={editNotifRecordatorioAt}
+                          onChange={e => setEditNotifRecordatorioAt(e.target.value)}
+                          style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 3, padding: '6px 8px', fontFamily: 'DM Mono, monospace', fontSize: 12 }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={() => guardarNotifPartido(p.id)}
+                          className="btn btn-primary mono"
+                          style={{ flex: 1, fontSize: 11, padding: '6px 10px' }}
+                        >
+                          Guardar
+                        </button>
+                        <button
+                          onClick={() => setEditNotifPartidoId(null)}
+                          className="btn btn-ghost mono"
+                          style={{ fontSize: 11, padding: '6px 10px' }}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   </div>
                 )
               })}
@@ -642,6 +729,30 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                   CUPOS {nuevoTipo === 'minitorneo' && <span style={{ color: '#a78bfa' }}>(3 × 7)</span>}
                 </label>
                 <input type="number" min="1" max="30" value={nuevosCupos} onChange={e => setNuevosCupos(e.target.value)} />
+              </div>
+              <div>
+                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
+                  NOTIF. APERTURA
+                </label>
+                <input
+                  type="datetime-local"
+                  value={notifAperturaAt}
+                  onChange={e => setNotifAperturaAt(e.target.value)}
+                  style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 3, padding: '8px 10px', fontFamily: 'DM Mono, monospace', fontSize: 12 }}
+                />
+                <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Cuándo avisar que se abren inscripciones</div>
+              </div>
+              <div>
+                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
+                  NOTIF. RECORDATORIO
+                </label>
+                <input
+                  type="datetime-local"
+                  value={notifRecordatorioAt}
+                  onChange={e => setNotifRecordatorioAt(e.target.value)}
+                  style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 3, padding: '8px 10px', fontFamily: 'DM Mono, monospace', fontSize: 12 }}
+                />
+                <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Recordatorio el día del partido</div>
               </div>
             </div>
             <ButtonGroup gap={12} marginTop={24}>

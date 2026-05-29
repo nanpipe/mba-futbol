@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   const [{ data: jugadores }, { data: invitadosEnEquipo }] = await Promise.all([
     admin
       .from('equipo_jugadores')
-      .select('equipo_id, player_id, profiles(id, username, avatar_url, posicion)')
+      .select('equipo_id, player_id, profiles(id, username, avatar_url, posicion, habilidad)')
       .in('equipo_id', equipos.map(e => e.id)),
     admin
       .from('invitados')

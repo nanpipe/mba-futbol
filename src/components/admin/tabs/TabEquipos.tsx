@@ -418,8 +418,8 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
 
           {/* Skill balance */}
           {(equipoA.length > 0 || equipoB.length > 0) && (() => {
-            const avgA = equipoA.length ? equipoA.reduce((s, p) => s + p.habilidad, 0) / equipoA.length : 0
-            const avgB = equipoB.length ? equipoB.reduce((s, p) => s + p.habilidad, 0) / equipoB.length : 0
+            const avgA = equipoA.length ? equipoA.reduce((s, p) => s + (p.habilidad ?? 3), 0) / equipoA.length : 0
+            const avgB = equipoB.length ? equipoB.reduce((s, p) => s + (p.habilidad ?? 3), 0) / equipoB.length : 0
             const diff = Math.abs(avgA - avgB)
             return (
               <Card padding="12px 16px" style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 16 }}>

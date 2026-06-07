@@ -108,9 +108,13 @@ export async function POST(req: NextRequest) {
       const { data: subs } = await admin
         .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', adminIds)
       if (!subs?.length) return
-      const { sendPush } = await import('@/lib/push')
+      const { sendPush, isDeadPushError } = await import('@/lib/push')
       for (const sub of subs) {
-        await sendPush(sub, { title: titulo, body: cuerpo, url: '/admin' }).catch(() => {})
+        try {
+          await sendPush(sub, { title: titulo, body: cuerpo, url: '/admin' })
+        } catch (err) {
+          if (isDeadPushError(err)) await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+        }
       }
     } catch { /* non-critical */ }
   }
@@ -241,16 +245,20 @@ export async function DELETE(req: NextRequest) {
       const { data: subs } = await admin
         .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', adminIds)
       if (subs?.length) {
-        const { sendPush } = await import('@/lib/push')
+        const { sendPush, isDeadPushError } = await import('@/lib/push')
         const promoBody = promovidosNames.length
           ? ` → ${promovidosNames.join(', ')} promovido${promovidosNames.length > 1 ? 's' : ''}`
           : ''
         for (const sub of subs) {
-          await sendPush(sub, {
-            title: '⚠️ Baja en el partido',
-            body: `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}${promoBody}`,
-            url: '/admin',
-          }).catch(() => {})
+          try {
+            await sendPush(sub, {
+              title: '⚠️ Baja en el partido',
+              body: `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}${promoBody}`,
+              url: '/admin',
+            })
+          } catch (err) {
+            if (isDeadPushError(err)) await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+          }
         }
       }
     }

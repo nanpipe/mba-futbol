@@ -119,26 +119,59 @@ export default function HomePage() {
     setIsIos(/iphone|ipad|ipod/i.test(navigator.userAgent))
     setIsStandalone(window.matchMedia('(display-mode: standalone)').matches)
 
+    // Auto-heal: if push already granted, silently refresh the subscription.
+    // Repairs subs minted under a rotated VAPID key (otherwise 403 forever).
+    if ('Notification' in window && Notification.permission === 'granted') {
+      ensurePushSubscription().catch(err => console.error('[push] auto-heal failed:', err))
+    }
+
     const handler = (e: Event) => { e.preventDefault(); setInstallPrompt(e as Event & { prompt: () => void }) }
     window.addEventListener('beforeinstallprompt', handler)
     return () => window.removeEventListener('beforeinstallprompt', handler)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Subscribe (or refresh) push. If an existing subscription was minted with a
+  // different VAPID key (e.g. keys rotated), unsubscribe + re-subscribe so the
+  // server can sign for it. Otherwise old subs get 403'd forever (dead).
+  const ensurePushSubscription = async (): Promise<boolean> => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false
+    const reg = await navigator.serviceWorker.ready
+    const wantKey = urlBase64ToUint8Array(process.env.NEXT_PUBLIC_PUSHER_APP_KEY!)
+
+    let sub = await reg.pushManager.getSubscription()
+    if (sub) {
+      const cur = sub.options.applicationServerKey
+      const curBytes = cur ? new Uint8Array(cur as ArrayBuffer) : new Uint8Array()
+      const sameKey = curBytes.length === wantKey.length && curBytes.every((b, i) => b === wantKey[i])
+      if (!sameKey) {
+        // Key rotated → existing sub is dead. Drop it and re-subscribe.
+        try { await sub.unsubscribe() } catch {}
+        sub = null
+      }
+    }
+
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: wantKey,
+      })
+    }
+
+    const res = await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sub),
+    })
+    return res.ok
+  }
 
   const activarPush = async () => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
     const permission = await Notification.requestPermission()
     setPushPermission(permission)
     if (permission !== 'granted') return
-    const reg = await navigator.serviceWorker.ready
-    const sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_PUSHER_APP_KEY!),
-    })
-    await fetch('/api/push/subscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(sub),
-    })
+    await ensurePushSubscription()
   }
 
   function urlBase64ToUint8Array(base64String: string) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendPush } from '@/lib/push'
+import { sendPush, isDeadPushError } from '@/lib/push'
 import { calcularVentanaPartido } from '@/lib/partidos'
 import { logActivity } from '@/lib/activityLog'
 import { sendAperturaEmail, sendRecordatorioEmail } from '@/lib/email'
@@ -31,8 +31,10 @@ async function sendToMany(
       await sendPush(sub, payload)
       enviados++
     } catch (err: unknown) {
-      if ((err as { statusCode?: number }).statusCode === 410) {
+      if (isDeadPushError(err)) {
         await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+      } else {
+        console.error('[cron/notificaciones] sendPush failed:', err)
       }
     }
   }
@@ -384,15 +386,16 @@ export async function GET(req: NextRequest) {
       const diaSemana = fecha.toLocaleDateString('es-CO', { weekday: 'long', timeZone: 'America/Bogota' })
       const fechaFormateada = fecha.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', timeZone: 'America/Bogota' })
       const { sendPromovido } = await import('@/lib/email')
-      const { sendPush: sp } = await import('@/lib/push')
       const notifClubId = (notif as Record<string, unknown>).club_id as string | undefined
       const notifClubNombre = notifClubId ? await getClubNombreById(admin, notifClubId, clubNombreCache) : 'MBA Fútbol Club'
       const emailResult = await sendPromovido({ email: notif.email, username: notif.username, fechaPartido: fechaFormateada, diaSemana, clubNombre: notifClubNombre })
       const { data: subs } = await admin.from('push_subscriptions').select('endpoint, p256dh, auth').eq('player_id', notif.player_id)
       for (const sub of subs ?? []) {
         try {
-          await sp(sub, { title: '¡Entraste al partido!', body: `Cupo confirmado para el ${diaSemana} ${fechaFormateada} ⚽`, url: '/' })
-        } catch { /* expired sub */ }
+          await sendPush(sub, { title: '¡Entraste al partido!', body: `Cupo confirmado para el ${diaSemana} ${fechaFormateada} ⚽`, url: '/' })
+        } catch (err) {
+          if (isDeadPushError(err)) await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+        }
       }
       await admin.from('notificaciones_pendientes').update({ enviado: true }).eq('id', notif.id)
       await logActivity({ user_id: notif.player_id, username: notif.username, accion: 'notif_promovido', detalles: { email: notif.email, email_ok: emailResult.ok, fecha_partido: notif.fecha_partido, via: 'cron' } })

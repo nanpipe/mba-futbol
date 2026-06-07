@@ -15,3 +15,13 @@ export async function sendPush(
     JSON.stringify(payload)
   )
 }
+
+// Push-service status codes that mean the subscription is permanently dead and
+// should be pruned: 400 (bad/VAPID mismatch), 403 (VAPID rejected), 404 (gone),
+// 410 (gone). Retrying these never succeeds.
+const DEAD_PUSH_CODES = new Set([400, 403, 404, 410])
+
+export function isDeadPushError(err: unknown): boolean {
+  const code = (err as { statusCode?: number })?.statusCode
+  return code !== undefined && DEAD_PUSH_CODES.has(code)
+}

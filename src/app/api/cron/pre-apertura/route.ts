@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendPush } from '@/lib/push'
+import { sendPush, isDeadPushError } from '@/lib/push'
 import { logActivity } from '@/lib/activityLog'
 
 export const dynamic = 'force-dynamic'
@@ -54,8 +54,10 @@ export async function GET(req: NextRequest) {
         })
         enviados++
       } catch (err: unknown) {
-        if ((err as { statusCode?: number }).statusCode === 410) {
+        if (isDeadPushError(err)) {
           await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+        } else {
+          console.error('[cron/pre-apertura] sendPush failed:', err)
         }
       }
     }

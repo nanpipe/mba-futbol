@@ -422,18 +422,23 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
       .select('endpoint, p256dh, auth, player_id')
       .in('player_id', playerIds)
 
-    const { sendPush } = await import('@/lib/push')
+    const { sendPush, isDeadPushError } = await import('@/lib/push')
     const subsPlayerIds = new Set((subs ?? []).map((s: { player_id: string }) => s.player_id))
 
     for (const sub of (subs ?? [])) {
       const equipo = (jAll as unknown as JugadorRow[])?.find(j => j.player_id === sub.player_id)
       const nombreEq = equipos.find(e => e.id === equipo?.equipo_id)?.nombre ?? '?'
       const colorEq = colorLabels[nombreEq] ?? nombreEq
-      await sendPush(sub, {
-        title: `⚽ Equipo ${colorEq} confirmado`,
-        body: `Juegas con el equipo ${colorEq}. Revisa la alineación en la app.`,
-        url: '/',
-      }).catch(() => {})
+      try {
+        await sendPush(sub, {
+          title: `⚽ Equipo ${colorEq} confirmado`,
+          body: `Juegas con el equipo ${colorEq}. Revisa la alineación en la app.`,
+          url: '/',
+        })
+      } catch (err) {
+        if (isDeadPushError(err)) await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+        else console.error('[equipos] sendPush failed:', err)
+      }
     }
 
     // Email fallback — players without push subscription

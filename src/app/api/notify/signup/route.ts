@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendPush } from '@/lib/push'
+import { sendPush, isDeadPushError } from '@/lib/push'
 import { logActivity } from '@/lib/activityLog'
 
 export const dynamic = 'force-dynamic'
@@ -19,13 +19,16 @@ export async function POST(req: NextRequest) {
   // Verify username actually exists and is pending approval — prevents spam from arbitrary callers
   const { data: profile } = await admin
     .from('profiles')
-    .select('id, aprobado')
+    .select('id, aprobado, club_id')
     .eq('username', username)
     .single()
   if (!profile) return NextResponse.json({ ok: true }) // silent — don't reveal existence
   if (profile.aprobado) return NextResponse.json({ ok: true }) // already approved, no notification needed
 
-  const { data: adminProfiles } = await admin.from('profiles').select('id').eq('role', 'admin')
+  // Notify admins + superadmins of the new user's club
+  let adminQuery = admin.from('profiles').select('id').in('role', ['admin', 'superadmin'])
+  if (profile.club_id) adminQuery = adminQuery.eq('club_id', profile.club_id)
+  const { data: adminProfiles } = await adminQuery
   const adminIds = (adminProfiles ?? []).map((p: { id: string }) => p.id)
   if (!adminIds.length) return NextResponse.json({ ok: true, enviados: 0 })
 
@@ -42,8 +45,7 @@ export async function POST(req: NextRequest) {
       })
       enviados++
     } catch (err) {
-      const code = (err as { statusCode?: number }).statusCode
-      if (code === 410) {
+      if (isDeadPushError(err)) {
         await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
       } else {
         console.error('[notify/signup] sendPush failed:', err)

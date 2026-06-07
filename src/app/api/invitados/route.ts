@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { calcularVentanaPartido } from '@/lib/partidos'
 import { isUUID, isString, safeError } from '@/lib/validation'
-import { sendPush } from '@/lib/push'
+import { sendPush, isDeadPushError } from '@/lib/push'
 import { logActivity } from '@/lib/activityLog'
 import { getClubId } from '@/lib/club'
 
@@ -206,8 +206,10 @@ export async function PATCH(req: NextRequest) {
         url: '/',
       })
     } catch (pushErr: unknown) {
-      if ((pushErr as { statusCode?: number }).statusCode === 410) {
+      if (isDeadPushError(pushErr)) {
         await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+      } else {
+        console.error('[invitados] sendPush failed:', pushErr)
       }
     }
   }

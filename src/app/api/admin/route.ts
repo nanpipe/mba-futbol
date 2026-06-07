@@ -669,7 +669,7 @@ export async function POST(req: NextRequest) {
     const { data: subs } = clubPlayerIds.length > 0
       ? await admin.from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', clubPlayerIds)
       : { data: [] }
-    const { sendPush } = await import('@/lib/push')
+    const { sendPush, isDeadPushError } = await import('@/lib/push')
     let enviados = 0
     for (const sub of subs ?? []) {
       try {
@@ -679,7 +679,10 @@ export async function POST(req: NextRequest) {
           url: '/',
         })
         enviados++
-      } catch { /* ignore dead subs */ }
+      } catch (err) {
+        if (isDeadPushError(err)) await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+        else console.error('[admin] forzar_notif sendPush failed:', err)
+      }
     }
     await admin.from('partidos').update({ notif_apertura_sent: true }).eq('id', partido_id as string)
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'forzar_notif_apertura', detalles: { partido_id, enviados }, ip })
@@ -702,7 +705,7 @@ export async function POST(req: NextRequest) {
     if (playerIds.length > 0) {
       const { data: subs } = await admin
         .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', playerIds)
-      const { sendPush } = await import('@/lib/push')
+      const { sendPush, isDeadPushError } = await import('@/lib/push')
       for (const sub of (subs ?? [])) {
         try {
           await sendPush(sub, {
@@ -712,8 +715,7 @@ export async function POST(req: NextRequest) {
           })
           pushEnviados++
         } catch (err) {
-          const code = (err as { statusCode?: number }).statusCode
-          if (code === 410) {
+          if (isDeadPushError(err)) {
             await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
           } else {
             console.error('[admin] sendPush failed:', err)

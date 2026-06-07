@@ -405,6 +405,86 @@ export default function HomePage() {
     window.location.href = '/login'
   }
 
+  const renderUltimoResultados = () => {
+    if (!ultimoPartido || ultimoPartido.partido.evaluaciones_abiertas || (ultimoPartido.badges.length === 0 && !ultimoPartido.partido.foto_url)) {
+      return null
+    }
+    const p = ultimoPartido.partido
+    const esMinitorneo = p.tipo === 'minitorneo'
+    return (
+      <div style={{ marginTop: 40 }} className="fade-in">
+        <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 4 }}>
+          ÚLTIMO PARTIDO — {p.dia_semana.toUpperCase()}
+        </div>
+        <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 16 }}>
+          {new Date(p.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })} · {club.settings?.hora_partido ?? '7:00 PM'}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {p.foto_url && (
+            <div style={{ borderRadius: 6, overflow: 'hidden' }}>
+              <img
+                src={p.foto_url}
+                alt="Foto del partido"
+                style={{ width: '100%', display: 'block', maxHeight: 400, objectFit: 'contain' }}
+              />
+            </div>
+          )}
+          {(() => {
+            if (esMinitorneo && p.puntos_blanco != null) {
+              const pts = [
+                { label: 'Blancos 🤍', pts: p.puntos_blanco ?? 0 },
+                { label: 'Negros 🖤', pts: p.puntos_negro ?? 0 },
+                { label: 'Morados 💜', pts: p.puntos_morado ?? 0 },
+              ]
+              const winner = pts.reduce((a, b) => b.pts > a.pts ? b : a)
+              return (
+                <div style={{ padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 4 }}>GANADOR DEL PARTIDO</div>
+                    <div className="display" style={{ fontSize: 20 }}>{winner.label}</div>
+                  </div>
+                  <div className="mono" style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+                    B{p.puntos_blanco} · N{p.puntos_negro} · M{p.puntos_morado}
+                  </div>
+                </div>
+              )
+            }
+            if (!esMinitorneo && p.goles_a != null && p.goles_b != null) {
+              const winnerLabel = p.goles_a > p.goles_b ? 'Equipo Blanco 🤍' : p.goles_b > p.goles_a ? 'Equipo Negro 🖤' : 'Empate'
+              return (
+                <div style={{ padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 4 }}>GANADOR DEL PARTIDO</div>
+                    <div className="display" style={{ fontSize: 20 }}>{winnerLabel}</div>
+                  </div>
+                  <div className="display" style={{ fontSize: 24, color: 'var(--green)' }}>
+                    {p.goles_a} – {p.goles_b}
+                  </div>
+                </div>
+              )
+            }
+            return null
+          })()}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {ultimoPartido.badges.map(b => (
+              <div key={b.badge_id} style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '10px 14px', background: 'var(--bg-card)',
+                border: '1px solid var(--border)', borderRadius: 4,
+              }}>
+                <span style={{ fontSize: 22, flexShrink: 0 }}>{b.badge_emoji}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 1 }}>{b.badge_nombre}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{b.profiles?.username ?? '?'}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const confirmados = inscripciones.filter(i => i.estado === 'confirmado')
   const enEspera = inscripciones.filter(i => i.estado === 'espera')
   const cuposTotal = ventana?.partido?.cupos_total ?? 14
@@ -547,89 +627,7 @@ export default function HomePage() {
               )}
             </div>
 
-            {ultimoPartido && !ultimoPartido.partido.evaluaciones_abiertas && (ultimoPartido.badges.length > 0 || ultimoPartido.partido.foto_url) && (
-              <div style={{ marginTop: 40 }} className="fade-in">
-                <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 4 }}>
-                  ÚLTIMO PARTIDO — {ultimoPartido.partido.dia_semana.toUpperCase()}
-                </div>
-                <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 16 }}>
-                  {new Date(ultimoPartido.partido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })} · {club.settings?.hora_partido ?? '7:00 PM'}
-                </div>
-
-                {/* Eval closed: show photo + winner + badge results */}
-                {!ultimoPartido.partido.evaluaciones_abiertas && (ultimoPartido.badges.length > 0 || ultimoPartido.partido.foto_url) && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {/* Match photo */}
-                    {ultimoPartido.partido.foto_url && (
-                      <div style={{ borderRadius: 6, overflow: 'hidden' }}>
-                        <img
-                          src={ultimoPartido.partido.foto_url}
-                          alt="Foto del partido"
-                          style={{ width: '100%', display: 'block', maxHeight: 400, objectFit: 'contain' }}
-                        />
-                      </div>
-                    )}
-
-                    {/* Match result / winner */}
-                    {(() => {
-                      const p = ultimoPartido.partido
-                      const esMinitorneo = p.tipo === 'minitorneo'
-                      if (esMinitorneo && p.puntos_blanco != null) {
-                        const pts = [
-                          { label: 'Blancos 🤍', pts: p.puntos_blanco ?? 0 },
-                          { label: 'Negros 🖤', pts: p.puntos_negro ?? 0 },
-                          { label: 'Morados 💜', pts: p.puntos_morado ?? 0 },
-                        ]
-                        const winner = pts.reduce((a, b) => b.pts > a.pts ? b : a)
-                        return (
-                          <div style={{ padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <div>
-                              <div className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 4 }}>GANADOR DEL PARTIDO</div>
-                              <div className="display" style={{ fontSize: 20 }}>{winner.label}</div>
-                            </div>
-                            <div className="mono" style={{ fontSize: 13, color: 'var(--text-dim)' }}>
-                              B{p.puntos_blanco} · N{p.puntos_negro} · M{p.puntos_morado}
-                            </div>
-                          </div>
-                        )
-                      }
-                      if (!esMinitorneo && p.goles_a != null && p.goles_b != null) {
-                        const winnerLabel = p.goles_a > p.goles_b ? 'Equipo Blanco 🤍' : p.goles_b > p.goles_a ? 'Equipo Negro 🖤' : 'Empate'
-                        return (
-                          <div style={{ padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <div>
-                              <div className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 4 }}>GANADOR DEL PARTIDO</div>
-                              <div className="display" style={{ fontSize: 20 }}>{winnerLabel}</div>
-                            </div>
-                            <div className="display" style={{ fontSize: 24, color: 'var(--green)' }}>
-                              {p.goles_a} – {p.goles_b}
-                            </div>
-                          </div>
-                        )
-                      }
-                      return null
-                    })()}
-
-                    {/* Badge winners */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {ultimoPartido.badges.map(b => (
-                        <div key={b.badge_id} style={{
-                          display: 'flex', alignItems: 'center', gap: 12,
-                          padding: '10px 14px', background: 'var(--bg-card)',
-                          border: '1px solid var(--border)', borderRadius: 4,
-                        }}>
-                          <span style={{ fontSize: 22, flexShrink: 0 }}>{b.badge_emoji}</span>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 1 }}>{b.badge_nombre}</div>
-                            <div style={{ fontSize: 14, fontWeight: 600 }}>{b.profiles?.username ?? '?'}</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+            {renderUltimoResultados()}
           </>
         ) : (
           <div className="fade-in">
@@ -1025,6 +1023,9 @@ export default function HomePage() {
                 )}
               </div>
             )}
+
+            {/* Last match winner + badges — visible to all players while next window is open */}
+            {renderUltimoResultados()}
           </div>
         )}
 

@@ -240,6 +240,138 @@ export async function sendEquipoConfirmado({
   }
 }
 
+export async function sendCuposEmail({
+  email,
+  username,
+  diaSemana,
+  cuposLibres,
+  clubNombre = 'MBA Fútbol Club',
+}: {
+  email: string
+  username: string
+  diaSemana: string
+  cuposLibres: number
+  clubNombre?: string
+}): Promise<{ ok: boolean; error?: string; id?: string }> {
+  try {
+    const result = await resend.emails.send({
+      from: FROM,
+      to: email,
+      subject: `⚽ Cupos disponibles · ${clubNombre}`,
+      html: `
+        <div style="font-family: 'Georgia', serif; max-width: 480px; margin: 0 auto; background: #0a0a0a; color: #f0f0f0; padding: 40px 32px; border-radius: 8px;">
+          <div style="font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #888; margin-bottom: 32px;">${esc(clubNombre)}</div>
+          <h1 style="font-size: 28px; font-weight: 400; margin: 0 0 16px 0; line-height: 1.2;">
+            ¡Hola <strong>${esc(username)}</strong>!
+          </h1>
+          <p style="color: #aaa; font-size: 16px; line-height: 1.6; margin: 0 0 32px 0;">
+            Hay <strong style="color: #f0f0f0;">${cuposLibres}</strong> cupo${cuposLibres !== 1 ? 's' : ''} para el partido del
+            <strong style="color: #f0f0f0;">${esc(diaSemana)}</strong>. Anótate en la app.
+          </p>
+          <div style="background: #1a1a1a; border-left: 3px solid #facc15; padding: 16px 20px; border-radius: 4px; margin-bottom: 32px;">
+            <p style="margin: 0; font-size: 14px; color: #facc15;">⚽ Cupos disponibles</p>
+          </div>
+          <hr style="border: none; border-top: 1px solid #222; margin: 32px 0;" />
+          <p style="color: #444; font-size: 12px; margin: 0; letter-spacing: 1px;">${esc(clubNombre.toUpperCase())}</p>
+        </div>
+      `,
+    })
+    return { ok: true, id: (result as { data?: { id?: string } }).data?.id }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { ok: false, error: msg }
+  }
+}
+
+export async function sendInvitadoConfirmadoEmail({
+  email,
+  username,
+  nombreInvitado,
+  fechaStr,
+  clubNombre = 'MBA Fútbol Club',
+}: {
+  email: string
+  username: string
+  nombreInvitado: string
+  fechaStr: string
+  clubNombre?: string
+}): Promise<{ ok: boolean; error?: string; id?: string }> {
+  try {
+    const result = await resend.emails.send({
+      from: FROM,
+      to: email,
+      subject: `✅ Tu invitado entró · ${clubNombre}`,
+      html: `
+        <div style="font-family: 'Georgia', serif; max-width: 480px; margin: 0 auto; background: #0a0a0a; color: #f0f0f0; padding: 40px 32px; border-radius: 8px;">
+          <div style="font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #888; margin-bottom: 32px;">${esc(clubNombre)}</div>
+          <h1 style="font-size: 28px; font-weight: 400; margin: 0 0 16px 0; line-height: 1.2;">
+            ¡Hola <strong>${esc(username)}</strong>!
+          </h1>
+          <p style="color: #aaa; font-size: 16px; line-height: 1.6; margin: 0 0 32px 0;">
+            <strong style="color: #f0f0f0;">${esc(nombreInvitado)}</strong> fue confirmado para
+            <strong style="color: #f0f0f0;">${esc(fechaStr)}</strong>. ⚽
+          </p>
+          <div style="background: #1a1a1a; border-left: 3px solid #4ade80; padding: 16px 20px; border-radius: 4px; margin-bottom: 32px;">
+            <p style="margin: 0; font-size: 14px; color: #4ade80;">Invitado: <strong>CONFIRMADO ✓</strong></p>
+          </div>
+          <hr style="border: none; border-top: 1px solid #222; margin: 32px 0;" />
+          <p style="color: #444; font-size: 12px; margin: 0; letter-spacing: 1px;">${esc(clubNombre.toUpperCase())}</p>
+        </div>
+      `,
+    })
+    return { ok: true, id: (result as { data?: { id?: string } }).data?.id }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { ok: false, error: msg }
+  }
+}
+
+export async function sendEvaluacionesEmail({
+  email,
+  username,
+  diaSemana,
+  partidoId,
+  clubNombre = 'MBA Fútbol Club',
+}: {
+  email: string
+  username: string
+  diaSemana: string
+  partidoId: string
+  clubNombre?: string
+}): Promise<{ ok: boolean; error?: string; id?: string }> {
+  try {
+    const result = await resend.emails.send({
+      from: FROM,
+      to: email,
+      subject: `📊 Evalúa el partido · ${clubNombre}`,
+      html: `
+        <div style="font-family: 'Georgia', serif; max-width: 480px; margin: 0 auto; background: #0a0a0a; color: #f0f0f0; padding: 40px 32px; border-radius: 8px;">
+          <div style="font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #888; margin-bottom: 32px;">${esc(clubNombre)}</div>
+          <h1 style="font-size: 28px; font-weight: 400; margin: 0 0 16px 0; line-height: 1.2;">
+            ¡Hola <strong>${esc(username)}</strong>!
+          </h1>
+          <p style="color: #aaa; font-size: 16px; line-height: 1.6; margin: 0 0 32px 0;">
+            Las evaluaciones del partido del <strong style="color: #f0f0f0;">${esc(diaSemana)}</strong> están abiertas. ¡Evalúa a tus compañeros!
+          </p>
+          <div style="background: #1a1a1a; border-left: 3px solid #818cf8; padding: 16px 20px; border-radius: 4px; margin-bottom: 32px;">
+            <p style="margin: 0; font-size: 14px; color: #818cf8;">📊 Evaluaciones ABIERTAS</p>
+          </div>
+          <a href="https://futbol.niebla.co/evaluar/${esc(partidoId)}"
+             style="display: inline-block; background: #facc15; color: #0a0a0a; font-weight: 700; font-size: 14px; letter-spacing: 2px; padding: 12px 28px; border-radius: 4px; text-decoration: none; text-transform: uppercase; margin-bottom: 32px;">
+            Evaluar →
+          </a>
+          <hr style="border: none; border-top: 1px solid #222; margin: 32px 0;" />
+          <p style="color: #444; font-size: 12px; margin: 0; letter-spacing: 1px;">${esc(clubNombre.toUpperCase())}</p>
+        </div>
+      `,
+    })
+    return { ok: true, id: (result as { data?: { id?: string } }).data?.id }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { ok: false, error: msg }
+  }
+}
+
 export async function sendUsernameEmail({
   email,
   username,

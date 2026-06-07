@@ -6,6 +6,7 @@ import { isUUID, isString, safeError } from '@/lib/validation'
 import { sendPush, isDeadPushError } from '@/lib/push'
 import { logActivity } from '@/lib/activityLog'
 import { getClubId } from '@/lib/club'
+import { sendInvitadoConfirmadoEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 
@@ -212,6 +213,25 @@ export async function PATCH(req: NextRequest) {
         console.error('[invitados] sendPush failed:', pushErr)
       }
     }
+  }
+
+  // Email notification to the invitador (best-effort)
+  try {
+    const { data: invitadorProfile } = await admin
+      .from('profiles')
+      .select('email, username')
+      .eq('id', inv.player_id)
+      .single()
+    if (invitadorProfile?.email) {
+      await sendInvitadoConfirmadoEmail({
+        email: (invitadorProfile as { email: string }).email,
+        username: (invitadorProfile as { username: string }).username ?? '',
+        nombreInvitado: inv.nombre,
+        fechaStr,
+      })
+    }
+  } catch (emailErr) {
+    console.error('[invitados] sendInvitadoConfirmadoEmail failed:', emailErr)
   }
 
   await logActivity({

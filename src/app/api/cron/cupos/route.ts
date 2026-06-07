@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPush, isDeadPushError } from '@/lib/push'
 import { calcularVentanaPartido } from '@/lib/partidos'
+import { sendCuposEmail } from '@/lib/email'
 
 function verifyCron(req: NextRequest) {
   const secret = process.env.CRON_SECRET
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
 
   const { data: partidos } = await admin
     .from('partidos')
-    .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura')
+    .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, club_id')
     .gte('fecha', hoy)
     .order('fecha', { ascending: true })
     .limit(5)
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
     // Use parameterized .not().in() to avoid string concatenation
     const subsQuery = admin
       .from('push_subscriptions')
-      .select('endpoint, p256dh, auth')
+      .select('endpoint, p256dh, auth, player_id')
 
     const { data: subs } = inscritosIds.length > 0
       ? await subsQuery.not('player_id', 'in', `(${inscritosIds.join(',')})`)
@@ -72,6 +73,35 @@ export async function GET(req: NextRequest) {
           await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
         } else {
           console.error('[cron/cupos] sendPush failed:', err)
+        }
+      }
+    }
+
+    // Send emails to approved, non-banned club players not on the list
+    const clubId = (partido as { club_id?: string }).club_id
+    if (clubId) {
+      const emailProfilesQuery = admin
+        .from('profiles')
+        .select('id, email, username')
+        .eq('club_id', clubId)
+        .eq('aprobado', true)
+        .eq('baneado', false)
+        .neq('role', 'admin')
+
+      const { data: eligibleProfiles } = inscritosIds.length > 0
+        ? await emailProfilesQuery.not('id', 'in', `(${inscritosIds.join(',')})`)
+        : await emailProfilesQuery
+
+      for (const profile of eligibleProfiles ?? []) {
+        try {
+          await sendCuposEmail({
+            email: (profile as { email: string }).email,
+            username: (profile as { username: string }).username,
+            diaSemana: partido.dia_semana,
+            cuposLibres,
+          })
+        } catch (err) {
+          console.error('[cron/cupos] sendCuposEmail failed:', err)
         }
       }
     }

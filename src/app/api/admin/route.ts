@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { safeError, isUUID, isString, isEmail, isDate, isIntInRange } from '@/lib/validation'
 import { internalFetch } from '@/lib/internalFetch'
 import { logActivity } from '@/lib/activityLog'
-import { sendTestEmail } from '@/lib/email'
+import { sendTestEmail, sendEvaluacionesEmail } from '@/lib/email'
 import { getClubNombre } from '@/lib/club'
 
 export const dynamic = 'force-dynamic'
@@ -696,6 +696,9 @@ export async function POST(req: NextRequest) {
     const { error } = await admin.from('partidos').update({ evaluaciones_abiertas: true }).eq('id', partido_id as string)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
 
+    const { data: partidoEval } = await admin.from('partidos').select('dia_semana').eq('id', partido_id as string).single()
+    const diaSemanaEval = (partidoEval as { dia_semana?: string } | null)?.dia_semana ?? ''
+
     const { data: ins } = await admin
       .from('inscripciones').select('player_id')
       .eq('partido_id', partido_id as string).eq('estado', 'confirmado')
@@ -720,6 +723,22 @@ export async function POST(req: NextRequest) {
           } else {
             console.error('[admin] sendPush failed:', err)
           }
+        }
+      }
+
+      // Email confirmed players (best-effort)
+      const { data: evalProfiles } = await admin
+        .from('profiles').select('email, username').in('id', playerIds)
+      for (const profile of evalProfiles ?? []) {
+        try {
+          await sendEvaluacionesEmail({
+            email: (profile as { email: string }).email,
+            username: (profile as { username: string }).username,
+            diaSemana: diaSemanaEval,
+            partidoId: partido_id as string,
+          })
+        } catch (emailErr) {
+          console.error('[admin] sendEvaluacionesEmail failed:', emailErr)
         }
       }
     }
@@ -783,6 +802,44 @@ export async function POST(req: NextRequest) {
     if (!result.ok) return NextResponse.json({ error: result.error ?? 'Error enviando email' }, { status: 500 })
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'enviar_email_prueba', detalles: { email }, ip })
     return NextResponse.json({ ok: true, mensaje: `Email de prueba enviado a ${email}`, id: result.id })
+  }
+
+  // ── Enviar notificación de prueba (push + email al admin actual) ───────────
+  if (accion === 'enviar_notif_prueba') {
+    const { data: me } = await admin.from('profiles').select('email, username').eq('id', adminUser.id).single()
+    const { data: subs } = await admin.from('push_subscriptions').select('endpoint, p256dh, auth').eq('player_id', adminUser.id)
+    const { sendPush: sendPushFn, isDeadPushError: isDeadFn } = await import('@/lib/push')
+    let pushOk = 0, pushFail = 0
+    for (const sub of subs ?? []) {
+      try {
+        await sendPushFn(sub, { title: '🔔 Prueba de notificación', body: 'Si ves esto, el push funciona.', url: '/admin' })
+        pushOk++
+      } catch (err) {
+        pushFail++
+        if (isDeadFn(err)) await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+        else console.error('[notif_prueba] push fail', err)
+      }
+    }
+    const emailRes = (me as { email?: string } | null)?.email
+      ? await sendTestEmail({ email: (me as { email: string }).email, clubNombre: getClubNombre(req) })
+      : { ok: false, error: 'sin email' }
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'enviar_notif_prueba', detalles: { pushOk, pushFail, subs: (subs ?? []).length, emailOk: emailRes.ok }, ip })
+    return NextResponse.json({ ok: true, pushOk, pushFail, subsTotal: (subs ?? []).length, emailOk: emailRes.ok, emailError: emailRes.ok ? undefined : (emailRes as { error?: string }).error })
+  }
+
+  // ── Disparar cron manualmente ──────────────────────────────────────────────
+  if (accion === 'disparar_cron') {
+    const secret = process.env.CRON_SECRET
+    if (!secret) return NextResponse.json({ error: 'CRON_SECRET no configurado' }, { status: 500 })
+    const base = process.env.NEXT_PUBLIC_SITE_URL || `https://${req.headers.get('host')}`
+    try {
+      const r = await fetch(`${base}/api/cron/notificaciones`, { headers: { Authorization: `Bearer ${secret}` } })
+      const data = await r.json().catch(() => ({}))
+      await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'disparar_cron_manual', detalles: { status: r.status }, ip })
+      return NextResponse.json({ ok: r.ok, status: r.status, resultado: data })
+    } catch (e) {
+      return NextResponse.json({ error: 'Error llamando cron: ' + (e instanceof Error ? e.message : String(e)) }, { status: 500 })
+    }
   }
 
   return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 })

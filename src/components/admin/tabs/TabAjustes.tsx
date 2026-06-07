@@ -60,6 +60,10 @@ export function TabAjustes({ active }: Props) {
   const [testEmailAddr, setTestEmailAddr] = useState('')
   const [testEmailSending, setTestEmailSending] = useState(false)
   const [testEmailResult, setTestEmailResult] = useState<{ ok: boolean; msg: string } | null>(null)
+  const [notifPruebaSending, setNotifPruebaSending] = useState(false)
+  const [notifPruebaResult, setNotifPruebaResult] = useState<{ ok: boolean; msg: string } | null>(null)
+  const [cronSending, setCronSending] = useState(false)
+  const [cronResult, setCronResult] = useState<{ ok: boolean; msg: string } | null>(null)
 
   const cargarSettings = useCallback(async () => {
     setSettingsLoading(true)
@@ -106,6 +110,41 @@ export function TabAjustes({ active }: Props) {
     const data = await res.json()
     setTestEmailResult({ ok: res.ok, msg: data.mensaje ?? data.error ?? 'Error desconocido' })
     setTestEmailSending(false)
+  }
+
+  const enviarNotifPrueba = async () => {
+    setNotifPruebaSending(true)
+    setNotifPruebaResult(null)
+    const res = await fetch('/api/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion: 'enviar_notif_prueba' }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      const msg = `Push: ${data.pushOk ?? 0} ok / ${data.pushFail ?? 0} fail (${data.subsTotal ?? 0} subs) · Email: ${data.emailOk ? 'ok' : data.emailError ?? 'error'}`
+      setNotifPruebaResult({ ok: true, msg })
+    } else {
+      setNotifPruebaResult({ ok: false, msg: data.error ?? 'Error desconocido' })
+    }
+    setNotifPruebaSending(false)
+  }
+
+  const dispararCron = async () => {
+    setCronSending(true)
+    setCronResult(null)
+    const res = await fetch('/api/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion: 'disparar_cron' }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      setCronResult({ ok: data.ok ?? false, msg: `Status ${data.status} · ${JSON.stringify(data.resultado ?? {})}` })
+    } else {
+      setCronResult({ ok: false, msg: data.error ?? 'Error desconocido' })
+    }
+    setCronSending(false)
   }
 
   return (
@@ -250,6 +289,53 @@ export function TabAjustes({ active }: Props) {
                 {testEmailResult.ok ? '✓ ' : '✕ '}{testEmailResult.msg}
             </div>
             )}
+          </Card>
+
+          {/* Diagnóstico de notificaciones */}
+          <Card padding="20px 24px">
+            <SectionHeader title="DIAGNÓSTICO DE NOTIFICACIONES" icon="🔬" color="var(--text-muted)" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <button
+                  onClick={enviarNotifPrueba}
+                  disabled={notifPruebaSending}
+                  className="btn btn-ghost"
+                  style={{ fontSize: 12, padding: '10px 18px', whiteSpace: 'nowrap' }}
+                >
+                  {notifPruebaSending ? 'Enviando...' : '🔔 Enviar notificación de prueba'}
+                </button>
+                {notifPruebaResult && (
+                  <div className="mono" style={{
+                    fontSize: 11, marginTop: 8, padding: '8px 12px', borderRadius: 3,
+                    ...(notifPruebaResult.ok
+                      ? { color: 'var(--green)', background: '#0f2d1a', border: '1px solid #16a34a' }
+                      : { color: 'var(--red)', background: '#2d0a0a', border: '1px solid #7f1d1d' }),
+                  }}>
+                    {notifPruebaResult.ok ? '✓ ' : '✕ '}{notifPruebaResult.msg}
+                  </div>
+                )}
+              </div>
+              <div>
+                <button
+                  onClick={dispararCron}
+                  disabled={cronSending}
+                  className="btn btn-ghost"
+                  style={{ fontSize: 12, padding: '10px 18px', whiteSpace: 'nowrap' }}
+                >
+                  {cronSending ? 'Ejecutando...' : '▶ Disparar cron manualmente'}
+                </button>
+                {cronResult && (
+                  <div className="mono" style={{
+                    fontSize: 11, marginTop: 8, padding: '8px 12px', borderRadius: 3,
+                    ...(cronResult.ok
+                      ? { color: 'var(--green)', background: '#0f2d1a', border: '1px solid #16a34a' }
+                      : { color: 'var(--red)', background: '#2d0a0a', border: '1px solid #7f1d1d' }),
+                  }}>
+                    {cronResult.ok ? '✓ ' : '✕ '}{cronResult.msg}
+                  </div>
+                )}
+              </div>
+            </div>
           </Card>
 
           {/* Cron info */}

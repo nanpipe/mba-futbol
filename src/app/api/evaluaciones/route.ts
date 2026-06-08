@@ -203,7 +203,7 @@ export async function POST(req: NextRequest) {
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON inválido' }, { status: 400 }) }
 
-  const { partido_id, votos } = body
+  const { partido_id, votos, thumbs } = body
   if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
 
   const { data: partido } = await admin
@@ -259,18 +259,43 @@ export async function POST(req: NextRequest) {
     rows.push({ club_id: clubId, partido_id, votante_id: user.id, votado_id, categoria })
   }
 
-  if (rows.length === 0) return NextResponse.json({ error: 'No hay votos válidos.' }, { status: 400 })
+  // Thumbs up/down — one per target, must be a confirmed participant, not self
+  const thumbRows: object[] = []
+  const thumbSeen = new Set<string>()
+  for (const t of (thumbs as Array<Record<string, unknown>>) ?? []) {
+    const { votado_id, value } = t
+    if (!isUUID(votado_id)) continue
+    if (votado_id === user.id) continue
+    if (!validTargets.has(votado_id as string)) continue
+    if (value !== 1 && value !== -1) continue
+    if (thumbSeen.has(votado_id as string)) continue
+    thumbSeen.add(votado_id as string)
+    thumbRows.push({ club_id: clubId, partido_id, votante_id: user.id, votado_id, value })
+  }
 
-  const { error } = await admin.from('votos_reconocimiento').insert(rows)
-  if (error) {
-    if (error.code === '23505') return NextResponse.json({ error: 'Ya enviaste tus votos.' }, { status: 409 })
-    return NextResponse.json({ error: 'Error guardando votos.' }, { status: 500 })
+  if (rows.length === 0 && thumbRows.length === 0) {
+    return NextResponse.json({ error: 'No hay evaluaciones válidas.' }, { status: 400 })
+  }
+
+  if (rows.length > 0) {
+    const { error } = await admin.from('votos_reconocimiento').insert(rows)
+    if (error) {
+      if (error.code === '23505') return NextResponse.json({ error: 'Ya enviaste tus votos.' }, { status: 409 })
+      return NextResponse.json({ error: 'Error guardando votos.' }, { status: 500 })
+    }
+  }
+
+  if (thumbRows.length > 0) {
+    const { error: thumbErr } = await admin.from('player_thumbs').insert(thumbRows)
+    if (thumbErr && thumbErr.code !== '23505') {
+      console.error('[evaluaciones] thumbs insert error:', thumbErr.message)
+    }
   }
 
   await logActivity({
     user_id: user.id,
     accion: 'enviar_votos',
-    detalles: { partido_id, categorias: rows.length },
+    detalles: { partido_id, categorias: rows.length, thumbs: thumbRows.length },
   })
 
   // ── Auto-close if all confirmed players have now voted ────────────────────

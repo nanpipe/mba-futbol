@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { CATEGORIAS } from '@/lib/categorias'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
+import { ThumbsRater } from '@/components/ThumbsRater'
 import { FormCenterLayout } from '@/components/FormCenterLayout'
 import { ErrorAlert } from '@/components/ErrorAlert'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
@@ -83,6 +84,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
   const [estado, setEstado] = useState<'loading' | 'closed' | 'not-participant' | 'already' | 'open' | 'done'>('loading')
   const [compañeros, setCompañeros] = useState<Compañero[]>([])
   const [votos, setVotos] = useState<Record<string, string>>({})  // categoriaId → playerId
+  const [thumbs, setThumbs] = useState<Record<string, 1 | -1>>({})  // playerId → ±1
   const [partido, setPartido] = useState<{ fecha: string; dia_semana: string } | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [mensaje, setMensaje] = useState('')
@@ -126,14 +128,27 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
   }
 
   const votosCount = Object.keys(votos).length
+  const thumbsCount = Object.keys(thumbs).length
+
+  const setThumb = (id: string, value: 1 | -1) => {
+    setThumbs(prev => {
+      if (prev[id] === value) {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      }
+      return { ...prev, [id]: value }
+    })
+  }
 
   const enviar = async () => {
     setEnviando(true)
     const votosArr = Object.entries(votos).map(([categoria, votado_id]) => ({ categoria, votado_id }))
+    const thumbsArr = Object.entries(thumbs).map(([votado_id, value]) => ({ votado_id, value }))
     const res = await fetch('/api/evaluaciones', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ partido_id, votos: votosArr }),
+      body: JSON.stringify({ partido_id, votos: votosArr, thumbs: thumbsArr }),
     })
     const data = await res.json()
     if (res.ok) {
@@ -323,6 +338,17 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
             )
           })}
         </div>
+
+        {/* Thumbs: rate every teammate */}
+        <div style={{ marginTop: 28 }}>
+          <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 6 }}>
+            ¿CÓMO JUGARON?
+          </div>
+          <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+            Pulgar arriba o abajo a cada compañero. Anónimo y opcional — ajusta el rating del equipo.
+          </div>
+          <ThumbsRater teammates={compañeros} values={thumbs} onSet={setThumb} />
+        </div>
       </div>
 
       {/* Sticky send button */}
@@ -332,22 +358,27 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
         padding: '16px 24px', zIndex: 20,
       }}>
         <div className="container" style={{ maxWidth: 560 }}>
-          <button
-            onClick={enviar}
-            disabled={votosCount === 0 || enviando}
-            className="btn btn-primary"
-            style={{
-              width: '100%', justifyContent: 'center',
-              padding: '14px', fontSize: 14,
-              opacity: votosCount === 0 ? 0.4 : 1,
-            }}
-          >
-            {enviando
-              ? 'Enviando...'
-              : votosCount === 0
-                ? 'Selecciona al menos un reconocimiento'
-                : `Enviar ${votosCount} reconocimiento${votosCount !== 1 ? 's' : ''}`}
-          </button>
+          {(() => {
+            const total = votosCount + thumbsCount
+            return (
+              <button
+                onClick={enviar}
+                disabled={total === 0 || enviando}
+                className="btn btn-primary"
+                style={{
+                  width: '100%', justifyContent: 'center',
+                  padding: '14px', fontSize: 14,
+                  opacity: total === 0 ? 0.4 : 1,
+                }}
+              >
+                {enviando
+                  ? 'Enviando...'
+                  : total === 0
+                    ? 'Vota o califica al menos a un compañero'
+                    : `Enviar evaluación (${votosCount} 🏅 · ${thumbsCount} 👍👎)`}
+              </button>
+            )
+          })()}
         </div>
       </div>
     </div>

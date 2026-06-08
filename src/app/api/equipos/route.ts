@@ -3,33 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isUUID } from '@/lib/validation'
 import { balancearEquipos, type JugadorEquipo } from '@/lib/teamBalancer'
+import { computeRatings, ratingToStars } from '@/lib/rating'
 import { logActivity } from '@/lib/activityLog'
 import { getClubNombre } from '@/lib/club'
 
 export const dynamic = 'force-dynamic'
-
-// ── Player rating (Phase 1: FIFA card OVR) ──────────────────────────────────
-// OVR range ~55–95. Neutral 70 if no approved card. Displayed/balanced as stars
-// (÷20 → ~2.75–4.75) so the ★ UI and snake-draft both read the same number.
-const NEUTRAL_OVR = 70
-function ratingStars(ovr?: number): number {
-  return Math.round(((ovr ?? NEUTRAL_OVR) / 20) * 10) / 10
-}
-async function fetchRatings(
-  admin: ReturnType<typeof createAdminClient>,
-  playerIds: string[]
-): Promise<Map<string, number>> {
-  const m = new Map<string, number>()
-  if (!playerIds.length) return m
-  const { data } = await admin
-    .from('evaluaciones_carta')
-    .select('player_id, ovr, aprobado')
-    .in('player_id', playerIds)
-  for (const r of (data ?? []) as { player_id: string; ovr: number | null; aprobado: boolean }[]) {
-    if (r.aprobado && typeof r.ovr === 'number') m.set(r.player_id, r.ovr)
-  }
-  return m
-}
 
 async function getAdminUser(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data: { user } } = await supabase.auth.getUser()
@@ -75,12 +53,12 @@ export async function GET(req: NextRequest) {
 
   // Real rating from FIFA card OVR (Phase 1). Override the dead static habilidad.
   const playerIds = (jugadores ?? []).map(r => (r as { player_id: string }).player_id)
-  const ratingMap = await fetchRatings(admin, playerIds)
+  const ratingMap = await computeRatings(admin, playerIds)
 
   const byEquipo: Record<string, JugadorEquipo[]> = {}
   for (const row of (jugadores ?? [])) {
     const prof = (row as unknown as { profiles: JugadorEquipo }).profiles
-    prof.habilidad = ratingStars(ratingMap.get(prof.id))
+    prof.habilidad = ratingMap.get(prof.id)?.stars ?? ratingToStars(70)
     if (!byEquipo[row.equipo_id]) byEquipo[row.equipo_id] = []
     byEquipo[row.equipo_id].push(prof)
   }
@@ -93,7 +71,7 @@ export async function GET(req: NextRequest) {
       username: `${inv.nombre} *`,
       avatar_url: null,
       posicion: 'cualquiera',
-      habilidad: ratingStars(undefined),
+      habilidad: ratingToStars(70),
       isInvitado: true,
     } as JugadorEquipo)
   }
@@ -164,8 +142,8 @@ export async function POST(req: NextRequest) {
       .filter(Boolean)
 
     // Real rating from FIFA card OVR — override the dead static habilidad
-    const ratingMap = await fetchRatings(admin, jugadores.map(j => j.id))
-    for (const j of jugadores) j.habilidad = ratingStars(ratingMap.get(j.id))
+    const ratingMap = await computeRatings(admin, jugadores.map(j => j.id))
+    for (const j of jugadores) j.habilidad = ratingMap.get(j.id)?.stars ?? ratingToStars(70)
 
     // Add confirmed invitados as pseudo-players (neutral rating)
     for (const inv of invs ?? []) {
@@ -174,7 +152,7 @@ export async function POST(req: NextRequest) {
         username: `${(inv as { nombre: string }).nombre} *`,
         avatar_url: null,
         posicion: 'cualquiera',
-        habilidad: ratingStars(undefined),
+        habilidad: ratingToStars(70),
         isInvitado: true,
       })
     }

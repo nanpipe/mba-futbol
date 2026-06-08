@@ -142,15 +142,32 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // ── Apertura notifications (timestamp-based) ──────────────────────────────
-  const { data: aperturaDue } = await admin
+  // ── Apertura notifications ────────────────────────────────────────────────
+  // Fires when EITHER admin-set notif_apertura_at has passed, OR (auto-fallback,
+  // no timestamp set) the inscription window's opening DAY has arrived. Fallback
+  // lets apertura fire without admin input on the daily cron run.
+  const { data: aperturaCandidates } = await admin
     .from('partidos')
-    .select('id, club_id, fecha, dia_semana, hora, notif_apertura_at')
-    .lte('notif_apertura_at', now.toISOString())
+    .select('id, club_id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_apertura_at')
+    .gte('fecha', hoy)
     .eq('notif_apertura_sent', false)
-    .not('notif_apertura_at', 'is', null)
+    .order('fecha', { ascending: true })
+    .limit(20)
 
-  for (const partido of aperturaDue ?? []) {
+  // Colombia "today" (UTC-5) for the fallback day comparison
+  const colTodayStr = new Date(now.getTime() - 5 * 3600 * 1000).toISOString().split('T')[0]
+
+  const aperturaDue = (aperturaCandidates ?? []).filter(p => {
+    const ts = (p as { notif_apertura_at?: string | null }).notif_apertura_at
+    if (ts) return new Date(ts) <= now            // admin timestamp passed
+    // Fallback: opening day reached (no timestamp set)
+    const abreEn = calcularVentanaPartido(p).abreEn
+    if (!abreEn) return false
+    const abreDayCol = new Date(abreEn.getTime() - 5 * 3600 * 1000).toISOString().split('T')[0]
+    return abreDayCol <= colTodayStr
+  })
+
+  for (const partido of aperturaDue) {
     const clubId = (partido as { club_id: string }).club_id
     const clubPlayerIds = await getClubPlayerIds(admin, clubId, playerIdsCache)
     const clubNombre = await getClubNombreById(admin, clubId, clubNombreCache)

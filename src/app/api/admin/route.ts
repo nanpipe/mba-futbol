@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { safeError, isUUID, isString, isEmail, isDate, isIntInRange } from '@/lib/validation'
 import { internalFetch } from '@/lib/internalFetch'
 import { logActivity } from '@/lib/activityLog'
-import { sendTestEmail } from '@/lib/email'
+import { sendTestEmail, sendAperturaEmail, sendAdminAlertEmail } from '@/lib/email'
 import { getClubNombre } from '@/lib/club'
 
 export const dynamic = 'force-dynamic'
@@ -644,8 +644,8 @@ export async function POST(req: NextRequest) {
   if (accion === 'forzar_notif_apertura') {
     const { partido_id } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
-    const { data: partido } = await admin.from('partidos').select('dia_semana').eq('id', partido_id as string).single()
-    const { data: clubProfiles } = await admin.from('profiles').select('id').eq('club_id', clubId).eq('aprobado', true).eq('baneado', false)
+    const { data: partido } = await admin.from('partidos').select('dia_semana, fecha, hora').eq('id', partido_id as string).single()
+    const { data: clubProfiles } = await admin.from('profiles').select('id, email, username').eq('club_id', clubId).eq('aprobado', true).eq('baneado', false)
     const clubPlayerIds = (clubProfiles ?? []).map((p: { id: string }) => p.id)
     const { data: subs } = clubPlayerIds.length > 0
       ? await admin.from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', clubPlayerIds)
@@ -661,6 +661,17 @@ export async function POST(req: NextRequest) {
         })
         enviados++
       } catch { /* ignore dead subs */ }
+    }
+    // Also email each club player (best-effort)
+    const clubNombre = getClubNombre(req)
+    const partidoTyped = partido as { dia_semana?: string; fecha?: string; hora?: string } | null
+    const diaSemana = partidoTyped?.dia_semana ?? ''
+    const fechaPartido = partidoTyped?.fecha ?? ''
+    const hora = partidoTyped?.hora?.substring(0, 5) ?? '19:00'
+    for (const p of (clubProfiles ?? []) as { id: string; email?: string; username?: string }[]) {
+      if (p.email && p.username) {
+        sendAperturaEmail({ email: p.email, username: p.username, diaSemana, fechaPartido, hora, clubNombre }).catch(e => console.error('[admin] forzar_notif_apertura email failed:', e))
+      }
     }
     await admin.from('partidos').update({ notif_apertura_sent: true }).eq('id', partido_id as string)
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'forzar_notif_apertura', detalles: { partido_id, enviados }, ip })

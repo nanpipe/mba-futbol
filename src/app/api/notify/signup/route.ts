@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPush } from '@/lib/push'
 import { logActivity } from '@/lib/activityLog'
+import { sendAdminAlertEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,6 +48,38 @@ export async function POST(req: NextRequest) {
         await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
       } else {
         console.error('[notify/signup] sendPush failed:', err)
+      }
+    }
+  }
+
+  // Also email each admin (best-effort)
+  {
+    const { data: adminEmailProfiles } = await admin
+      .from('profiles')
+      .select('email, username')
+      .in('id', adminIds)
+    // Get club name best-effort
+    let clubNombre = 'MBA Fútbol Club'
+    try {
+      const { data: profileForClub } = await admin.from('profiles').select('club_id').eq('id', profile.id).single()
+      if (profileForClub?.club_id) {
+        const { data: clubSetting } = await admin
+          .from('app_settings')
+          .select('value')
+          .eq('club_id', profileForClub.club_id)
+          .eq('key', 'club_nombre')
+          .maybeSingle()
+        if (clubSetting?.value && typeof clubSetting.value === 'string') clubNombre = clubSetting.value
+      }
+    } catch { /* ignore */ }
+    for (const ap of (adminEmailProfiles ?? []) as { email?: string; username?: string }[]) {
+      if (ap.email) {
+        sendAdminAlertEmail({
+          email: ap.email,
+          titulo: '🙋 Nueva solicitud de acceso',
+          mensaje: `@${username} quiere unirse al equipo. Revísalo en el panel de admin.`,
+          clubNombre,
+        }).catch(e => console.error('[notify/signup] admin email failed:', e))
       }
     }
   }

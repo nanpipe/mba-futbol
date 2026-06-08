@@ -5,6 +5,7 @@ import { calcularVentanaPartido } from '@/lib/partidos'
 import { safeError, isUUID } from '@/lib/validation'
 import { internalFetch } from '@/lib/internalFetch'
 import { logActivity } from '@/lib/activityLog'
+import { sendAdminAlertEmail } from '@/lib/email'
 import { isRateLimited, getClientIp } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
@@ -115,6 +116,24 @@ export async function POST(req: NextRequest) {
     } catch { /* non-critical */ }
   }
 
+  const emailAdmins = (titulo: string, mensaje: string) => {
+    ;(async () => {
+      try {
+        const { data: adminEmailProfiles } = await admin
+          .from('profiles')
+          .select('email')
+          .in('role', ['admin', 'superadmin'])
+        for (const ap of (adminEmailProfiles ?? []) as { email?: string }[]) {
+          if (ap.email) {
+            sendAdminAlertEmail({ email: ap.email, titulo, mensaje }).catch(e =>
+              console.error('[inscripciones] admin email failed:', e)
+            )
+          }
+        }
+      } catch { /* non-critical */ }
+    })()
+  }
+
   const dia = partido.fecha
     ? new Date(partido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'long', timeZone: 'America/Bogota' })
     : ''
@@ -131,6 +150,7 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
     await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'confirmado' } })
     await pushAdmins('✅ Nueva inscripción', `${profile.username} se inscribió (confirmado) — ${dia}`)
+    emailAdmins('✅ Nueva inscripción', `${profile.username} se inscribió (confirmado) — ${dia}`)
     return NextResponse.json({ estado: 'confirmado' })
   } else if (tieneUniforme && !spotsLibres) {
     // Uniform + full → try to bump the most-recent non-uniform confirmed player
@@ -153,6 +173,7 @@ export async function POST(req: NextRequest) {
       await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'confirmado_prioridad' } })
       await logActivity({ user_id: toBump.player_id, accion: 'bumped_espera', detalles: { partido_id, fecha: partido.fecha, bumped_by: profile.username } })
       await pushAdmins('✅ Nueva inscripción (uniforme)', `${profile.username} entró confirmado — ${dia}`)
+      emailAdmins('✅ Nueva inscripción (uniforme)', `${profile.username} entró confirmado — ${dia}`)
       return NextResponse.json({ estado: 'confirmado', prioridad: true })
     }
     // All confirmed slots taken by uniformed players → fall through to espera
@@ -167,6 +188,7 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
   await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'espera', posicion_espera: posicion } })
   await pushAdmins('⏳ Nueva inscripción (espera)', `${profile.username} en lista de espera #${posicion} — ${dia}`)
+  emailAdmins('⏳ Nueva inscripción (espera)', `${profile.username} en lista de espera #${posicion} — ${dia}`)
   return NextResponse.json({ estado: 'espera', posicion_espera: posicion })
 }
 
@@ -252,6 +274,26 @@ export async function DELETE(req: NextRequest) {
             url: '/admin',
           }).catch(() => {})
         }
+      }
+    }
+  } catch { /* non-critical */ }
+
+  // Also email admins about baja (best-effort)
+  try {
+    const { data: adminBajaProfiles } = await admin
+      .from('profiles')
+      .select('email')
+      .in('role', ['admin', 'superadmin'])
+    const promoBodyForEmail = promovidosNames.length
+      ? ` → ${promovidosNames.join(', ')} promovido${promovidosNames.length > 1 ? 's' : ''}`
+      : ''
+    for (const ap of (adminBajaProfiles ?? []) as { email?: string }[]) {
+      if (ap.email) {
+        sendAdminAlertEmail({
+          email: ap.email,
+          titulo: '⚠️ Baja en el partido',
+          mensaje: `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}${promoBodyForEmail}`,
+        }).catch(e => console.error('[inscripciones] baja email failed:', e))
       }
     }
   } catch { /* non-critical */ }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPush } from '@/lib/push'
 import { logActivity } from '@/lib/activityLog'
+import { sendAperturaEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,11 +27,11 @@ export async function GET(req: NextRequest) {
 
   let totalEnviados = 0
 
-  for (const partido of partidos as { id: string; club_id: string; dia_semana: string; hora_apertura: string }[]) {
+  for (const partido of partidos as { id: string; club_id: string; dia_semana: string; hora_apertura: string; fecha?: string; hora?: string }[]) {
     // Get all approved, non-banned players from this club
     const { data: clubProfiles } = await admin
       .from('profiles')
-      .select('id')
+      .select('id, email, username')
       .eq('club_id', partido.club_id)
       .eq('aprobado', true)
       .eq('baneado', false)
@@ -57,6 +58,19 @@ export async function GET(req: NextRequest) {
         if ((err as { statusCode?: number }).statusCode === 410) {
           await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
         }
+      }
+    }
+
+    // Also email each club player (best-effort)
+    for (const p of (clubProfiles ?? []) as { id: string; email?: string; username?: string }[]) {
+      if (p.email && p.username) {
+        sendAperturaEmail({
+          email: p.email,
+          username: p.username,
+          diaSemana: partido.dia_semana,
+          fechaPartido: partido.fecha ?? '',
+          hora: partido.hora?.substring(0, 5) ?? '19:00',
+        }).catch(e => console.error('[cron/pre-apertura] email failed:', e))
       }
     }
 

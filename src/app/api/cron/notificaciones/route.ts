@@ -20,23 +20,30 @@ function verifyCron(req: NextRequest) {
   return true
 }
 
+function isDeadPushError(err: unknown): boolean {
+  return (err as { statusCode?: number }).statusCode === 410
+}
+
 async function sendToMany(
   admin: ReturnType<typeof createAdminClient>,
   subs: { endpoint: string; p256dh: string; auth: string }[],
   payload: { title: string; body: string; url?: string }
 ): Promise<number> {
-  let enviados = 0
-  for (const sub of subs) {
-    try {
-      await sendPush(sub, payload)
-      enviados++
-    } catch (err: unknown) {
-      if ((err as { statusCode?: number }).statusCode === 410) {
-        await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
-      }
-    }
-  }
-  return enviados
+  const results = await Promise.allSettled(
+    subs.map(sub =>
+      sendPush(sub, payload)
+        .then(() => 1 as const)
+        .catch(async (err: unknown) => {
+          if (isDeadPushError(err)) {
+            await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+          } else {
+            console.error('[cron/notificaciones] sendPush failed:', err)
+          }
+          return 0 as const
+        })
+    )
+  )
+  return results.reduce((sum, r) => sum + (r.status === 'fulfilled' ? r.value : 0), 0)
 }
 
 // ── Per-club helpers (cached within one cron run) ──────────────────────────
@@ -181,7 +188,7 @@ export async function GET(req: NextRequest) {
         url: '/',
       })
 
-      // Email → approved club players
+      // Email → approved club players (parallel)
       if (emailApertura) {
         const { data: profiles } = await admin
           .from('profiles')
@@ -190,17 +197,17 @@ export async function GET(req: NextRequest) {
           .eq('aprobado', true)
           .eq('baneado', false)
           .neq('role', 'admin')
-        for (const p of (profiles ?? [])) {
-          const r = await sendAperturaEmail({
+        const emailResults = await Promise.allSettled(
+          (profiles ?? []).map(p => sendAperturaEmail({
             email: (p as { email: string }).email,
             username: (p as { username: string }).username,
             diaSemana: partido.dia_semana,
             fechaPartido: partido.fecha,
             hora: matchHora,
             clubNombre,
-          })
-          if (r.ok) results.apertura_email++
-        }
+          }))
+        )
+        results.apertura_email += emailResults.filter(r => r.status === 'fulfilled' && r.value.ok).length
       }
 
       await admin.from('partidos').update({ notif_apertura_sent: true }).eq('id', partido.id)
@@ -266,22 +273,22 @@ export async function GET(req: NextRequest) {
           url: '/',
         })
 
-        // Email
+        // Email (parallel)
         if (emailRecordatorio) {
           const { data: profiles } = await admin
             .from('profiles')
             .select('email, username')
             .in('id', confirmedIds)
-          for (const p of (profiles ?? [])) {
-            const r = await sendRecordatorioEmail({
+          const emailResults = await Promise.allSettled(
+            (profiles ?? []).map(p => sendRecordatorioEmail({
               email: (p as { email: string }).email,
               username: (p as { username: string }).username,
               diaSemana: partido.dia_semana,
               hora: matchHora,
               clubNombre,
-            })
-            if (r.ok) results.recordatorio_email++
-          }
+            }))
+          )
+          results.recordatorio_email += emailResults.filter(r => r.status === 'fulfilled' && r.value.ok).length
         }
 
         await admin.from('partidos').update({ notif_recordatorio_sent: true }).eq('id', partido.id)
@@ -352,10 +359,14 @@ export async function GET(req: NextRequest) {
   // ── Drain notificaciones_pendientes (promotion emails/push) ──────────────
   const { data: pendientes } = await admin
     .from('notificaciones_pendientes')
-    .select('*')
+    .select('id, player_id, email, username, fecha_partido, club_id')
     .eq('enviado', false)
     .order('created_at', { ascending: true })
     .limit(20)
+
+  if ((pendientes ?? []).length > 50) {
+    // safety guard — should not happen given .limit(20), but kept for clarity
+  }
 
   let promovidos_enviados = 0
   for (const notif of pendientes ?? []) {

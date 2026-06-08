@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
   const { data: partidos } = await admin
     .from('partidos')
-    .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura')
+    .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, cupos_total')
     .gte('fecha', hoy)
     .order('fecha', { ascending: true })
     .limit(5)
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       .eq('partido_id', partido.id)
       .eq('estado', 'confirmado')
 
-    const cuposLibres = 14 - (confirmados ?? 0)
+    const cuposLibres = (partido.cupos_total ?? 14) - (confirmados ?? 0)
     if (cuposLibres <= 0) continue
 
     // Get IDs of players already on the list (confirmed + waitlist)
@@ -59,20 +59,23 @@ export async function GET(req: NextRequest) {
       ? await subsQuery.not('player_id', 'in', `(${inscritosIds.join(',')})`)
       : await subsQuery
 
-    for (const sub of subs ?? []) {
-      try {
-        await sendPush(sub, {
+    const results = await Promise.allSettled(
+      (subs ?? []).map(sub =>
+        sendPush(sub, {
           title: '⚽ Cupos disponibles',
           body: `Quedan ${cuposLibres} cupo${cuposLibres !== 1 ? 's' : ''} para el partido del ${partido.dia_semana}. ¡Anótate antes de que se llene!`,
           url: '/',
         })
-        totalEnviados++
-      } catch (err: unknown) {
-        if ((err as { statusCode?: number }).statusCode === 410) {
-          await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
-        }
-      }
-    }
+          .then(() => 1 as const)
+          .catch(async (err: unknown) => {
+            if ((err as { statusCode?: number }).statusCode === 410) {
+              await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+            }
+            return 0 as const
+          })
+      )
+    )
+    totalEnviados += results.reduce((sum, r) => sum + (r.status === 'fulfilled' ? r.value : 0), 0)
   }
 
   console.log('[cron/cupos]', new Date().toISOString(), { enviados: totalEnviados })

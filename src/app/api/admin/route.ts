@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { safeError, isUUID, isString, isEmail, isDate, isIntInRange } from '@/lib/validation'
 import { internalFetch } from '@/lib/internalFetch'
 import { logActivity } from '@/lib/activityLog'
-import { sendTestEmail, sendEvaluacionesEmail } from '@/lib/email'
+import { sendTestEmail, sendEvaluacionesEmail, sendAperturaEmail } from '@/lib/email'
 import { getClubNombre } from '@/lib/club'
 
 export const dynamic = 'force-dynamic'
@@ -663,19 +663,20 @@ export async function POST(req: NextRequest) {
   if (accion === 'forzar_notif_apertura') {
     const { partido_id } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
-    const { data: partido } = await admin.from('partidos').select('dia_semana').eq('id', partido_id as string).single()
-    const { data: clubProfiles } = await admin.from('profiles').select('id').eq('club_id', clubId).eq('aprobado', true).eq('baneado', false)
+    const { data: partido } = await admin.from('partidos').select('dia_semana, fecha, hora').eq('id', partido_id as string).single()
+    const { data: clubProfiles } = await admin.from('profiles').select('id, email, username').eq('club_id', clubId).eq('aprobado', true).eq('baneado', false).neq('role', 'admin')
     const clubPlayerIds = (clubProfiles ?? []).map((p: { id: string }) => p.id)
     const { data: subs } = clubPlayerIds.length > 0
       ? await admin.from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', clubPlayerIds)
       : { data: [] }
     const { sendPush, isDeadPushError } = await import('@/lib/push')
+    const diaSemana = (partido as { dia_semana?: string })?.dia_semana ?? ''
     let enviados = 0
     for (const sub of subs ?? []) {
       try {
         await sendPush(sub, {
           title: '⚽ ¡Inscripciones abiertas!',
-          body: `Ya puedes anotarte para el partido del ${(partido as { dia_semana?: string })?.dia_semana ?? ''}. ¡Entra ahora!`,
+          body: `Ya puedes anotarte para el partido del ${diaSemana}. ¡Entra ahora!`,
           url: '/',
         })
         enviados++
@@ -683,6 +684,16 @@ export async function POST(req: NextRequest) {
         if (isDeadPushError(err)) await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
         else console.error('[admin] forzar_notif sendPush failed:', err)
       }
+    }
+    // Email all club players too
+    const matchHora = (partido as { hora?: string })?.hora?.substring(0, 5) ?? '19:00'
+    const fechaPartido = (partido as { fecha?: string })?.fecha ?? ''
+    const clubNombre = getClubNombre(req)
+    for (const p of (clubProfiles ?? []) as { email?: string; username?: string }[]) {
+      if (!p.email) continue
+      try {
+        await sendAperturaEmail({ email: p.email, username: p.username ?? '', diaSemana, fechaPartido, hora: matchHora, clubNombre })
+      } catch (err) { console.error('[admin] forzar_notif email failed:', err) }
     }
     await admin.from('partidos').update({ notif_apertura_sent: true }).eq('id', partido_id as string)
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'forzar_notif_apertura', detalles: { partido_id, enviados }, ip })

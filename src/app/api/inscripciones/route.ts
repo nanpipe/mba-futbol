@@ -102,9 +102,16 @@ export async function POST(req: NextRequest) {
   const pushAdmins = async (titulo: string, cuerpo: string) => {
     try {
       const { data: adminProfiles } = await admin
-        .from('profiles').select('id').in('role', ['admin', 'superadmin'])
+        .from('profiles').select('id, email').in('role', ['admin', 'superadmin'])
       const adminIds = (adminProfiles ?? []).map((a: { id: string }) => a.id)
       if (!adminIds.length) return
+      // Email admins
+      const { sendAdminAlertEmail } = await import('@/lib/email')
+      for (const a of (adminProfiles ?? []) as { email?: string }[]) {
+        if (!a.email) continue
+        try { await sendAdminAlertEmail({ email: a.email, titulo, mensaje: cuerpo }) }
+        catch (err) { console.error('[inscripciones] admin email failed:', err) }
+      }
       const { data: subs } = await admin
         .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', adminIds)
       if (!subs?.length) return
@@ -239,21 +246,29 @@ export async function DELETE(req: NextRequest) {
   // Admin push — awaited so Vercel doesn't kill before completion
   try {
     const { data: adminProfiles } = await admin
-      .from('profiles').select('id').in('role', ['admin', 'superadmin'])
+      .from('profiles').select('id, email').in('role', ['admin', 'superadmin'])
     const adminIds = (adminProfiles ?? []).map((a: { id: string }) => a.id)
     if (adminIds.length) {
+      const promoBody = promovidosNames.length
+        ? ` → ${promovidosNames.join(', ')} promovido${promovidosNames.length > 1 ? 's' : ''}`
+        : ''
+      const bajaMsg = `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}${promoBody}`
+      // Email admins
+      const { sendAdminAlertEmail } = await import('@/lib/email')
+      for (const a of (adminProfiles ?? []) as { email?: string }[]) {
+        if (!a.email) continue
+        try { await sendAdminAlertEmail({ email: a.email, titulo: '⚠️ Baja en el partido', mensaje: bajaMsg }) }
+        catch (err) { console.error('[inscripciones] baja email failed:', err) }
+      }
       const { data: subs } = await admin
         .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', adminIds)
       if (subs?.length) {
         const { sendPush, isDeadPushError } = await import('@/lib/push')
-        const promoBody = promovidosNames.length
-          ? ` → ${promovidosNames.join(', ')} promovido${promovidosNames.length > 1 ? 's' : ''}`
-          : ''
         for (const sub of subs) {
           try {
             await sendPush(sub, {
               title: '⚠️ Baja en el partido',
-              body: `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}${promoBody}`,
+              body: bajaMsg,
               url: '/admin',
             })
           } catch (err) {

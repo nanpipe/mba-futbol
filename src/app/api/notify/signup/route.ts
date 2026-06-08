@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPush, isDeadPushError } from '@/lib/push'
+import { sendAdminAlertEmail } from '@/lib/email'
 import { logActivity } from '@/lib/activityLog'
 
 export const dynamic = 'force-dynamic'
@@ -26,11 +27,23 @@ export async function POST(req: NextRequest) {
   if (profile.aprobado) return NextResponse.json({ ok: true }) // already approved, no notification needed
 
   // Notify admins + superadmins of the new user's club
-  let adminQuery = admin.from('profiles').select('id').in('role', ['admin', 'superadmin'])
+  let adminQuery = admin.from('profiles').select('id, email').in('role', ['admin', 'superadmin'])
   if (profile.club_id) adminQuery = adminQuery.eq('club_id', profile.club_id)
   const { data: adminProfiles } = await adminQuery
   const adminIds = (adminProfiles ?? []).map((p: { id: string }) => p.id)
   if (!adminIds.length) return NextResponse.json({ ok: true, enviados: 0 })
+
+  // Email admins too
+  for (const a of (adminProfiles ?? []) as { email?: string }[]) {
+    if (!a.email) continue
+    try {
+      await sendAdminAlertEmail({
+        email: a.email,
+        titulo: '🙋 Nueva solicitud de acceso',
+        mensaje: `@${username} quiere unirse al equipo. Revísalo en el panel de admin.`,
+      })
+    } catch (err) { console.error('[notify/signup] email failed:', err) }
+  }
 
   const { data: subs } = await admin
     .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', adminIds)

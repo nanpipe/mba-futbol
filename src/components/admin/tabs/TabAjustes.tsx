@@ -26,19 +26,13 @@ const CLUB_TOGGLES = [
 ] as const
 
 const CLUB_TEXT_FIELDS = [
-  { key: 'club_nombre',     label: 'Nombre del club',   placeholder: 'MBA FC' },
-  { key: 'club_ciudad',     label: 'Ciudad',             placeholder: 'Bogotá' },
-  { key: 'club_dias_juego', label: 'Días de juego',      placeholder: 'Martes y Viernes' },
+  { key: 'club_nombre', label: 'Nombre del club', placeholder: 'MBA FC' },
+  { key: 'club_ciudad', label: 'Ciudad',           placeholder: 'Bogotá' },
 ] as const
 
+// Días/horarios de partido se derivan de los partidos reales, no se configuran como texto.
 const HORARIOS_FIELDS = [
-  { key: 'hora_partido',          label: 'Hora del partido',                       placeholder: '7:00 PM' },
-  { key: 'dias_display',          label: 'Días en el header',                      placeholder: 'MAR · VIE' },
-  { key: 'dia_juego_1',           label: 'Día de partido 1',                       placeholder: 'martes' },
-  { key: 'dia_juego_2',           label: 'Día de partido 2',                       placeholder: 'viernes' },
-  { key: 'hora_apertura_martes',  label: 'Apertura inscripciones partido 1',       placeholder: 'domingos a las 10:00 am' },
-  { key: 'hora_apertura_viernes', label: 'Apertura inscripciones partido 2',       placeholder: 'jueves a las 10:00 am' },
-  { key: 'hora_promo_invitados',  label: 'Hora promoción invitados',               placeholder: '2:00 PM' },
+  { key: 'hora_promo_invitados', label: 'Hora promoción invitados', placeholder: '2:00 PM' },
 ] as const
 
 interface Props {
@@ -239,7 +233,7 @@ export function TabAjustes({ active }: Props) {
 
           {/* Horarios y días */}
           <Card padding="20px 24px">
-            <SectionHeader title="HORARIOS Y DÍAS" icon="🕐" color="var(--amber)" />
+            <SectionHeader title="INVITADOS" icon="🎟️" color="var(--amber)" />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {HORARIOS_FIELDS.map(({ key, label, placeholder }) => (
                 <div key={key}>

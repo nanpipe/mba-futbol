@@ -89,6 +89,22 @@ interface VentanaInfo {
   abreEnDate?: string | null  // ISO string of when inscriptions open
 }
 
+// ── Schedule display derived from REAL match data (never free-text settings) ──
+const WEEKDAY_ABBR = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB']
+function weekdayAbbr(fecha?: string | null): string {
+  if (!fecha) return ''
+  const d = new Date(fecha + 'T12:00:00')
+  return isNaN(d.getTime()) ? '' : WEEKDAY_ABBR[d.getDay()]
+}
+function formatHora12(hora?: string | null): string {
+  if (!hora) return ''
+  const [h, m] = hora.split(':').map(Number)
+  if (isNaN(h)) return ''
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}:${String(m || 0).padStart(2, '0')} ${ampm}`
+}
+
 export default function HomePage() {
   const supabase = createClient()
   const club = useClub()
@@ -191,7 +207,7 @@ export default function HomePage() {
     const cargarUltimo = async () => {
       const { data: ultimo } = await supabase
         .from('partidos')
-        .select('id, fecha, dia_semana, evaluaciones_abiertas, foto_url, goles_a, goles_b, resultado, tipo, puntos_blanco, puntos_negro, puntos_morado')
+        .select('id, fecha, dia_semana, hora, evaluaciones_abiertas, foto_url, goles_a, goles_b, resultado, tipo, puntos_blanco, puntos_negro, puntos_morado')
         .lt('fecha', hoy)
         .order('fecha', { ascending: false })
         .limit(1)
@@ -417,7 +433,7 @@ export default function HomePage() {
           ÚLTIMO PARTIDO — {p.dia_semana.toUpperCase()}
         </div>
         <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 16 }}>
-          {new Date(p.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })} · {club.settings?.hora_partido ?? '7:00 PM'}
+          {new Date(p.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })}{formatHora12(p.hora) && ` · ${formatHora12(p.hora)}`}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {p.foto_url && (
@@ -497,6 +513,12 @@ export default function HomePage() {
     : null
   const cuposLibres = cuposTotal - totalConfirmados
 
+  // Header schedule — derived from real matches, deduped weekday abbreviations
+  const headerDias = [...new Set(
+    [ventana?.partido?.fecha, ultimoPartido?.partido?.fecha].map(weekdayAbbr).filter(Boolean)
+  )].join(' · ')
+  const headerHora = formatHora12(ventana?.partido?.hora ?? ultimoPartido?.partido?.hora)
+
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
@@ -510,7 +532,7 @@ export default function HomePage() {
   if (!user) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 32 }}>
-        <Header club={club} />
+        <Header club={club} dias={headerDias} hora={headerHora} />
         <div style={{ display: 'flex', gap: 12 }}>
           <Link href="/login" className="btn btn-primary">Iniciar sesión</Link>
           <Link href="/registro" className="btn btn-ghost">Registrarse</Link>
@@ -588,7 +610,7 @@ export default function HomePage() {
 
       <div className="container" style={{ paddingTop: 48 }}>
         {/* Header */}
-        <Header club={club} />
+        <Header club={club} dias={headerDias} hora={headerHora} />
 
         <div style={{ height: 48 }} />
 
@@ -616,8 +638,7 @@ export default function HomePage() {
                 )
               })() : (
                 <p style={{ color: 'var(--text-muted)', fontSize: 15, lineHeight: 1.6, marginBottom: 8 }}>
-                  Las inscripciones abren los <strong style={{ color: 'var(--text)' }}>{club.settings?.hora_apertura_martes ?? 'domingos a las 10:00 am'}</strong> para el {club.settings?.dia_juego_1 ?? 'martes'}<br />
-                  y los <strong style={{ color: 'var(--text)' }}>{club.settings?.hora_apertura_viernes ?? 'jueves a las 10:00 am'}</strong> para el {club.settings?.dia_juego_2 ?? 'viernes'}.
+                  Las inscripciones abren unos días antes de cada partido. Te avisaremos cuando estén disponibles.
                 </p>
               )}
               {countdown && (
@@ -643,7 +664,7 @@ export default function HomePage() {
                 <span className="mono" style={{ fontSize: 14, color: 'var(--text-muted)' }}>
                   {ventana.partido?.fecha
                     ? new Date(ventana.partido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })
-                    : ''} · {club.settings?.hora_partido ?? '7:00 PM'}
+                    : ''}{formatHora12(ventana.partido?.hora) && ` · ${formatHora12(ventana.partido?.hora)}`}
                 </span>
               </div>
             </div>
@@ -1067,11 +1088,10 @@ export default function HomePage() {
   )
 }
 
-function Header({ club }: { club?: import('@/hooks/useClub').ClubInfo }) {
+function Header({ club, dias, hora }: { club?: import('@/hooks/useClub').ClubInfo; dias?: string; hora?: string }) {
   const nombre = club?.nombre ?? 'MBA FC'
   const lines = nombre.split(' ')
-  const diasDisplay = club?.settings?.dias_display ?? 'MAR · VIE'
-  const horaPartido = club?.settings?.hora_partido ?? '7:00 PM'
+  const subtitle = [dias, hora].filter(Boolean).join(' · ')
   return (
     <div>
       <div className="display" style={{ fontSize: 64, lineHeight: 0.9, letterSpacing: '0.03em' }}>
@@ -1082,9 +1102,11 @@ function Header({ club }: { club?: import('@/hooks/useClub').ClubInfo }) {
           </span>
         ))}
       </div>
-      <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.1em', marginTop: 16 }}>
-        {diasDisplay} · {horaPartido}
-      </div>
+      {subtitle && (
+        <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.1em', marginTop: 16 }}>
+          {subtitle}
+        </div>
+      )}
     </div>
   )
 }

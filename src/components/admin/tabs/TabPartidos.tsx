@@ -9,6 +9,16 @@ import { FormLabel } from '@/components/FormLabel'
 import { ButtonGroup } from '@/components/ButtonGroup'
 import type { Player, Partido, Inscripcion, Invitado, AdminAction } from '@/types/admin'
 
+// Notification fires 5 min before the inscription window opens.
+function notifTime(horaApertura: string): string {
+  const [h, m] = horaApertura.split(':').map(Number)
+  if (isNaN(h) || isNaN(m)) return ''
+  let total = h * 60 + m - 5
+  if (total < 0) total += 24 * 60
+  const hh = Math.floor(total / 60), mm = total % 60
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+}
+
 interface Props {
   partidos: Partido[]
   players: Player[]
@@ -717,6 +727,11 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                   <FormLabel label="Abrir Inscripciones" />
                   <input type="time" value={nuevaHoraApertura} onChange={e => setNuevaHoraApertura(e.target.value)} />
                   <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>hora de apertura</div>
+                  {notifTime(nuevaHoraApertura) && (
+                    <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                      📣 Notificación a las {notifTime(nuevaHoraApertura)} (5 min antes)
+                    </div>
+                  )}
                 </div>
                 <div>
                   <FormLabel label="Días Antes" />
@@ -786,6 +801,11 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 <div>
                   <FormLabel label="Hora Apertura" />
                   <input type="time" value={nuevaHoraApertura} onChange={e => setNuevaHoraApertura(e.target.value)} />
+                  {notifTime(nuevaHoraApertura) && (
+                    <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                      📣 Notificación a las {notifTime(nuevaHoraApertura)} (5 min antes)
+                    </div>
+                  )}
                 </div>
                 <div>
                   <FormLabel label="Días Antes" />

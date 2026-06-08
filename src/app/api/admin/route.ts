@@ -779,9 +779,8 @@ export async function POST(req: NextRequest) {
       'notif_apertura', 'notif_recordatorio', 'notif_cupos', 'notif_invitados',
       'email_apertura', 'email_recordatorio',
       'usar_uniforme', 'usar_invitados', 'usuarios_pueden_cambiar_username',
-      'club_nombre', 'club_ciudad', 'club_dias_juego',
-      'hora_partido', 'dias_display', 'dia_juego_1', 'dia_juego_2',
-      'hora_apertura_martes', 'hora_apertura_viernes', 'hora_promo_invitados',
+      'club_nombre', 'club_ciudad',
+      'hora_promo_invitados',
     ]
     if (typeof key !== 'string' || !ALLOWED_KEYS.includes(key)) {
       return NextResponse.json({ error: 'Clave inválida' }, { status: 400 })

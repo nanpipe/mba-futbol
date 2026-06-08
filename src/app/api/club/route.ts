@@ -9,16 +9,10 @@ export const dynamic = 'force-dynamic'
  * Returns club context for client components.
  * Club is resolved by middleware from subdomain and injected as x-club-id header.
  */
+// Schedule/days are derived from real matches, not stored as text.
+// Only club-policy values that aren't derivable live here.
 const SCHEDULE_SETTINGS_DEFAULTS: Record<string, string> = {
-  hora_partido: '7:00 PM',
-  hora_apertura_martes: 'domingos a las 10:00 am',
-  hora_apertura_viernes: 'jueves a las 10:00 am',
-  dia_juego_1: 'martes',
-  dia_juego_2: 'viernes',
-  dia_apertura_1: 'domingo',
-  dia_apertura_2: 'jueves',
   hora_promo_invitados: '2:00 PM',
-  dias_display: 'MAR · VIE',
 }
 
 export async function GET(req: NextRequest) {

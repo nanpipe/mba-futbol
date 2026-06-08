@@ -40,9 +40,9 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
   }
 
-  const { avatar_url, posicion, username } = body
+  const { avatar_url, posicion, posiciones, username } = body
   const ip = getIP(req)
-  const updates: Record<string, string> = {}
+  const updates: Record<string, unknown> = {}
 
   // ── Username ──────────────────────────────────────────────────────────────
   if (username !== undefined) {
@@ -69,13 +69,24 @@ export async function PATCH(req: NextRequest) {
     updates.username = clean
   }
 
-  // ── Posición ──────────────────────────────────────────────────────────────
+  // ── Posiciones (hasta 2) ────────────────────────────────────────────────────
   const POSICIONES = ['portero', 'defensa', 'medio', 'delantero', 'cualquiera']
-  if (posicion !== undefined) {
+  if (posiciones !== undefined) {
+    if (!Array.isArray(posiciones) || posiciones.length < 1 || posiciones.length > 2) {
+      return NextResponse.json({ error: 'Elige 1 o 2 posiciones.' }, { status: 400 })
+    }
+    const clean = [...new Set(posiciones)].filter(p => typeof p === 'string' && POSICIONES.includes(p)) as string[]
+    if (clean.length === 0) {
+      return NextResponse.json({ error: 'Posición inválida.' }, { status: 400 })
+    }
+    updates.posiciones = clean
+    updates.posicion = clean[0] // back-compat primary
+  } else if (posicion !== undefined) {
     if (typeof posicion !== 'string' || !POSICIONES.includes(posicion)) {
       return NextResponse.json({ error: 'Posición inválida.' }, { status: 400 })
     }
     updates.posicion = posicion
+    updates.posiciones = [posicion]
   }
 
   // ── Avatar URL ────────────────────────────────────────────────────────────

@@ -595,16 +595,22 @@ export async function POST(req: NextRequest) {
 
   // ── Actualizar posición del jugador (admin) ────────────────────────────────
   if (accion === 'actualizar_posicion') {
-    const { player_id, posicion } = body
+    const { player_id, posicion, posiciones } = body
     if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
     const POSICIONES = ['portero', 'defensa', 'medio', 'delantero', 'cualquiera']
-    if (typeof posicion !== 'string' || !POSICIONES.includes(posicion)) {
+    let posArr: string[]
+    if (Array.isArray(posiciones)) {
+      posArr = [...new Set(posiciones)].filter(p => typeof p === 'string' && POSICIONES.includes(p)) as string[]
+      if (posArr.length < 1 || posArr.length > 2) return NextResponse.json({ error: 'Elige 1 o 2 posiciones.' }, { status: 400 })
+    } else if (typeof posicion === 'string' && POSICIONES.includes(posicion)) {
+      posArr = [posicion]
+    } else {
       return NextResponse.json({ error: 'Posición inválida' }, { status: 400 })
     }
-    const { error } = await admin.from('profiles').update({ posicion }).eq('club_id', clubId).eq('id', player_id as string)
+    const { error } = await admin.from('profiles').update({ posicion: posArr[0], posiciones: posArr }).eq('club_id', clubId).eq('id', player_id as string)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
-    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'actualizar_posicion', detalles: { player_id, posicion }, ip })
-    return NextResponse.json({ ok: true, mensaje: `Posición actualizada a ${posicion}.` })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'actualizar_posicion', detalles: { player_id, posiciones: posArr }, ip })
+    return NextResponse.json({ ok: true, mensaje: `Posición actualizada a ${posArr.join(' / ')}.` })
   }
 
   // ── Confirmar que el partido se jugó ─────────────────────────────────────

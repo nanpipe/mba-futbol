@@ -21,6 +21,7 @@ interface ProfileData {
   avatar_url: string | null
   created_at: string
   posicion: Posicion
+  posiciones?: Posicion[]
 }
 
 interface Badge {
@@ -51,9 +52,18 @@ export default function PerfilPage() {
   const [loading, setLoading] = useState(true)
   const [carta, setCarta] = useState<Record<string, unknown> | null>(null)
 
-  // Position
-  const [posicion, setPosicion] = useState<Posicion>('cualquiera')
+  // Positions (up to 2)
+  const [posiciones, setPosiciones] = useState<Posicion[]>([])
   const [savingPos, setSavingPos] = useState(false)
+  const togglePos = (p: Posicion) => {
+    setPosiciones(prev => {
+      if (p === 'cualquiera') return ['cualquiera']
+      const base = prev.filter(x => x !== 'cualquiera')
+      if (base.includes(p)) return base.filter(x => x !== p)
+      if (base.length >= 2) return [base[1], p] // keep newest two
+      return [...base, p]
+    })
+  }
 
   // Email
   const [newEmail, setNewEmail] = useState('')
@@ -80,7 +90,7 @@ export default function PerfilPage() {
     const [{ data: prof }, { data: badgesData }, { count }] = await Promise.all([
       supabase
         .from('profiles')
-        .select('username, email, avatar_url, created_at, posicion')
+        .select('username, email, avatar_url, created_at, posicion, posiciones')
         .eq('id', u.id)
         .single(),
       supabase
@@ -97,7 +107,8 @@ export default function PerfilPage() {
 
     if (prof) {
       setProfile(prof as ProfileData)
-      setPosicion((prof.posicion ?? 'cualquiera') as Posicion)
+      const pos = (prof.posiciones as Posicion[] | null)
+      setPosiciones(pos?.length ? pos : (prof.posicion ? [prof.posicion as Posicion] : []))
       setNewEmail(prof.email ?? '')
     }
     setBadges((badgesData as Badge[]) ?? [])
@@ -126,12 +137,12 @@ export default function PerfilPage() {
     const res = await fetch('/api/perfil', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ posicion }),
+      body: JSON.stringify({ posiciones }),
     })
     const data = await res.json()
     if (res.ok) {
       flash('ok', data.mensaje)
-      setProfile(p => p ? { ...p, posicion } : p)
+      setProfile(p => p ? { ...p, posiciones, posicion: posiciones[0] } : p)
     } else {
       flash('error', data.error)
     }
@@ -287,7 +298,8 @@ export default function PerfilPage() {
           <div style={{ textAlign: 'center' }}>
             <div className="display" style={{ fontSize: 22, letterSpacing: '0.05em' }}>{profile?.username}</div>
             <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
-              {posicionEmoji(profile?.posicion ?? 'cualquiera')} {profile?.posicion ?? 'cualquiera'}
+              {(profile?.posiciones?.length ? profile.posiciones : [profile?.posicion ?? 'cualquiera'])
+                .map(p => `${posicionEmoji(p)} ${p}`).join('  ·  ')}
             </div>
           </div>
 
@@ -378,34 +390,40 @@ export default function PerfilPage() {
           </Section>
         )}
 
-        {/* Position */}
-        <Section title="MI POSICIÓN">
+        {/* Positions (up to 2) */}
+        <Section title="MIS POSICIONES">
+          <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 10 }}>
+            Elige hasta 2 posiciones.
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(60px, 1fr))', gap: 6, marginBottom: 14 }}>
-            {POSICIONES.map(p => (
-              <button
-                key={p}
-                onClick={() => setPosicion(p)}
-                style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                  padding: '10px 4px', borderRadius: 4, cursor: 'pointer',
-                  background: posicion === p ? '#0f2d1a' : 'transparent',
-                  border: `1px solid ${posicion === p ? '#16a34a' : 'var(--border)'}`,
-                  color: posicion === p ? 'var(--green)' : 'var(--text-muted)',
-                  transition: 'all 0.15s',
-                }}
-              >
-                <span style={{ fontSize: 20 }}>{posicionEmoji(p)}</span>
-                <span className="mono" style={{ fontSize: 9, letterSpacing: '0.06em', textTransform: 'capitalize' }}>{p}</span>
-              </button>
-            ))}
+            {POSICIONES.map(p => {
+              const sel = posiciones.includes(p)
+              return (
+                <button
+                  key={p}
+                  onClick={() => togglePos(p)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                    padding: '10px 4px', borderRadius: 4, cursor: 'pointer',
+                    background: sel ? '#0f2d1a' : 'transparent',
+                    border: `1px solid ${sel ? '#16a34a' : 'var(--border)'}`,
+                    color: sel ? 'var(--green)' : 'var(--text-muted)',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <span style={{ fontSize: 20 }}>{posicionEmoji(p)}</span>
+                  <span className="mono" style={{ fontSize: 9, letterSpacing: '0.06em', textTransform: 'capitalize' }}>{p}</span>
+                </button>
+              )
+            })}
           </div>
           <button
             onClick={guardarPosicion}
-            disabled={savingPos || posicion === profile?.posicion}
+            disabled={savingPos || posiciones.length === 0 || posiciones.join(',') === (profile?.posiciones?.join(',') ?? profile?.posicion ?? '')}
             className="btn btn-ghost"
             style={{ fontSize: 11, padding: '8px 16px' }}
           >
-            {savingPos ? 'Guardando...' : 'Guardar posición'}
+            {savingPos ? 'Guardando...' : 'Guardar posiciones'}
           </button>
         </Section>
 

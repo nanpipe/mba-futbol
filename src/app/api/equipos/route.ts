@@ -8,6 +8,29 @@ import { getClubNombre } from '@/lib/club'
 
 export const dynamic = 'force-dynamic'
 
+// ── Player rating (Phase 1: FIFA card OVR) ──────────────────────────────────
+// OVR range ~55–95. Neutral 70 if no approved card. Displayed/balanced as stars
+// (÷20 → ~2.75–4.75) so the ★ UI and snake-draft both read the same number.
+const NEUTRAL_OVR = 70
+function ratingStars(ovr?: number): number {
+  return Math.round(((ovr ?? NEUTRAL_OVR) / 20) * 10) / 10
+}
+async function fetchRatings(
+  admin: ReturnType<typeof createAdminClient>,
+  playerIds: string[]
+): Promise<Map<string, number>> {
+  const m = new Map<string, number>()
+  if (!playerIds.length) return m
+  const { data } = await admin
+    .from('evaluaciones_carta')
+    .select('player_id, ovr, aprobado')
+    .in('player_id', playerIds)
+  for (const r of (data ?? []) as { player_id: string; ovr: number | null; aprobado: boolean }[]) {
+    if (r.aprobado && typeof r.ovr === 'number') m.set(r.player_id, r.ovr)
+  }
+  return m
+}
+
 async function getAdminUser(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
@@ -42,7 +65,7 @@ export async function GET(req: NextRequest) {
   const [{ data: jugadores }, { data: invitadosEnEquipo }] = await Promise.all([
     admin
       .from('equipo_jugadores')
-      .select('equipo_id, player_id, profiles(id, username, avatar_url, posicion, habilidad)')
+      .select('equipo_id, player_id, profiles(id, username, avatar_url, posicion, posiciones, habilidad)')
       .in('equipo_id', equipos.map(e => e.id)),
     admin
       .from('invitados')
@@ -50,9 +73,14 @@ export async function GET(req: NextRequest) {
       .in('equipo_id', equipos.map(e => e.id)),
   ])
 
+  // Real rating from FIFA card OVR (Phase 1). Override the dead static habilidad.
+  const playerIds = (jugadores ?? []).map(r => (r as { player_id: string }).player_id)
+  const ratingMap = await fetchRatings(admin, playerIds)
+
   const byEquipo: Record<string, JugadorEquipo[]> = {}
   for (const row of (jugadores ?? [])) {
     const prof = (row as unknown as { profiles: JugadorEquipo }).profiles
+    prof.habilidad = ratingStars(ratingMap.get(prof.id))
     if (!byEquipo[row.equipo_id]) byEquipo[row.equipo_id] = []
     byEquipo[row.equipo_id].push(prof)
   }
@@ -65,7 +93,7 @@ export async function GET(req: NextRequest) {
       username: `${inv.nombre} *`,
       avatar_url: null,
       posicion: 'cualquiera',
-      habilidad: 3.0,
+      habilidad: ratingStars(undefined),
       isInvitado: true,
     } as JugadorEquipo)
   }
@@ -104,7 +132,7 @@ export async function POST(req: NextRequest) {
     const [insRes, invsRes, knowledgeRes, feedbackRes] = await Promise.all([
       admin
         .from('inscripciones')
-        .select('player_id, profiles!player_id(id, username, avatar_url, posicion, habilidad)')
+        .select('player_id, profiles!player_id(id, username, avatar_url, posicion, posiciones, habilidad)')
         .eq('partido_id', partido_id as string)
         .eq('estado', 'confirmado'),
       admin
@@ -135,14 +163,18 @@ export async function POST(req: NextRequest) {
       .map(i => (i as unknown as { profiles: JugadorEquipo }).profiles)
       .filter(Boolean)
 
-    // Add confirmed invitados as pseudo-players
+    // Real rating from FIFA card OVR — override the dead static habilidad
+    const ratingMap = await fetchRatings(admin, jugadores.map(j => j.id))
+    for (const j of jugadores) j.habilidad = ratingStars(ratingMap.get(j.id))
+
+    // Add confirmed invitados as pseudo-players (neutral rating)
     for (const inv of invs ?? []) {
       jugadores.push({
         id: (inv as { id: string }).id,
         username: `${(inv as { nombre: string }).nombre} *`,
         avatar_url: null,
         posicion: 'cualquiera',
-        habilidad: 3.0,
+        habilidad: ratingStars(undefined),
         isInvitado: true,
       })
     }
@@ -161,7 +193,8 @@ export async function POST(req: NextRequest) {
         const playerLines = jugadores.map(j => {
           const k = km[j.username.replace(' *', '')]
           const skillLabel = k?.skill_override ?? 'unknown'
-          const roles = k?.roles?.length ? k.roles.join(', ') : j.posicion
+          const posList = j.posiciones?.length ? j.posiciones.join('/') : j.posicion
+          const roles = k?.roles?.length ? k.roles.join(', ') : posList
           const traits = k?.traits?.length ? ` | rasgos: ${k.traits.join(', ')}` : ''
           const notes = k?.notes ? ` | notas: "${k.notes}"` : ''
           const invTag = j.isInvitado ? ' [INVITADO]' : ''

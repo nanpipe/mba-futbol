@@ -9,7 +9,7 @@ export const CATEGORIAS = [
   { id: 'tecnico',      emoji: '🎯',  nombre: 'El Técnico',        peso:  1 },
   { id: 'desaparecido', emoji: '💤',  nombre: 'Desaparecido',      peso: -1 },
   { id: 'aizaga',       emoji: '🥅',  nombre: 'Aizaga del Partido', peso: -1 }, // regaló los goles
-  { id: 'discutidor',   emoji: '🗣️',  nombre: 'Más Discutidor',    peso:  0 }, // behavioral, no skill impact
+  { id: 'discutidor',   emoji: '🗣️',  nombre: 'Más Discutidor',    peso: -1 }, // peleó, no jugó
 ] as const
 
 export type CategoriaId = typeof CATEGORIAS[number]['id']

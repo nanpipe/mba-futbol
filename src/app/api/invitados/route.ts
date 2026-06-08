@@ -5,7 +5,6 @@ import { calcularVentanaPartido } from '@/lib/partidos'
 import { isUUID, isString, safeError } from '@/lib/validation'
 import { sendPush, isDeadPushError } from '@/lib/push'
 import { logActivity } from '@/lib/activityLog'
-import { getClubId } from '@/lib/club'
 import { sendInvitadoConfirmadoEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
@@ -16,10 +15,13 @@ const MAX_INVITADOS = 3
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const admin = createAdminClient()
-  const clubId = getClubId(req)
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+  const { data: meProfile } = await admin.from('profiles').select('club_id').eq('id', user.id).single()
+  if (!meProfile?.club_id) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
+  const clubId = meProfile.club_id
 
   // Check club setting: invitados enabled?
   const { data: invSetting } = await admin
@@ -98,30 +100,34 @@ export async function DELETE(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
+  const { data: meProfile } = await admin.from('profiles').select('club_id, role').eq('id', user.id).single()
+  if (!meProfile?.club_id) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
+  const clubId = meProfile.club_id
+
   let body: { invitado_id?: unknown }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Cuerpo inválido' }, { status: 400 }) }
 
   const { invitado_id } = body
   if (!isUUID(invitado_id)) return NextResponse.json({ error: 'invitado_id inválido' }, { status: 400 })
 
-  // Only allow deleting own invitees
+  // Only allow deleting own invitees (scoped to caller's club)
   const { data: inv } = await admin
     .from('invitados')
     .select('id, player_id')
     .eq('id', invitado_id)
+    .eq('club_id', clubId)
     .single()
 
   if (!inv) return NextResponse.json({ error: 'Invitado no encontrado' }, { status: 404 })
 
   // Allow owner OR admin to delete
-  const { data: callerProfile } = await admin.from('profiles').select('role').eq('id', user.id).single()
-  const callerRole = (callerProfile as { role?: string })?.role
+  const callerRole = (meProfile as { role?: string })?.role
   const isAdmin = callerRole === 'admin' || callerRole === 'superadmin'
   if (!isAdmin && inv.player_id !== user.id) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
 
-  await admin.from('invitados').delete().eq('id', invitado_id)
+  await admin.from('invitados').delete().eq('id', invitado_id).eq('club_id', clubId)
   await logActivity({ user_id: user.id, accion: 'baja_invitado', detalles: { invitado_id } })
   return NextResponse.json({ ok: true })
 }
@@ -135,10 +141,12 @@ export async function PATCH(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
   // Admin only
-  const { data: prof } = await admin.from('profiles').select('role, username').eq('id', user.id).single()
+  const { data: prof } = await admin.from('profiles').select('role, username, club_id').eq('id', user.id).single()
   if ((prof as { role?: string })?.role !== 'admin' && (prof as { role?: string })?.role !== 'superadmin') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
+  if (!(prof as { club_id?: string })?.club_id) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
+  const clubId = (prof as { club_id: string }).club_id
 
   let body: { invitado_id?: unknown }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON inválido' }, { status: 400 }) }
@@ -146,11 +154,12 @@ export async function PATCH(req: NextRequest) {
   const { invitado_id } = body
   if (!isUUID(invitado_id)) return NextResponse.json({ error: 'invitado_id inválido' }, { status: 400 })
 
-  // Fetch the invitado + invitador profile + partido info
+  // Fetch the invitado + invitador profile + partido info (scoped to admin's club)
   const { data: inv } = await admin
     .from('invitados')
     .select('id, nombre, estado, player_id, partido_id, profiles(username), partidos(fecha, dia_semana)')
     .eq('id', invitado_id as string)
+    .eq('club_id', clubId)
     .single()
 
   if (!inv) return NextResponse.json({ error: 'Invitado no encontrado' }, { status: 404 })

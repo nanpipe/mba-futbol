@@ -3,7 +3,6 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logActivity } from '@/lib/activityLog'
 import { calcTier } from '@/lib/tier'
-import { getClubId } from '@/lib/club'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +26,10 @@ export async function GET(req: NextRequest) {
 
   const targetId = req.nextUrl.searchParams.get('player_id') ?? user.id
   const admin = createAdminClient()
-  const clubId = getClubId(req)
+
+  const { data: meProfile } = await admin.from('profiles').select('club_id').eq('id', user.id).single()
+  if (!meProfile?.club_id) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
+  const clubId = meProfile.club_id
 
   const { data: carta } = await admin
     .from('evaluaciones_carta')
@@ -53,7 +55,10 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
   const admin = createAdminClient()
-  const clubId = getClubId(req)
+
+  const { data: meProfile } = await admin.from('profiles').select('club_id').eq('id', user.id).single()
+  if (!meProfile?.club_id) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
+  const clubId = meProfile.club_id
 
   // Verify player is approved
   const { data: playerProf } = await supabase.from('profiles').select('aprobado').eq('id', user.id).single()
@@ -134,8 +139,9 @@ export async function PUT(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
   const admin = createAdminClient()
-  const clubId = getClubId(req)
-  const { data: prof } = await admin.from('profiles').select('role, username').eq('club_id', clubId).eq('id', user.id).single()
+  const { data: prof } = await admin.from('profiles').select('role, username, club_id').eq('id', user.id).single()
+  if (!(prof as { club_id?: string })?.club_id) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
+  const clubId = (prof as { club_id: string }).club_id
   if ((prof as { role?: string })?.role !== 'admin' && (prof as { role?: string })?.role !== 'superadmin') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
@@ -167,7 +173,7 @@ export async function PUT(req: NextRequest) {
       }
       // Recalculate OVR if any stat was overridden
       const { data: current } = await admin
-        .from('evaluaciones_carta').select('stat_res,stat_fis,stat_def,stat_ata,stat_tec,stat_dis').eq('player_id', player_id).single()
+        .from('evaluaciones_carta').select('stat_res,stat_fis,stat_def,stat_ata,stat_tec,stat_dis').eq('player_id', player_id).eq('club_id', clubId).single()
       if (current) {
         const merged = { ...current, ...updates }
         const ovrRaw = STATS.reduce((sum, s) => sum + ((merged[`stat_${s}`] as number) ?? 0), 0) / STATS.length
@@ -176,7 +182,7 @@ export async function PUT(req: NextRequest) {
       }
     }
 
-    await admin.from('evaluaciones_carta').update(updates).eq('player_id', player_id)
+    await admin.from('evaluaciones_carta').update(updates).eq('player_id', player_id).eq('club_id', clubId)
 
     await logActivity({
       user_id: user.id,
@@ -194,7 +200,7 @@ export async function PUT(req: NextRequest) {
       aprobado: false,
       notas_admin: typeof notas_admin === 'string' ? notas_admin : null,
       updated_at: new Date().toISOString(),
-    }).eq('player_id', player_id)
+    }).eq('player_id', player_id).eq('club_id', clubId)
 
     await logActivity({
       user_id: user.id,
@@ -213,6 +219,7 @@ export async function PUT(req: NextRequest) {
       .from('evaluaciones_carta')
       .select('rechazado')
       .eq('player_id', player_id)
+      .eq('club_id', clubId)
       .single()
 
     if (!carta?.rechazado) {
@@ -224,7 +231,7 @@ export async function PUT(req: NextRequest) {
       aprobado: false,
       notas_admin: null,
       updated_at: new Date().toISOString(),
-    }).eq('player_id', player_id)
+    }).eq('player_id', player_id).eq('club_id', clubId)
 
     await logActivity({
       user_id: user.id,

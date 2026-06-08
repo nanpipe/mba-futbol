@@ -723,19 +723,19 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 <input type="time" value={nuevaHora} onChange={e => setNuevaHora(e.target.value)} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <FormLabel label="Abrir Inscripciones" />
-                  <input type="time" value={nuevaHoraApertura} onChange={e => setNuevaHoraApertura(e.target.value)} />
+                  <input type="time" value={nuevaHoraApertura} onChange={e => setNuevaHoraApertura(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
                   <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>hora de apertura</div>
                   {notifTime(nuevaHoraApertura) && (
                     <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
-                      📣 Notificación a las {notifTime(nuevaHoraApertura)} (5 min antes)
+                      📣 Notif. {notifTime(nuevaHoraApertura)} (5 min antes)
                     </div>
                   )}
                 </div>
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <FormLabel label="Días Antes" />
-                  <input type="number" min="0" max="7" value={nuevosDiasAntes} onChange={e => setNuevosDiasAntes(e.target.value)} />
+                  <input type="number" min="0" max="7" value={nuevosDiasAntes} onChange={e => setNuevosDiasAntes(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
                   <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>días previos al partido</div>
                 </div>
               </div>
@@ -745,29 +745,8 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 </label>
                 <input type="number" min="1" max="30" value={nuevosCupos} onChange={e => setNuevosCupos(e.target.value)} />
               </div>
-              <div>
-                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
-                  NOTIF. APERTURA
-                </label>
-                <input
-                  type="datetime-local"
-                  value={notifAperturaAt}
-                  onChange={e => setNotifAperturaAt(e.target.value)}
-                  style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 3, padding: '8px 10px', fontFamily: 'DM Mono, monospace', fontSize: 12 }}
-                />
-                <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Cuándo avisar que se abren inscripciones</div>
-              </div>
-              <div>
-                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
-                  NOTIF. RECORDATORIO
-                </label>
-                <input
-                  type="datetime-local"
-                  value={notifRecordatorioAt}
-                  onChange={e => setNotifRecordatorioAt(e.target.value)}
-                  style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 3, padding: '8px 10px', fontFamily: 'DM Mono, monospace', fontSize: 12 }}
-                />
-                <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Recordatorio el día del partido</div>
+              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.6, padding: '10px 12px', background: 'var(--surface)', borderRadius: 4 }}>
+                📣 Las notificaciones se envían automáticamente: apertura 5 min antes de abrir inscripciones, recordatorio el día del partido. Ajústalas por partido con el botón 🔔.
               </div>
             </div>
             <ButtonGroup gap={12} marginTop={24}>
@@ -798,18 +777,18 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 <input type="time" value={nuevaHora} onChange={e => setNuevaHora(e.target.value)} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <FormLabel label="Hora Apertura" />
-                  <input type="time" value={nuevaHoraApertura} onChange={e => setNuevaHoraApertura(e.target.value)} />
+                  <input type="time" value={nuevaHoraApertura} onChange={e => setNuevaHoraApertura(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
                   {notifTime(nuevaHoraApertura) && (
                     <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
-                      📣 Notificación a las {notifTime(nuevaHoraApertura)} (5 min antes)
+                      📣 Notif. {notifTime(nuevaHoraApertura)} (5 min antes)
                     </div>
                   )}
                 </div>
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <FormLabel label="Días Antes" />
-                  <input type="number" min="0" max="7" value={nuevosDiasAntes} onChange={e => setNuevosDiasAntes(e.target.value)} />
+                  <input type="number" min="0" max="7" value={nuevosDiasAntes} onChange={e => setNuevosDiasAntes(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
                 </div>
               </div>
               <div>

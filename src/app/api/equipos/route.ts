@@ -350,7 +350,7 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
     const invSet = new Set((invitadosIds ?? []).map((i: { id: string }) => i.id))
 
     // Delete existing teams (FK on delete set null clears invitados.equipo_id automatically)
-    await admin.from('equipos').delete().eq('partido_id', partido_id as string)
+    await admin.from('equipos').delete().eq('partido_id', partido_id as string).eq('club_id', clubId)
 
     // Create teams — always set default colors so colorLabel() never falls through to null
     const { data: tA } = await admin.from('equipos').insert({ club_id: clubId, partido_id, nombre: 'A', color: 'blanco' }).select().single()
@@ -403,8 +403,8 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
     }
 
     // Mark confirmed
-    await admin.from('equipos').update({ confirmado: true }).eq('partido_id', partido_id as string)
-    await admin.from('partidos').update({ equipos_confirmados: true }).eq('id', partido_id as string)
+    await admin.from('equipos').update({ confirmado: true }).eq('partido_id', partido_id as string).eq('club_id', clubId)
+    await admin.from('partidos').update({ equipos_confirmados: true }).eq('id', partido_id as string).eq('club_id', clubId)
 
     // Get player lists for notifications (include email for fallback)
     const { data: jAll } = await admin
@@ -473,8 +473,8 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
   // ── resetear: delete teams for a match ────────────────────────────────────
   if (accion === 'resetear') {
     // FK on delete set null clears invitados.equipo_id automatically
-    await admin.from('equipos').delete().eq('partido_id', partido_id as string)
-    await admin.from('partidos').update({ equipos_confirmados: false }).eq('id', partido_id as string)
+    await admin.from('equipos').delete().eq('partido_id', partido_id as string).eq('club_id', clubId)
+    await admin.from('partidos').update({ equipos_confirmados: false }).eq('id', partido_id as string).eq('club_id', clubId)
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'resetear_equipos', detalles: { partido_id } })
     return NextResponse.json({ ok: true, mensaje: 'Equipos eliminados.' })
   }

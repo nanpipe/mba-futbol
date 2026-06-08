@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { safeError, isString } from '@/lib/validation'
 import { logActivity } from '@/lib/activityLog'
+import { isPosicion } from '@/lib/posiciones'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,19 +71,18 @@ export async function PATCH(req: NextRequest) {
   }
 
   // ── Posiciones (hasta 2) ────────────────────────────────────────────────────
-  const POSICIONES = ['portero', 'defensa', 'medio', 'delantero', 'cualquiera']
   if (posiciones !== undefined) {
     if (!Array.isArray(posiciones) || posiciones.length < 1 || posiciones.length > 2) {
       return NextResponse.json({ error: 'Elige 1 o 2 posiciones.' }, { status: 400 })
     }
-    const clean = [...new Set(posiciones)].filter(p => typeof p === 'string' && POSICIONES.includes(p)) as string[]
+    const clean = [...new Set(posiciones)].filter(isPosicion)
     if (clean.length === 0) {
       return NextResponse.json({ error: 'Posición inválida.' }, { status: 400 })
     }
     updates.posiciones = clean
     updates.posicion = clean[0] // back-compat primary
   } else if (posicion !== undefined) {
-    if (typeof posicion !== 'string' || !POSICIONES.includes(posicion)) {
+    if (!isPosicion(posicion)) {
       return NextResponse.json({ error: 'Posición inválida.' }, { status: 400 })
     }
     updates.posicion = posicion

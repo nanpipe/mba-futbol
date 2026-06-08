@@ -6,6 +6,7 @@ import { internalFetch } from '@/lib/internalFetch'
 import { logActivity } from '@/lib/activityLog'
 import { sendTestEmail, sendEvaluacionesEmail, sendAperturaEmail } from '@/lib/email'
 import { getClubNombre } from '@/lib/club'
+import { isPosicion } from '@/lib/posiciones'
 
 export const dynamic = 'force-dynamic'
 
@@ -519,7 +520,7 @@ export async function POST(req: NextRequest) {
       cupos_total: parseInt(String(cupos_total), 10),
       hora_apertura: isString(hora_apertura, 4, 8) ? (hora_apertura as string) : '10:00:00',
       dias_antes_apertura: parseInt(String(dias_antes_apertura), 10),
-    }).eq('id', partido_id as string)
+    }).eq('id', partido_id as string).eq('club_id', clubId)
 
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'editar_partido', detalles: { partido_id, fecha, dia_semana, hora, cupos_total }, ip })
@@ -531,8 +532,8 @@ export async function POST(req: NextRequest) {
     const { partido_id } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
 
-    const { data: p } = await admin.from('partidos').select('fecha, dia_semana').eq('id', partido_id as string).single()
-    const { error } = await admin.from('partidos').delete().eq('id', partido_id as string)
+    const { data: p } = await admin.from('partidos').select('fecha, dia_semana').eq('id', partido_id as string).eq('club_id', clubId).single()
+    const { error } = await admin.from('partidos').delete().eq('id', partido_id as string).eq('club_id', clubId)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
 
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'eliminar_partido', detalles: { partido_id, fecha: (p as { fecha?: string })?.fecha, dia_semana: (p as { dia_semana?: string })?.dia_semana }, ip })
@@ -597,12 +598,11 @@ export async function POST(req: NextRequest) {
   if (accion === 'actualizar_posicion') {
     const { player_id, posicion, posiciones } = body
     if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
-    const POSICIONES = ['portero', 'defensa', 'medio', 'delantero', 'cualquiera']
     let posArr: string[]
     if (Array.isArray(posiciones)) {
-      posArr = [...new Set(posiciones)].filter(p => typeof p === 'string' && POSICIONES.includes(p)) as string[]
+      posArr = [...new Set(posiciones)].filter(isPosicion)
       if (posArr.length < 1 || posArr.length > 2) return NextResponse.json({ error: 'Elige 1 o 2 posiciones.' }, { status: 400 })
-    } else if (typeof posicion === 'string' && POSICIONES.includes(posicion)) {
+    } else if (isPosicion(posicion)) {
       posArr = [posicion]
     } else {
       return NextResponse.json({ error: 'Posición inválida' }, { status: 400 })

@@ -64,7 +64,7 @@ const SECTIONS: { key: string; label: string; emoji: string; color: string; ques
         opts: ['Evito el contacto físico', 'Pierdo la mayoría', 'Gano algunas', 'Gano muchas', 'Soy muy difícil de superar físicamente'],
       },
       {
-        q: 'Tu presencia física comparada con los rivales en MBA es:',
+        q: 'Tu presencia física comparada con los rivales en la cancha es:',
         opts: ['Mucho más pequeño o débil', 'Un poco por debajo', 'Similar a la mayoría', 'Por encima de la mayoría', 'Soy de los más fuertes o imponentes'],
       },
       {
@@ -382,7 +382,7 @@ export default function MiCartaPage() {
               ⚽ TU CARTA <span style={{ color: 'var(--green)' }}>FIFA</span>
             </div>
             <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7 }}>
-              Responde con honestidad basándote en tu rendimiento real en los partidos de MBA.
+              Responde con honestidad basándote en tu rendimiento real en los partidos.
               No te asignes números — solo selecciona la opción que mejor te describe.
             </p>
             {(existingCarta?.rechazado as boolean | undefined) && (
@@ -477,7 +477,7 @@ export default function MiCartaPage() {
               </div>
             </div>
             <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-              Selecciona la opción que mejor describe tu rendimiento real en los partidos de MBA.
+              Selecciona la opción que mejor describe tu rendimiento real en los partidos.
             </p>
           </div>
 

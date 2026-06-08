@@ -12,8 +12,7 @@ import { Card } from '@/components/Card'
 import { SectionHeader } from '@/components/SectionHeader'
 import { ErrorAlert } from '@/components/ErrorAlert'
 
-const POSICIONES = ['portero', 'defensa', 'medio', 'delantero', 'cualquiera'] as const
-type Posicion = typeof POSICIONES[number]
+import { POSICIONES, type Posicion } from '@/lib/posiciones'
 
 interface ProfileData {
   username: string

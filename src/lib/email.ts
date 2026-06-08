@@ -39,7 +39,7 @@ export async function sendPromovido({
         </h1>
         <p style="color: #aaa; font-size: 16px; line-height: 1.6; margin: 0 0 32px 0;">
           Se liberó un cupo y pasaste de la lista de espera al partido del
-          <strong style="color: #f0f0f0;">${esc(diaSemana)} ${esc(fechaPartido)}</strong> a las 7:00 pm.
+          <strong style="color: #f0f0f0;">${esc(diaSemana)} ${esc(fechaPartido)}</strong>.
         </p>
         <div style="background: #1a1a1a; border-left: 3px solid #4ade80; padding: 16px 20px; border-radius: 4px; margin-bottom: 32px;">
           <p style="margin: 0; font-size: 14px; color: #4ade80;">Estado: <strong>CONFIRMADO ✓</strong></p>
@@ -393,7 +393,7 @@ export async function sendEvaluacionesEmail({
           <div style="background: #1a1a1a; border-left: 3px solid #818cf8; padding: 16px 20px; border-radius: 4px; margin-bottom: 32px;">
             <p style="margin: 0; font-size: 14px; color: #818cf8;">📊 Evaluaciones ABIERTAS</p>
           </div>
-          <a href="https://futbol.niebla.co/evaluar/${esc(partidoId)}"
+          <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://mba-futbol.vercel.app'}/evaluar/${esc(partidoId)}"
              style="display: inline-block; background: #facc15; color: #0a0a0a; font-weight: 700; font-size: 14px; letter-spacing: 2px; padding: 12px 28px; border-radius: 4px; text-decoration: none; text-transform: uppercase; margin-bottom: 32px;">
             Evaluar →
           </a>

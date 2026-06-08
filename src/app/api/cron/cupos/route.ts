@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
   const { data: partidos } = await admin
     .from('partidos')
-    .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, club_id')
+    .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, club_id, cupos_total')
     .gte('fecha', hoy)
     .order('fecha', { ascending: true })
     .limit(5)
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
       .eq('partido_id', partido.id)
       .eq('estado', 'confirmado')
 
-    const cuposLibres = 14 - (confirmados ?? 0)
+    const cuposLibres = ((partido as { cupos_total?: number }).cupos_total ?? 14) - (confirmados ?? 0)
     if (cuposLibres <= 0) continue
 
     // Get IDs of players already on the list (confirmed + waitlist)

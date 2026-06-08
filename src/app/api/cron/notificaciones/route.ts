@@ -6,11 +6,11 @@ import { logActivity } from '@/lib/activityLog'
 import { sendAperturaEmail, sendRecordatorioEmail } from '@/lib/email'
 import { tallyAndAssign } from '@/app/api/evaluaciones/route'
 
-// Single daily cron — runs at 15:00 UTC = 10:00 AM Colombia
+// Every-minute cron metronome — pg_cron fires every minute, all timing logic lives here.
 // Handles 5 tasks in one pass:
-//   1. Apertura push/email — fires when notif_apertura_at timestamp is due
+//   1. Apertura: fires 5 min before inscription window opens (or admin-set timestamp)
 //   2. Día-antes reminder to confirmed players 1 day before match
-//   3. Recordatorio push/email — fires when notif_recordatorio_at timestamp is due
+//   3. Recordatorio: fires 9 hours before match (or admin-set timestamp) to confirmed players
 //   4. Cupos disponibles push to non-inscribed club players
 //   5. Drain notificaciones_pendientes (promotion emails/push)
 
@@ -143,9 +143,9 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Apertura notifications ────────────────────────────────────────────────
-  // Fires when EITHER admin-set notif_apertura_at has passed, OR (auto-fallback,
-  // no timestamp set) the inscription window's opening DAY has arrived. Fallback
-  // lets apertura fire without admin input on the daily cron run.
+  // Fires 5 minutes before the inscription window opens (or at admin-set timestamp).
+  const APERTURA_OFFSET_MS = 5 * 60 * 1000 // notify 5 min before window opens
+
   const { data: aperturaCandidates } = await admin
     .from('partidos')
     .select('id, club_id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_apertura_at')
@@ -154,17 +154,11 @@ export async function GET(req: NextRequest) {
     .order('fecha', { ascending: true })
     .limit(20)
 
-  // Colombia "today" (UTC-5) for the fallback day comparison
-  const colTodayStr = new Date(now.getTime() - 5 * 3600 * 1000).toISOString().split('T')[0]
-
   const aperturaDue = (aperturaCandidates ?? []).filter(p => {
     const ts = (p as { notif_apertura_at?: string | null }).notif_apertura_at
-    if (ts) return new Date(ts) <= now            // admin timestamp passed
-    // Fallback: opening day reached (no timestamp set)
-    const abreEn = calcularVentanaPartido(p).abreEn
-    if (!abreEn) return false
-    const abreDayCol = new Date(abreEn.getTime() - 5 * 3600 * 1000).toISOString().split('T')[0]
-    return abreDayCol <= colTodayStr
+    // target = admin-set timestamp if present, else (window open time − 5 min)
+    const target = ts ? new Date(ts) : new Date(calcularVentanaPartido(p).abreEn.getTime() - APERTURA_OFFSET_MS)
+    return now >= target
   })
 
   for (const partido of aperturaDue) {
@@ -225,15 +219,26 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // ── Recordatorio notifications (timestamp-based) ──────────────────────────
-  const { data: recordatorioDue } = await admin
-    .from('partidos')
-    .select('id, club_id, fecha, dia_semana, hora, notif_recordatorio_at')
-    .lte('notif_recordatorio_at', now.toISOString())
-    .eq('notif_recordatorio_sent', false)
-    .not('notif_recordatorio_at', 'is', null)
+  // ── Recordatorio notifications ────────────────────────────────────────────
+  // Fires 9 hours before the match (or at admin-set timestamp).
+  const RECORDATORIO_OFFSET_MS = 9 * 60 * 60 * 1000
 
-  for (const partido of recordatorioDue ?? []) {
+  const { data: recordatorioCandidates } = await admin
+    .from('partidos')
+    .select('id, club_id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_recordatorio_at')
+    .gte('fecha', hoy)
+    .eq('notif_recordatorio_sent', false)
+    .order('fecha', { ascending: true })
+    .limit(20)
+
+  const recordatorioDue = (recordatorioCandidates ?? []).filter(p => {
+    const ts = (p as { notif_recordatorio_at?: string | null }).notif_recordatorio_at
+    // target = admin-set timestamp if present, else (match start − 9 h)
+    const target = ts ? new Date(ts) : new Date(calcularVentanaPartido(p).cierra.getTime() - RECORDATORIO_OFFSET_MS)
+    return now >= target
+  })
+
+  for (const partido of recordatorioDue) {
     const clubId = (partido as { club_id: string }).club_id
     const settings = await getClubSettings(admin, clubId, settingsCache)
     const emailRecordatorio = settings['email_recordatorio'] !== false

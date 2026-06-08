@@ -215,20 +215,18 @@ export function TabHistorial({ active }: Props) {
   const handleFotoUpload = async (partidoId: string, file: File) => {
     setUploadingFoto(true)
     try {
-      const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-      const path = `${partidoId}/foto.${ext}`
-      const { error: upErr } = await supabase.storage
-        .from('match-photos')
-        .upload(path, file, { upsert: true, contentType: file.type })
-      if (upErr) { showFlash(`Error subiendo foto: ${upErr.message}`); return }
-
-      const { data: { publicUrl } } = supabase.storage.from('match-photos').getPublicUrl(path)
-      const r = await adminAction('guardar_foto_partido', { partido_id: partidoId, foto_url: publicUrl })
-      if (r.ok) {
-        setHistorial(prev => prev.map(p => p.id === partidoId ? { ...p, foto_url: publicUrl } : p))
+      // Upload via server (service-role) so it bypasses storage RLS — no more
+      // "new row violates row-level security policy".
+      const form = new FormData()
+      form.append('partido_id', partidoId)
+      form.append('file', file)
+      const res = await fetch('/api/admin/foto', { method: 'POST', body: form })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.foto_url) {
+        setHistorial(prev => prev.map(p => p.id === partidoId ? { ...p, foto_url: data.foto_url } : p))
         showFlash('Foto guardada ✓')
       } else {
-        showFlash(`Error: ${r.error}`)
+        showFlash(`Error: ${data.error ?? 'No se pudo subir la foto'}`)
       }
     } finally {
       setUploadingFoto(false)

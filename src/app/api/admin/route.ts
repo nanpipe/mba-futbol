@@ -49,12 +49,14 @@ export async function GET(req: NextRequest) {
   const accion = req.nextUrl.searchParams.get('accion')
 
   if (accion === 'logs') {
+    const since = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() // last 10 days
     const { data } = await admin
       .from('activity_log')
-      .select('*')
+      .select('id, user_id, username, accion, detalles, ip, created_at')
       .eq('club_id', clubId)
+      .gte('created_at', since)
       .order('created_at', { ascending: false })
-      .limit(300)
+      .limit(500)
     return NextResponse.json({ ok: true, logs: data ?? [] })
   }
 

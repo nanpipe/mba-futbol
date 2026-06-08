@@ -302,7 +302,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                       <button
                         onClick={() => abrirEditPartido(p)}
                         title="Editar partido"
-                        style={{ flex: 1, padding: '0 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14 }}
+                        style={{ flex: 1, padding: '6px 12px', minHeight: 34, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--text-muted)', fontSize: 18 }}
                       >✏</button>
                       <button
                         onClick={() => {
@@ -311,12 +311,12 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                           setEditNotifRecordatorioAt(p.notif_recordatorio_at ? new Date(p.notif_recordatorio_at).toISOString().slice(0, 16) : '')
                         }}
                         title="Editar notificaciones"
-                        style={{ flex: 1, padding: '0 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--amber)', fontSize: 12 }}
+                        style={{ flex: 1, padding: '6px 12px', minHeight: 34, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--amber)', fontSize: 17 }}
                       >🔔</button>
                       <button
                         onClick={() => { if (window.confirm(`¿Eliminar partido del ${p.dia_semana} ${p.fecha}?`)) eliminarPartido(p.id) }}
                         title="Eliminar partido"
-                        style={{ flex: 1, padding: '0 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--red)', fontSize: 14 }}
+                        style={{ flex: 1, padding: '6px 12px', minHeight: 34, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--red)', fontSize: 18 }}
                       >✕</button>
                     </div>
                   </div>
@@ -578,7 +578,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
       {/* Modal Promover con Swap */}
       {promoverModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 200 }}>
-          <Card style={{ width: '100%', maxWidth: 440 }}>
+          <Card style={{ width: '100%', maxWidth: 440, maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Partido lleno — elegir swap</h3>
             <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.6 }}>
               Para promover a <strong style={{ color: 'var(--text)' }}>{promoverModal.profiles.username}</strong>, elige quién cede su cupo y pasa a espera:
@@ -621,7 +621,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
       {/* Modal Agregar Jugador */}
       {agregarModal && selectedPartido && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 200 }}>
-          <Card style={{ width: '100%', maxWidth: 440 }}>
+          <Card style={{ width: '100%', maxWidth: 440, maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Agregar jugador al partido</h3>
             <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.6 }}>
               Quedará registrado que fue añadido por ti como admin.
@@ -689,7 +689,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
       {/* Modal Crear Partido */}
       {crearModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 200 }}>
-          <Card style={{ width: '100%', maxWidth: 400 }} padding={24}>
+          <Card style={{ width: '100%', maxWidth: 400, maxHeight: '90vh', overflowY: 'auto' }} padding={24}>
             <h3 className="display" style={{ fontSize: 24, marginBottom: 8 }}>Nuevo partido</h3>
             <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 24 }}>
               El día de la semana se detecta automáticamente de la fecha.
@@ -783,7 +783,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
       {/* Modal Editar Partido */}
       {editPartidoModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 200 }}>
-          <Card style={{ width: '100%', maxWidth: 400 }} padding={24}>
+          <Card style={{ width: '100%', maxWidth: 400, maxHeight: '90vh', overflowY: 'auto' }} padding={24}>
             <h3 className="display" style={{ fontSize: 24, marginBottom: 8 }}>Editar partido</h3>
             <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 24 }}>
               {editPartidoModal.dia_semana.toUpperCase()} · {editPartidoModal.fecha}

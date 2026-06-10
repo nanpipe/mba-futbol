@@ -6,10 +6,9 @@ import { isUUID, isString, safeError } from '@/lib/validation'
 import { sendPush, isDeadPushError } from '@/lib/push'
 import { logActivity } from '@/lib/activityLog'
 import { sendInvitadoConfirmadoEmail } from '@/lib/email'
+import { gameNumber } from '@/lib/gameConfig'
 
 export const dynamic = 'force-dynamic'
-
-const MAX_INVITADOS = 3
 
 // POST /api/invitados — agregar un invitado al partido
 export async function POST(req: NextRequest) {
@@ -23,12 +22,15 @@ export async function POST(req: NextRequest) {
   if (!meProfile?.club_id) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
   const clubId = meProfile.club_id
 
-  // Check club setting: invitados enabled?
-  const { data: invSetting } = await admin
-    .from('app_settings').select('value').eq('club_id', clubId).eq('key', 'usar_invitados').maybeSingle()
-  if (invSetting !== null && (invSetting as { value: unknown })?.value === false) {
+  // Club settings: invitados enabled? + per-player limit (superadmin-configurable)
+  const { data: settingRows } = await admin
+    .from('app_settings').select('key, value').eq('club_id', clubId).in('key', ['usar_invitados', 'max_invitados'])
+  const settings: Record<string, unknown> = {}
+  for (const r of (settingRows ?? []) as { key: string; value: unknown }[]) settings[r.key] = r.value
+  if (settings['usar_invitados'] === false) {
     return NextResponse.json({ error: 'El sistema de invitados está desactivado.' }, { status: 403 })
   }
+  const MAX_INVITADOS = gameNumber(settings, 'max_invitados')
 
   // Verify player is approved
   const { data: playerProfile } = await supabase.from('profiles').select('aprobado, username').eq('id', user.id).single()

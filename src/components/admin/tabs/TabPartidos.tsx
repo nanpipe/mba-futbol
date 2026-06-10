@@ -8,6 +8,7 @@ import { Card } from '@/components/Card'
 import { FormLabel } from '@/components/FormLabel'
 import { ButtonGroup } from '@/components/ButtonGroup'
 import type { Player, Partido, Inscripcion, Invitado, AdminAction } from '@/types/admin'
+import { gameNumber, gameString } from '@/lib/gameConfig'
 
 // Notification fires 5 min before the inscription window opens.
 function notifTime(horaApertura: string): string {
@@ -41,6 +42,20 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
   const [inscripciones, setInscripciones] = useState<Inscripcion[]>([])
   const [invitados, setInvitados] = useState<Invitado[]>([])
   const [confirmandoInvitado, setConfirmandoInvitado] = useState<string | null>(null)
+
+  // Game-config defaults (per club, superadmin-set; falls back to GAME_CONFIG defs)
+  const [gameCfg, setGameCfg] = useState<Record<string, unknown>>({})
+  useEffect(() => {
+    fetch('/api/admin?accion=settings')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.settings) setGameCfg(d.settings) })
+      .catch(err => console.error('[TabPartidos] settings fetch failed:', err))
+  }, [])
+  const defCupos = () => String(gameNumber(gameCfg, 'cupos_default'))
+  const defCuposMini = () => String(gameNumber(gameCfg, 'cupos_minitorneo'))
+  const defHora = () => gameString(gameCfg, 'hora_partido_default')
+  const defHoraApertura = () => gameString(gameCfg, 'hora_apertura_default')
+  const defDiasAntes = () => String(gameNumber(gameCfg, 'dias_antes_default'))
 
   // Crear/editar partido
   const [crearModal, setCrearModal] = useState(false)
@@ -180,10 +195,10 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
     })
     setCrearModal(false)
     setNuevaFecha('')
-    setNuevaHora('19:00')
-    setNuevosCupos('14')
-    setNuevaHoraApertura('10:00')
-    setNuevosDiasAntes('2')
+    setNuevaHora(defHora())
+    setNuevosCupos(defCupos())
+    setNuevaHoraApertura(defHoraApertura())
+    setNuevosDiasAntes(defDiasAntes())
     setNuevoTipo('normal')
     setNotifAperturaAt('')
     setNotifRecordatorioAt('')
@@ -245,7 +260,14 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <SectionHeader title="Próximos Partidos" />
               <button
-                onClick={() => setCrearModal(true)}
+                onClick={() => {
+                  // Seed form with this club's game-config defaults
+                  setNuevaHora(defHora())
+                  setNuevosCupos(defCupos())
+                  setNuevaHoraApertura(defHoraApertura())
+                  setNuevosDiasAntes(defDiasAntes())
+                  setCrearModal(true)
+                }}
                 className="btn btn-ghost"
                 style={{ fontSize: 11, padding: '6px 12px', color: 'var(--green)', borderColor: '#16a34a' }}
               >
@@ -701,7 +723,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                   {(['normal', 'minitorneo'] as const).map(t => (
                     <button
                       key={t}
-                      onClick={() => { setNuevoTipo(t); setNuevosCupos(t === 'minitorneo' ? '21' : '14') }}
+                      onClick={() => { setNuevoTipo(t); setNuevosCupos(t === 'minitorneo' ? defCuposMini() : defCupos()) }}
                       className="btn btn-ghost mono"
                       style={{
                         flex: 1, fontSize: 11, padding: '8px',

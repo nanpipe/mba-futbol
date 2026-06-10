@@ -6,6 +6,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { Card } from '@/components/Card'
 import { SectionHeader } from '@/components/SectionHeader'
 import { ButtonGroup } from '@/components/ButtonGroup'
+import { GAME_CONFIG } from '@/lib/gameConfig'
 
 const PUSH_SETTINGS = [
   { key: 'notif_apertura',     label: 'Inscripciones abiertas',  desc: 'Cuando abre la ventana de inscripción para un partido' },
@@ -37,9 +38,11 @@ const HORARIOS_FIELDS = [
 
 interface Props {
   active: boolean
+  /** Superadmin sees + edits the game configuration section */
+  isSuperAdmin?: boolean
 }
 
-export function TabAjustes({ active }: Props) {
+export function TabAjustes({ active, isSuperAdmin = false }: Props) {
   const [settings, setSettings] = useState<Record<string, boolean | string>>({
     notif_apertura: true,
     notif_recordatorio: true,
@@ -252,6 +255,35 @@ export function TabAjustes({ active }: Props) {
               ))}
             </div>
           </Card>
+
+          {/* Configuración de juego — superadmin only */}
+          {isSuperAdmin && (
+            <Card padding="20px 24px">
+              <SectionHeader title="CONFIGURACIÓN DE JUEGO" icon="🎮" color="#a78bfa" />
+              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+                Cómo se arman y juegan los equipos de este club. Solo superadmin.
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
+                {GAME_CONFIG.map(({ key, label, desc, def }) => (
+                  <div key={key} style={{ minWidth: 0 }}>
+                    <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
+                      {label}
+                      {savingText === key && <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>guardando...</span>}
+                    </label>
+                    <input
+                      type="text"
+                      value={(settings[key] as string) ?? ''}
+                      placeholder={def}
+                      onChange={e => setSettings(prev => ({ ...prev, [key]: e.target.value }))}
+                      onBlur={e => guardarTexto(key, e.target.value)}
+                      style={{ width: '100%', boxSizing: 'border-box' }}
+                    />
+                    <div className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 4 }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
 
           {/* Test email */}
           <Card padding="20px 24px">

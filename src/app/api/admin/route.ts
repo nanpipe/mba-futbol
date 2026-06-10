@@ -7,6 +7,7 @@ import { logActivity } from '@/lib/activityLog'
 import { sendTestEmail, sendEvaluacionesEmail, sendAperturaEmail } from '@/lib/email'
 import { getClubNombre } from '@/lib/club'
 import { isPosicion } from '@/lib/posiciones'
+import { GAME_CONFIG_KEYS } from '@/lib/gameConfig'
 
 export const dynamic = 'force-dynamic'
 
@@ -789,9 +790,14 @@ export async function POST(req: NextRequest) {
       'usar_uniforme', 'usar_invitados', 'usuarios_pueden_cambiar_username',
       'club_nombre', 'club_ciudad',
       'hora_promo_invitados',
+      ...GAME_CONFIG_KEYS,
     ]
     if (typeof key !== 'string' || !ALLOWED_KEYS.includes(key)) {
       return NextResponse.json({ error: 'Clave inválida' }, { status: 400 })
+    }
+    // Game configuration is superadmin-only
+    if ((GAME_CONFIG_KEYS as readonly string[]).includes(key) && adminUser.role !== 'superadmin') {
+      return NextResponse.json({ error: 'Configuración de juego reservada para superadmin' }, { status: 403 })
     }
     if (typeof value === 'string' && value.length > 200) {
       return NextResponse.json({ error: 'Valor demasiado largo (máx 200 caracteres)' }, { status: 400 })

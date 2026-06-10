@@ -12,6 +12,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { Card } from '@/components/Card'
 import { SectionHeader } from '@/components/SectionHeader'
 import { ButtonGroup } from '@/components/ButtonGroup'
+import { useClub } from '@/hooks/useClub'
 
 // ── Questions ──────────────────────────────────────────────────────────────────
 
@@ -198,6 +199,7 @@ const PIERNAS = ['Derecha', 'Izquierda', 'Ambas']
 
 export default function MiCartaPage() {
   const supabase = createClient()
+  const club = useClub()
   const [step, setStep] = useState(0)  // 0 = intro/basic info, 1–6 = sections, 7 = review+submit
   const [posicion, setPosicion] = useState('')
   const [pierna, setPierna] = useState('')
@@ -318,7 +320,7 @@ export default function MiCartaPage() {
             <SectionHeader title="TU CARTA FIFA" />
             <p className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>Aprobada · Para actualizar contacta al admin</p>
           </div>
-          <FifaCard size="lg" s={{
+          <FifaCard size="lg" clubNombre={club?.nombre} s={{
             stat_res: ec.stat_res as number, stat_fis: ec.stat_fis as number,
             stat_def: ec.stat_def as number, stat_ata: ec.stat_ata as number,
             stat_tec: ec.stat_tec as number, stat_dis: ec.stat_dis as number,

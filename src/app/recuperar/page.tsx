@@ -6,11 +6,14 @@ import Link from 'next/link'
 import { FormCenterLayout } from '@/components/FormCenterLayout'
 import { FormLabel } from '@/components/FormLabel'
 import { ErrorAlert } from '@/components/ErrorAlert'
+import { useClub } from '@/hooks/useClub'
 
 type Mode = 'password' | 'usuario'
 
 export default function RecuperarPage() {
   const supabase = createClient()
+  const club = useClub()
+  const nombreLines = club.nombre.split(' ')
   const [mode, setMode] = useState<Mode>('password')
 
   // Password recovery
@@ -87,7 +90,12 @@ export default function RecuperarPage() {
     <FormCenterLayout>
       <div style={{ marginBottom: 40, textAlign: 'center' }}>
         <div className="display" style={{ fontSize: 48, letterSpacing: '0.05em', lineHeight: 1 }}>
-          MBA <span style={{ color: 'var(--green)' }}>FC</span>
+          {nombreLines.map((line, i) => (
+            <span key={i}>
+              {i === 1 ? <span style={{ color: 'var(--green)' }}>{line}</span> : line}
+              {i < nombreLines.length - 1 && ' '}
+            </span>
+          ))}
         </div>
         <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.15em', marginTop: 8 }}>
           RECUPERAR ACCESO

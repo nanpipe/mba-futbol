@@ -8,7 +8,7 @@ export interface CartaStats {
   avatar_url?: string | null
 }
 
-export function FifaCard({ s, size = 'md' }: { s: CartaStats; size?: 'sm' | 'md' | 'lg' }) {
+export function FifaCard({ s, size = 'md', clubNombre }: { s: CartaStats; size?: 'sm' | 'md' | 'lg'; clubNombre?: string }) {
   const ts = getTierStyle(s.tier)
   const scale = size === 'sm' ? 0.65 : size === 'lg' ? 1.2 : 1
   const w = Math.round(280 * scale)
@@ -115,9 +115,9 @@ export function FifaCard({ s, size = 'md' }: { s: CartaStats; size?: 'sm' | 'md'
           ))}
         </div>
 
-        {/* MBA label */}
+        {/* Club label */}
         <div className="mono" style={{ textAlign: 'center', fontSize: Math.round(8 * scale), color: ts.text, opacity: 0.5, letterSpacing: '0.15em', marginTop: Math.round(6 * scale) }}>
-          MBA FÚTBOL CLUB
+          {(clubNombre ?? 'FÚTBOL CLUB').toUpperCase()}
         </div>
       </div>
     </div>

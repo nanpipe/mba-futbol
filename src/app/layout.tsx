@@ -4,14 +4,18 @@ import './globals.css'
 import { ServiceWorkerRegistration } from '@/components/ServiceWorkerRegistration'
 import { PullToRefresh } from '@/components/PullToRefresh'
 
-export const metadata: Metadata = {
-  title: 'MBA Fútbol Club',
-  description: 'Registro de partidos y evaluaciones',
+export async function generateMetadata(): Promise<Metadata> {
+  const h = await headers()
+  const nombre = h.get('x-club-nombre') ?? 'Fútbol Club'
+  return {
+    title: nombre,
+    description: `Inscripciones y partidos de ${nombre}`,
+  }
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const h = await headers()
-  const clubNombre = h.get('x-club-nombre') ?? 'MBA FC'
+  const clubNombre = h.get('x-club-nombre') ?? 'Fútbol Club'
 
   return (
     <html lang="es">

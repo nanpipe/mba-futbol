@@ -107,6 +107,9 @@ export async function POST(req: NextRequest) {
     const { data: pTipo } = await admin.from('partidos').select('tipo').eq('id', partido_id as string).single()
     const esMinitorneo = (pTipo as { tipo?: string })?.tipo === 'minitorneo'
 
+    const { data: clubRow } = await admin.from('clubs').select('nombre').eq('id', clubId).single()
+    const clubNombre = (clubRow as { nombre?: string } | null)?.nombre ?? 'el club'
+
     const [insRes, invsRes, knowledgeRes, feedbackRes] = await Promise.all([
       admin
         .from('inscripciones')
@@ -189,7 +192,7 @@ export async function POST(req: NextRequest) {
 
         const perTeam = Math.ceil(jugadores.length / (esMinitorneo ? 3 : 2))
         const prompt = esMinitorneo
-          ? `Eres el organizador de equipos del MBA Fútbol Club. Divide los jugadores en tres equipos balanceados para un MINITORNEO (Blanco, Negro, Morado).
+          ? `Eres el organizador de equipos del ${clubNombre}. Divide los jugadores en tres equipos balanceados para un MINITORNEO (Blanco, Negro, Morado).
 
 === CONTEXTO APRENDIDO (feedback histórico del administrador) ===
 ${feedbackLines}
@@ -206,7 +209,7 @@ ${playerLines}
 
 Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
 {"equipoA":["username1","username2"],"equipoB":["username3"],"equipoC":["username4"],"razon":"Explicación clave en máx 200 caracteres"}`
-          : `Eres el organizador de equipos del MBA Fútbol Club. Divide los jugadores disponibles en dos equipos balanceados y competitivos.
+          : `Eres el organizador de equipos del ${clubNombre}. Divide los jugadores disponibles en dos equipos balanceados y competitivos.
 
 === CONTEXTO APRENDIDO (feedback histórico del administrador) ===
 ${feedbackLines}

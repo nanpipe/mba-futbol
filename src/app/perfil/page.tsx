@@ -11,6 +11,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { Card } from '@/components/Card'
 import { SectionHeader } from '@/components/SectionHeader'
 import { ErrorAlert } from '@/components/ErrorAlert'
+import { useClub } from '@/hooks/useClub'
 
 import { POSICIONES, type Posicion } from '@/lib/posiciones'
 
@@ -44,6 +45,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function PerfilPage() {
   const supabase = createClient()
+  const club = useClub()
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<ProfileData | null>(null)
   const [badges, setBadges] = useState<Badge[]>([])
@@ -330,7 +332,7 @@ export default function PerfilPage() {
           <SectionHeader title="MI CARTA FIFA" />
           {carta?.aprobado ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-              <FifaCard size="md" s={{
+              <FifaCard size="md" clubNombre={club?.nombre} s={{
                 stat_res: carta.stat_res as number,
                 stat_fis: carta.stat_fis as number,
                 stat_def: carta.stat_def as number,

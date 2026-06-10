@@ -7,9 +7,12 @@ import { FormCenterLayout } from '@/components/FormCenterLayout'
 import { FormLabel } from '@/components/FormLabel'
 import { ErrorAlert } from '@/components/ErrorAlert'
 import { ButtonGroup } from '@/components/ButtonGroup'
+import { useClub } from '@/hooks/useClub'
 
 export default function LoginPage() {
   const supabase = createClient()
+  const club = useClub()
+  const nombreLines = club.nombre.split(' ')
   const [identifier, setIdentifier] = useState('')  // username or email
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -102,7 +105,12 @@ export default function LoginPage() {
       {/* Logo */}
       <div style={{ marginBottom: 48, textAlign: 'center' }}>
         <div className="display" style={{ fontSize: 48, letterSpacing: '0.05em', lineHeight: 1 }}>
-          MBA <span style={{ color: 'var(--green)' }}>FC</span>
+          {nombreLines.map((line, i) => (
+            <span key={i}>
+              {i === 1 ? <span style={{ color: 'var(--green)' }}>{line}</span> : line}
+              {i < nombreLines.length - 1 && ' '}
+            </span>
+          ))}
         </div>
         <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.15em', marginTop: 8 }}>
           INICIAR SESIÓN

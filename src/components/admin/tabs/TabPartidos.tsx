@@ -7,6 +7,7 @@ import { SectionHeader } from '@/components/SectionHeader'
 import { Card } from '@/components/Card'
 import { FormLabel } from '@/components/FormLabel'
 import { ButtonGroup } from '@/components/ButtonGroup'
+import { ModalOverlay } from '@/components/ModalOverlay'
 import type { Player, Partido, Inscripcion, Invitado, AdminAction } from '@/types/admin'
 import { gameNumber, gameString } from '@/lib/gameConfig'
 
@@ -599,7 +600,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
 
       {/* Modal Promover con Swap */}
       {promoverModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 200 }}>
+        <ModalOverlay>
           <Card style={{ width: '100%', maxWidth: 440, maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Partido lleno — elegir swap</h3>
             <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.6 }}>
@@ -637,12 +638,12 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
               <button className="btn btn-ghost" onClick={() => setPromoverModal(null)}>Cancelar</button>
             </ButtonGroup>
           </Card>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Modal Agregar Jugador */}
       {agregarModal && selectedPartido && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 200 }}>
+        <ModalOverlay>
           <Card style={{ width: '100%', maxWidth: 440, maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Agregar jugador al partido</h3>
             <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.6 }}>
@@ -705,12 +706,12 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
               <button className="btn btn-ghost" onClick={() => setAgregarModal(false)}>Cancelar</button>
             </ButtonGroup>
           </Card>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Modal Crear Partido */}
       {crearModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 200 }}>
+        <ModalOverlay>
           <Card style={{ width: '100%', maxWidth: 400, maxHeight: '90vh', overflowY: 'auto' }} padding={24}>
             <h3 className="display" style={{ fontSize: 24, marginBottom: 8 }}>Nuevo partido</h3>
             <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 24 }}>
@@ -778,12 +779,12 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
               <button onClick={() => { setCrearModal(false); setNuevoTipo('normal') }} className="btn btn-ghost">Cancelar</button>
             </ButtonGroup>
           </Card>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Modal Editar Partido */}
       {editPartidoModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 200 }}>
+        <ModalOverlay>
           <Card style={{ width: '100%', maxWidth: 400, maxHeight: '90vh', overflowY: 'auto' }} padding={24}>
             <h3 className="display" style={{ fontSize: 24, marginBottom: 8 }}>Editar partido</h3>
             <p className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 24 }}>
@@ -825,7 +826,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
               <button onClick={() => setEditPartidoModal(null)} className="btn btn-ghost">Cancelar</button>
             </ButtonGroup>
           </Card>
-        </div>
+        </ModalOverlay>
       )}
     </>
   )

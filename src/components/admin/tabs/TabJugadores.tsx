@@ -6,6 +6,7 @@ import { SectionHeader } from '@/components/SectionHeader'
 import { FormLabel } from '@/components/FormLabel'
 import { ButtonGroup } from '@/components/ButtonGroup'
 import { Card } from '@/components/Card'
+import { ModalOverlay } from '@/components/ModalOverlay'
 import type { Player, AdminAction } from '@/types/admin'
 
 interface Props {
@@ -192,11 +193,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
 
       {/* Modal Editar Jugador */}
       {editModal && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 20, zIndex: 200, overflowY: 'auto',
-        }}>
+        <ModalOverlay>
           <Card style={{ width: '100%', maxWidth: 420, margin: 'auto', overflowY: 'auto', maxHeight: '80vh' }} padding={24}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
               <PlayerAvatar url={editModal.avatar_url} username={editModal.username} size={48} />
@@ -299,7 +296,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
               </div>}
             </div>
           </Card>
-        </div>
+        </ModalOverlay>
       )}
     </>
   )

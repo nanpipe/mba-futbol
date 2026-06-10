@@ -8,6 +8,7 @@ import { calcularVentanaPartido } from '@/lib/partidos'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
 import { colorLabel } from '@/lib/design'
 import { useClub } from '@/hooks/useClub'
+import { EvaluationCTA } from '@/components/EvaluationCTA'
 
 interface Partido {
   id: string
@@ -942,24 +943,11 @@ export default function HomePage() {
             {/* Evaluation CTA */}
             {ventana?.partido?.evaluaciones_abiertas && ventana?.partido?.equipos_confirmados && miInscripcion?.estado === 'confirmado' && (
               <div style={{ marginTop: 32 }}>
-                <div style={{ background: '#1a1500', border: '1px solid #92400e', borderRadius: 6, padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontSize: 20 }}>📊</span>
-                      <span className="display" style={{ fontSize: 18, letterSpacing: '0.05em' }}>Evalúa a tus compañeros</span>
-                    </div>
-                    <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>
-                      Anónimo · Solo toma 2 minutos · Reconoce a tus compañeros
-                    </div>
-                  </div>
-                  <Link
-                    href={`/evaluar/${ventana.partido.id}`}
-                    className="btn btn-ghost"
-                    style={{ fontSize: 12, padding: '10px 20px', color: 'var(--amber)', borderColor: '#92400e', whiteSpace: 'nowrap' }}
-                  >
-                    Evaluar ahora →
-                  </Link>
-                </div>
+                <EvaluationCTA
+                  partidoId={ventana.partido.id}
+                  title="Evalúa a tus compañeros"
+                  subtitle="Anónimo · Solo toma 2 minutos · Reconoce a tus compañeros"
+                />
               </div>
             )}
 
@@ -1055,24 +1043,11 @@ export default function HomePage() {
           user &&
           ultimoPartido.inscripciones.some(i => i.player_id === user.id) && (
           <div style={{ marginTop: 32 }} className="fade-in">
-            <div style={{ background: '#1a1500', border: '1px solid #92400e', borderRadius: 6, padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 20 }}>📊</span>
-                  <span className="display" style={{ fontSize: 18, letterSpacing: '0.05em' }}>Evalúa el último partido</span>
-                </div>
-                <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>
-                  {ultimoPartido.partido.dia_semana} · Anónimo · Solo toma 2 minutos
-                </div>
-              </div>
-              <Link
-                href={`/evaluar/${ultimoPartido.partido.id}`}
-                className="btn btn-ghost"
-                style={{ fontSize: 12, padding: '10px 20px', color: 'var(--amber)', borderColor: '#92400e', whiteSpace: 'nowrap' }}
-              >
-                Evaluar ahora →
-              </Link>
-            </div>
+            <EvaluationCTA
+              partidoId={ultimoPartido.partido.id}
+              title="Evalúa el último partido"
+              subtitle={`${ultimoPartido.partido.dia_semana} · Anónimo · Solo toma 2 minutos`}
+            />
           </div>
         )}
       </div>

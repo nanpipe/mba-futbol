@@ -8,6 +8,7 @@ import { sendTestEmail, sendEvaluacionesEmail, sendAperturaEmail } from '@/lib/e
 import { getClubNombre } from '@/lib/club'
 import { isPosicion } from '@/lib/posiciones'
 import { GAME_CONFIG_KEYS } from '@/lib/gameConfig'
+import { NOTIF_CHANNEL_KEYS } from '@/lib/notifications'
 
 export const dynamic = 'force-dynamic'
 
@@ -785,12 +786,11 @@ export async function POST(req: NextRequest) {
   if (accion === 'guardar_setting') {
     const { key, value } = body
     const ALLOWED_KEYS = [
-      'notif_apertura', 'notif_recordatorio', 'notif_cupos', 'notif_invitados',
-      'email_apertura', 'email_recordatorio',
       'usar_uniforme', 'usar_invitados', 'usuarios_pueden_cambiar_username',
       'club_nombre', 'club_ciudad',
       'hora_promo_invitados',
       ...GAME_CONFIG_KEYS,
+      ...NOTIF_CHANNEL_KEYS,
     ]
     if (typeof key !== 'string' || !ALLOWED_KEYS.includes(key)) {
       return NextResponse.json({ error: 'Clave inválida' }, { status: 400 })

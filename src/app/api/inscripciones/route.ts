@@ -6,6 +6,7 @@ import { safeError, isUUID } from '@/lib/validation'
 import { internalFetch } from '@/lib/internalFetch'
 import { logActivity } from '@/lib/activityLog'
 import { isRateLimited, getClientIp } from '@/lib/rateLimit'
+import { enqueueDigest } from '@/lib/notifications'
 
 export const dynamic = 'force-dynamic'
 
@@ -98,32 +99,10 @@ export async function POST(req: NextRequest) {
   const tieneUniforme = usarUniforme ? ((profile as { uniform?: boolean })?.uniform ?? false) : true
   const spotsLibres = totalConfirmados < partido.cupos_total
 
-  // Helper: push all admins+superadmin — awaited so Vercel doesn't kill before completion
-  const pushAdmins = async (titulo: string, cuerpo: string) => {
-    try {
-      const { data: adminProfiles } = await admin
-        .from('profiles').select('id, email').in('role', ['admin', 'superadmin'])
-      const adminIds = (adminProfiles ?? []).map((a: { id: string }) => a.id)
-      if (!adminIds.length) return
-      // Email admins
-      const { sendAdminAlertEmail } = await import('@/lib/email')
-      for (const a of (adminProfiles ?? []) as { email?: string }[]) {
-        if (!a.email) continue
-        try { await sendAdminAlertEmail({ email: a.email, titulo, mensaje: cuerpo }) }
-        catch (err) { console.error('[inscripciones] admin email failed:', err) }
-      }
-      const { data: subs } = await admin
-        .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', adminIds)
-      if (!subs?.length) return
-      const { sendPush, isDeadPushError } = await import('@/lib/push')
-      for (const sub of subs) {
-        try {
-          await sendPush(sub, { title: titulo, body: cuerpo, url: '/admin' })
-        } catch (err) {
-          if (isDeadPushError(err)) await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
-        }
-      }
-    } catch { /* non-critical */ }
+  // Admin alert → batched into the digest (flushed by cron as one summary),
+  // so 15 inscripciones in 3 min = 1 notification, not 15.
+  const pushAdmins = async (_titulo: string, cuerpo: string) => {
+    await enqueueDigest(admin, clubId, 'inscripcion', cuerpo)
   }
 
   const dia = partido.fecha
@@ -210,9 +189,10 @@ export async function DELETE(req: NextRequest) {
 
   // Fetch info needed for admin notification before deletion
   const [{ data: playerProfile }, { data: partidoInfo }] = await Promise.all([
-    admin.from('profiles').select('username').eq('id', user.id).single(),
+    admin.from('profiles').select('username, club_id').eq('id', user.id).single(),
     admin.from('partidos').select('fecha, dia_semana').eq('id', partido_id as string).single(),
   ])
+  const bajaClubId = (playerProfile as { club_id?: string } | null)?.club_id
 
   await admin.from('inscripciones').delete().eq('id', inscripcion.id)
 
@@ -243,41 +223,12 @@ export async function DELETE(req: NextRequest) {
     detalles: { partido_id, estado_previo: inscripcion.estado, dia },
   })
 
-  // Admin push — awaited so Vercel doesn't kill before completion
-  try {
-    const { data: adminProfiles } = await admin
-      .from('profiles').select('id, email').in('role', ['admin', 'superadmin'])
-    const adminIds = (adminProfiles ?? []).map((a: { id: string }) => a.id)
-    if (adminIds.length) {
-      const promoBody = promovidosNames.length
-        ? ` → ${promovidosNames.join(', ')} promovido${promovidosNames.length > 1 ? 's' : ''}`
-        : ''
-      const bajaMsg = `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}${promoBody}`
-      // Email admins
-      const { sendAdminAlertEmail } = await import('@/lib/email')
-      for (const a of (adminProfiles ?? []) as { email?: string }[]) {
-        if (!a.email) continue
-        try { await sendAdminAlertEmail({ email: a.email, titulo: '⚠️ Baja en el partido', mensaje: bajaMsg }) }
-        catch (err) { console.error('[inscripciones] baja email failed:', err) }
-      }
-      const { data: subs } = await admin
-        .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', adminIds)
-      if (subs?.length) {
-        const { sendPush, isDeadPushError } = await import('@/lib/push')
-        for (const sub of subs) {
-          try {
-            await sendPush(sub, {
-              title: '⚠️ Baja en el partido',
-              body: bajaMsg,
-              url: '/admin',
-            })
-          } catch (err) {
-            if (isDeadPushError(err)) await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
-          }
-        }
-      }
-    }
-  } catch { /* non-critical */ }
+  // Admin alert → batched into the digest (one summary via cron, not per-baja)
+  const promoBody = promovidosNames.length
+    ? ` → ${promovidosNames.join(', ')} promovido${promovidosNames.length > 1 ? 's' : ''}`
+    : ''
+  const bajaMsg = `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}${promoBody}`
+  if (bajaClubId) await enqueueDigest(admin, bajaClubId, 'baja', bajaMsg)
 
   return NextResponse.json({ ok: true })
 }

@@ -7,18 +7,7 @@ import { Card } from '@/components/Card'
 import { SectionHeader } from '@/components/SectionHeader'
 import { ButtonGroup } from '@/components/ButtonGroup'
 import { GAME_CONFIG } from '@/lib/gameConfig'
-
-const PUSH_SETTINGS = [
-  { key: 'notif_apertura',     label: 'Inscripciones abiertas',  desc: 'Cuando abre la ventana de inscripción para un partido' },
-  { key: 'notif_recordatorio', label: 'Recordatorio de partido', desc: 'A los confirmados, ≤10h antes del partido' },
-  { key: 'notif_cupos',        label: 'Cupos disponibles',       desc: 'A no-inscritos cuando quedan cupos libres' },
-  { key: 'notif_invitados',    label: 'Promoción de invitados',  desc: 'Mueve invitados de espera a confirmado el día del partido' },
-] as const
-
-const EMAIL_SETTINGS = [
-  { key: 'email_apertura',     label: 'Email apertura partido',    desc: 'Correo a todos los jugadores cuando se abren inscripciones' },
-  { key: 'email_recordatorio', label: 'Email recordatorio partido', desc: 'Correo a confirmados el día del partido (cron 10am)' },
-] as const
+import { NOTIF_EVENTS } from '@/lib/notifications'
 
 const CLUB_TOGGLES = [
   { key: 'usar_uniforme',                    label: 'Gestión de uniformes',        desc: 'Prioridad por uniforme en inscripciones y badge en panel de jugadores' },
@@ -75,6 +64,15 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
   useEffect(() => {
     if (active) cargarSettings()
   }, [active, cargarSettings])
+
+  // Resolve a channel toggle: stored value if present, else the event default.
+  const chanOn = (key: string, def: boolean) => {
+    const v = settings[key]
+    if (v === true || v === false) return v
+    if (v === 'true') return true
+    if (v === 'false') return false
+    return def
+  }
 
   const toggleSetting = async (key: string, value: boolean) => {
     setSettings(prev => ({ ...prev, [key]: value }))
@@ -153,41 +151,39 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 560 }}>
 
-          {/* Push notifications */}
+          {/* Notification channels — per-event email/push matrix */}
           <Card padding="20px 24px">
-            <SectionHeader title="NOTIFICACIONES PUSH" icon="🔔" color="var(--amber)" />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {PUSH_SETTINGS.map(({ key, label, desc }) => (
-                <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 500 }}>{label}</div>
-                    <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{desc}</div>
-                  </div>
-                  <ToggleSwitch
-                    checked={settings[key] !== false}
-                    onChange={v => toggleSetting(key, v)}
-                  />
-                </div>
-              ))}
+            <SectionHeader title="NOTIFICACIONES" icon="🔔" color="var(--amber)" />
+            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+              Elige canal por evento. Alertas de admin (registro, inscripción, baja) se agrupan en un resumen cada ~10 min para no saturar.
             </div>
-          </Card>
-
-          {/* Email notifications */}
-          <Card padding="20px 24px">
-            <SectionHeader title="NOTIFICACIONES EMAIL" icon="✉️" color="var(--amber)" />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {EMAIL_SETTINGS.map(({ key, label, desc }) => (
-                <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 500 }}>{label}</div>
-                    <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{desc}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
+                <div style={{ flex: 1 }} />
+                <div className="mono" style={{ width: 44, textAlign: 'center', fontSize: 10, color: 'var(--text-muted)' }}>📧</div>
+                <div className="mono" style={{ width: 44, textAlign: 'center', fontSize: 10, color: 'var(--text-muted)' }}>🔔</div>
+              </div>
+              {NOTIF_EVENTS.map(ev => {
+                const emailOn = chanOn(ev.emailKey, ev.emailDefault)
+                const pushOn = chanOn(ev.pushKey, ev.pushDefault)
+                return (
+                  <div key={ev.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>
+                        {ev.label}
+                        {ev.batch && <span className="mono" style={{ marginLeft: 6, fontSize: 9, color: '#a78bfa' }}>resumen</span>}
+                      </div>
+                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>{ev.desc}</div>
+                    </div>
+                    <div style={{ width: 44, display: 'flex', justifyContent: 'center' }}>
+                      <ToggleSwitch checked={emailOn} onChange={v => toggleSetting(ev.emailKey, v)} />
+                    </div>
+                    <div style={{ width: 44, display: 'flex', justifyContent: 'center' }}>
+                      <ToggleSwitch checked={pushOn} onChange={v => toggleSetting(ev.pushKey, v)} />
+                    </div>
                   </div>
-                  <ToggleSwitch
-                    checked={settings[key] !== false}
-                    onChange={v => toggleSetting(key, v)}
-                  />
-                </div>
-              ))}
+                )
+              })}
             </div>
           </Card>
 

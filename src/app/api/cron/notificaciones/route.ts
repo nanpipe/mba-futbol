@@ -5,6 +5,7 @@ import { calcularVentanaPartido } from '@/lib/partidos'
 import { logActivity } from '@/lib/activityLog'
 import { sendAperturaEmail, sendRecordatorioEmail } from '@/lib/email'
 import { tallyAndAssign } from '@/app/api/evaluaciones/route'
+import { channelsFor, DIGEST_MAX_AGE_MS, DIGEST_SIZE_THRESHOLD } from '@/lib/notifications'
 
 // Every-minute cron metronome — pg_cron fires every minute, all timing logic lives here.
 // Handles 5 tasks in one pass:
@@ -167,23 +168,25 @@ export async function GET(req: NextRequest) {
     const clubPlayerIds = await getClubPlayerIds(admin, clubId, playerIdsCache)
     const clubNombre = await getClubNombreById(admin, clubId, clubNombreCache)
     const settings = await getClubSettings(admin, clubId, settingsCache)
-    const emailApertura = settings['email_apertura'] !== false
+    const ch = channelsFor(settings, 'apertura')
     const matchHora = partido.hora?.substring(0, 5) ?? '19:00'
 
     // Push → all club players
-    const { data: subs } = await admin
-      .from('push_subscriptions')
-      .select('endpoint, p256dh, auth')
-      .in('player_id', clubPlayerIds)
+    if (ch.push) {
+      const { data: subs } = await admin
+        .from('push_subscriptions')
+        .select('endpoint, p256dh, auth')
+        .in('player_id', clubPlayerIds)
 
-    results.apertura += await sendToMany(admin, subs ?? [], {
-      title: '⚽ ¡Inscripciones abiertas!',
-      body: `Partido del ${partido.dia_semana}. ¡Corre a inscribirte!`,
-      url: '/',
-    })
+      results.apertura += await sendToMany(admin, subs ?? [], {
+        title: '⚽ ¡Inscripciones abiertas!',
+        body: `Partido del ${partido.dia_semana}. ¡Corre a inscribirte!`,
+        url: '/',
+      })
+    }
 
     // Email → approved club players
-    if (emailApertura) {
+    if (ch.email) {
       const { data: profiles } = await admin
         .from('profiles')
         .select('email, username')
@@ -242,7 +245,7 @@ export async function GET(req: NextRequest) {
   for (const partido of recordatorioDue) {
     const clubId = (partido as { club_id: string }).club_id
     const settings = await getClubSettings(admin, clubId, settingsCache)
-    const emailRecordatorio = settings['email_recordatorio'] !== false
+    const ch = channelsFor(settings, 'recordatorio')
     const clubNombre = await getClubNombreById(admin, clubId, clubNombreCache)
     const matchHora = partido.hora?.substring(0, 5) ?? '19:00'
 
@@ -255,19 +258,21 @@ export async function GET(req: NextRequest) {
     const confirmedIds = (inscripciones ?? []).map((i: { player_id: string }) => i.player_id)
     if (confirmedIds.length > 0) {
       // Push
-      const { data: subs } = await admin
-        .from('push_subscriptions')
-        .select('endpoint, p256dh, auth')
-        .in('player_id', confirmedIds)
+      if (ch.push) {
+        const { data: subs } = await admin
+          .from('push_subscriptions')
+          .select('endpoint, p256dh, auth')
+          .in('player_id', confirmedIds)
 
-      results.recordatorio += await sendToMany(admin, subs ?? [], {
-        title: '⏰ Partido hoy',
-        body: `Recuerda: partido del ${partido.dia_semana} esta noche. ¡Nos vemos!`,
-        url: '/',
-      })
+        results.recordatorio += await sendToMany(admin, subs ?? [], {
+          title: '⏰ Partido hoy',
+          body: `Recuerda: partido del ${partido.dia_semana} esta noche. ¡Nos vemos!`,
+          url: '/',
+        })
+      }
 
       // Email
-      if (emailRecordatorio) {
+      if (ch.email) {
         const { data: profiles } = await admin
           .from('profiles')
           .select('email, username')
@@ -428,14 +433,76 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ── Admin-alert digest flush ──────────────────────────────────────────────
+  // Group pending notif_digest per club; flush when oldest item is ≥10 min old
+  // OR the queue hit the size threshold. One summary email/push per club,
+  // channel-gated by the club's per-event settings.
+  let digest_flushed = 0
+  const { data: digestRows } = await admin
+    .from('notif_digest')
+    .select('id, club_id, evento, mensaje, created_at')
+    .eq('enviado', false)
+    .order('created_at', { ascending: true })
+    .limit(500)
+
+  const byClub = new Map<string, { id: string; evento: string; mensaje: string; created_at: string }[]>()
+  for (const r of (digestRows ?? []) as { id: string; club_id: string; evento: string; mensaje: string; created_at: string }[]) {
+    const arr = byClub.get(r.club_id) ?? []
+    arr.push(r); byClub.set(r.club_id, arr)
+  }
+
+  for (const [digClubId, items] of byClub) {
+    const oldest = new Date(items[0].created_at).getTime()
+    const due = (now.getTime() - oldest >= DIGEST_MAX_AGE_MS) || items.length >= DIGEST_SIZE_THRESHOLD
+    if (!due) continue
+
+    const settings = await getClubSettings(admin, digClubId, settingsCache)
+    // Each event type may have different channel settings → honor the most permissive
+    const eventos = [...new Set(items.map(i => i.evento))]
+    const wantEmail = eventos.some(e => channelsFor(settings, e).email)
+    const wantPush = eventos.some(e => channelsFor(settings, e).push)
+    const ids = items.map(i => i.id)
+
+    if (wantEmail || wantPush) {
+      const clubNombre = await getClubNombreById(admin, digClubId, clubNombreCache)
+      // Counts per event for a tidy summary
+      const counts: Record<string, number> = {}
+      for (const it of items) counts[it.evento] = (counts[it.evento] ?? 0) + 1
+      const labelMap: Record<string, string> = { signup: 'nuevos registros', inscripcion: 'inscripciones', baja: 'bajas' }
+      const resumen = Object.entries(counts).map(([e, n]) => `${n} ${labelMap[e] ?? e}`).join(', ')
+      const detalle = items.slice(0, 20).map(i => `• ${i.mensaje}`).join('\n')
+      const titulo = `📋 Resumen: ${resumen}`
+
+      const { data: adminProfiles } = await admin
+        .from('profiles').select('id, email').eq('club_id', digClubId).in('role', ['admin', 'superadmin'])
+      const adminIds = (adminProfiles ?? []).map((a: { id: string }) => a.id)
+
+      if (wantEmail) {
+        const { sendAdminAlertEmail } = await import('@/lib/email')
+        await Promise.allSettled(
+          (adminProfiles ?? [])
+            .filter((a: { email?: string }) => a.email)
+            .map((a: { email?: string }) => sendAdminAlertEmail({ email: a.email!, titulo, mensaje: detalle, clubNombre }))
+        )
+      }
+      if (wantPush && adminIds.length) {
+        const { data: subs } = await admin.from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', adminIds)
+        await sendToMany(admin, subs ?? [], { title: titulo, body: resumen, url: '/admin' })
+      }
+    }
+
+    await admin.from('notif_digest').update({ enviado: true }).in('id', ids)
+    digest_flushed += items.length
+  }
+
   const totalPush = results.apertura + results.dia_antes + results.recordatorio + results.cupos
   const totalEmail = results.apertura_email + results.recordatorio_email
-  if (totalPush > 0 || totalEmail > 0 || results.invitados > 0 || promovidos_enviados > 0) {
+  if (totalPush > 0 || totalEmail > 0 || results.invitados > 0 || promovidos_enviados > 0 || digest_flushed > 0) {
     await logActivity({
       accion: 'cron_notificaciones',
-      detalles: { ...results, total_push: totalPush, total_email: totalEmail, promovidos_enviados, timestamp: now.toISOString() },
+      detalles: { ...results, total_push: totalPush, total_email: totalEmail, promovidos_enviados, digest_flushed, timestamp: now.toISOString() },
     })
   }
-  console.log('[cron/notificaciones]', now.toISOString(), { ...results, promovidos_enviados })
-  return NextResponse.json({ ok: true, ...results, promovidos_enviados })
+  console.log('[cron/notificaciones]', now.toISOString(), { ...results, promovidos_enviados, digest_flushed })
+  return NextResponse.json({ ok: true, ...results, promovidos_enviados, digest_flushed })
 }

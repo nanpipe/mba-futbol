@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPush, isDeadPushError } from '@/lib/push'
 import { calcularVentanaPartido } from '@/lib/partidos'
 import { sendCuposEmail } from '@/lib/email'
+import { channelsFor } from '@/lib/notifications'
 
 function verifyCron(req: NextRequest) {
   const secret = process.env.CRON_SECRET
@@ -50,15 +51,26 @@ export async function GET(req: NextRequest) {
 
     const inscritosIds = (inscritos ?? []).map((i: { player_id: string }) => i.player_id)
 
+    // Channel settings for this club's 'cupos' event
+    const clubId = (partido as { club_id?: string }).club_id
+    const settings: Record<string, unknown> = {}
+    if (clubId) {
+      const { data: sRows } = await admin.from('app_settings').select('key, value').eq('club_id', clubId)
+      for (const r of (sRows ?? []) as { key: string; value: unknown }[]) settings[r.key] = r.value
+    }
+    const ch = channelsFor(settings, 'cupos')
+
     // Get push subscriptions for players NOT on the list
     // Use parameterized .not().in() to avoid string concatenation
     const subsQuery = admin
       .from('push_subscriptions')
       .select('endpoint, p256dh, auth, player_id')
 
-    const { data: subs } = inscritosIds.length > 0
-      ? await subsQuery.not('player_id', 'in', `(${inscritosIds.join(',')})`)
-      : await subsQuery
+    const { data: subs } = ch.push
+      ? (inscritosIds.length > 0
+        ? await subsQuery.not('player_id', 'in', `(${inscritosIds.join(',')})`)
+        : await subsQuery)
+      : { data: [] }
 
     for (const sub of subs ?? []) {
       try {
@@ -78,8 +90,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Send emails to approved, non-banned club players not on the list
-    const clubId = (partido as { club_id?: string }).club_id
-    if (clubId) {
+    if (clubId && ch.email) {
       const emailProfilesQuery = admin
         .from('profiles')
         .select('id, email, username')

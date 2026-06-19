@@ -155,7 +155,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
           <Card padding="20px 24px">
             <SectionHeader title="NOTIFICACIONES" icon="🔔" color="var(--amber)" />
             <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
-              Elige canal por evento. Alertas de admin (registro, inscripción, baja) se agrupan en un resumen cada ~10 min para no saturar.
+              Elige canal por evento. El email de alertas de admin viene apagado para no saturar — actívalo si lo quieres.
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
@@ -169,10 +169,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
                 return (
                   <div key={ev.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>
-                        {ev.label}
-                        {ev.batch && <span className="mono" style={{ marginLeft: 6, fontSize: 9, color: '#a78bfa' }}>resumen</span>}
-                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>{ev.label}</div>
                       <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>{ev.desc}</div>
                     </div>
                     <div style={{ width: 44, display: 'flex', justifyContent: 'center' }}>

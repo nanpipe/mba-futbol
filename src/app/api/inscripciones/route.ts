@@ -6,7 +6,7 @@ import { safeError, isUUID } from '@/lib/validation'
 import { internalFetch } from '@/lib/internalFetch'
 import { logActivity } from '@/lib/activityLog'
 import { isRateLimited, getClientIp } from '@/lib/rateLimit'
-import { enqueueDigest } from '@/lib/notifications'
+import { notifyAdmins } from '@/lib/notifyAdmins'
 
 export const dynamic = 'force-dynamic'
 
@@ -99,10 +99,9 @@ export async function POST(req: NextRequest) {
   const tieneUniforme = usarUniforme ? ((profile as { uniform?: boolean })?.uniform ?? false) : true
   const spotsLibres = totalConfirmados < partido.cupos_total
 
-  // Admin alert → batched into the digest (flushed by cron as one summary),
-  // so 15 inscripciones in 3 min = 1 notification, not 15.
-  const pushAdmins = async (_titulo: string, cuerpo: string) => {
-    await enqueueDigest(admin, clubId, 'inscripcion', cuerpo)
+  // Admin alert → immediate, channel-gated (push on, email off by default).
+  const pushAdmins = async (titulo: string, cuerpo: string) => {
+    await notifyAdmins(admin, clubId, 'inscripcion', titulo, cuerpo)
   }
 
   const dia = partido.fecha
@@ -228,7 +227,7 @@ export async function DELETE(req: NextRequest) {
     ? ` → ${promovidosNames.join(', ')} promovido${promovidosNames.length > 1 ? 's' : ''}`
     : ''
   const bajaMsg = `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}${promoBody}`
-  if (bajaClubId) await enqueueDigest(admin, bajaClubId, 'baja', bajaMsg)
+  if (bajaClubId) await notifyAdmins(admin, bajaClubId, 'baja', '⚠️ Baja en el partido', bajaMsg)
 
   return NextResponse.json({ ok: true })
 }

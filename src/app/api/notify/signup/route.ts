@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logActivity } from '@/lib/activityLog'
-import { enqueueDigest } from '@/lib/notifications'
+import { notifyAdmins } from '@/lib/notifyAdmins'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,8 +26,8 @@ export async function POST(req: NextRequest) {
   if (profile.aprobado) return NextResponse.json({ ok: true }) // already approved
   if (!profile.club_id) return NextResponse.json({ ok: true })
 
-  // Batched: cron flushes one digest per club (channel-gated), no per-signup blast.
-  await enqueueDigest(admin, profile.club_id, 'signup', `@${username} solicitó acceso`)
+  // Immediate, channel-gated (push on by default, email off until admin enables).
+  await notifyAdmins(admin, profile.club_id, 'signup', '🙋 Nueva solicitud de acceso', `@${username} solicitó acceso. Revísalo en el panel.`)
 
   await logActivity({ user_id: profile.id, username, accion: 'registro', detalles: { username } })
 

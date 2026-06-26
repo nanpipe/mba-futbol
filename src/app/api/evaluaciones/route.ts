@@ -32,6 +32,11 @@ export async function tallyAndAssign(
 
   if (!votos || votos.length === 0) return { badges_asignados: 0 }
 
+  // Clear this match's badges first so a re-tally fully recomputes — otherwise a
+  // category whose winner changed keeps BOTH winners (upsert only dedups per
+  // player, not per category).
+  await admin.from('player_badges').delete().eq('partido_id', partido_id)
+
   const tally: Record<string, Record<string, number>> = {}
   for (const v of votos) {
     if (!tally[v.categoria]) tally[v.categoria] = {}

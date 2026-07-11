@@ -65,6 +65,7 @@ export async function sendAperturaEmail({
   diaSemana,
   fechaPartido,
   hora,
+  lugar,
   clubNombre = 'MBA Fútbol Club',
 }: {
   email: string
@@ -72,6 +73,7 @@ export async function sendAperturaEmail({
   diaSemana: string
   fechaPartido: string
   hora: string
+  lugar?: string | null
   clubNombre?: string
 }): Promise<{ ok: boolean; error?: string; id?: string }> {
   try {
@@ -87,7 +89,7 @@ export async function sendAperturaEmail({
           </h1>
           <p style="color: #aaa; font-size: 16px; line-height: 1.6; margin: 0 0 32px 0;">
             El partido del <strong style="color: #f0f0f0;">${esc(diaSemana)} ${esc(fechaPartido)}</strong> a las
-            <strong style="color: #f0f0f0;">${esc(hora)}</strong> ya tiene cupos disponibles. ¡Entra y anótate antes de que se llenen!
+            <strong style="color: #f0f0f0;">${esc(hora)}</strong>${lugar ? ` en <strong style="color: #f0f0f0;">📍 ${esc(lugar)}</strong>` : ''} ya tiene cupos disponibles. ¡Entra y anótate antes de que se llenen!
           </p>
           <div style="background: #1a1a1a; border-left: 3px solid #facc15; padding: 16px 20px; border-radius: 4px; margin-bottom: 32px;">
             <p style="margin: 0; font-size: 14px; color: #facc15;">⚽ Inscripciones ABIERTAS</p>
@@ -150,12 +152,14 @@ export async function sendRecordatorioEmail({
   username,
   diaSemana,
   hora,
+  lugar,
   clubNombre = 'MBA Fútbol Club',
 }: {
   email: string
   username: string
   diaSemana: string
   hora: string
+  lugar?: string | null
   clubNombre?: string
 }): Promise<{ ok: boolean; error?: string; id?: string }> {
   try {
@@ -171,7 +175,7 @@ export async function sendRecordatorioEmail({
           </h1>
           <p style="color: #aaa; font-size: 16px; line-height: 1.6; margin: 0 0 32px 0;">
             Hoy <strong style="color: #f0f0f0;">${esc(diaSemana)}</strong> a las
-            <strong style="color: #f0f0f0;">${esc(hora)}</strong> es el partido. Estás confirmado.
+            <strong style="color: #f0f0f0;">${esc(hora)}</strong>${lugar ? ` en <strong style="color: #f0f0f0;">📍 ${esc(lugar)}</strong>` : ''} es el partido. Estás confirmado.
           </p>
           <div style="background: #1a1a1a; border-left: 3px solid #4ade80; padding: 16px 20px; border-radius: 4px; margin-bottom: 32px;">
             <p style="margin: 0; font-size: 14px; color: #4ade80;">Estado: <strong>CONFIRMADO ✓</strong></p>

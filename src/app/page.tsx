@@ -25,6 +25,7 @@ interface Partido {
   goles_b?: number | null
   resultado?: string | null
   tipo?: string | null
+  lugar?: string | null
   puntos_blanco?: number | null
   puntos_negro?: number | null
   puntos_morado?: number | null
@@ -91,12 +92,6 @@ interface VentanaInfo {
 }
 
 // ── Schedule display derived from REAL match data (never free-text settings) ──
-const WEEKDAY_ABBR = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB']
-function weekdayAbbr(fecha?: string | null): string {
-  if (!fecha) return ''
-  const d = new Date(fecha + 'T12:00:00')
-  return isNaN(d.getTime()) ? '' : WEEKDAY_ABBR[d.getDay()]
-}
 function formatHora12(hora?: string | null): string {
   if (!hora) return ''
   const [h, m] = hora.split(':').map(Number)
@@ -236,7 +231,7 @@ export default function HomePage() {
     // Fetch next upcoming partido
     const { data: partido } = await supabase
       .from('partidos')
-      .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, cupos_total, equipos_confirmados, evaluaciones_abiertas')
+      .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, cupos_total, equipos_confirmados, evaluaciones_abiertas, tipo, lugar')
       .gte('fecha', hoy)
       .order('fecha', { ascending: true })
       .limit(1)
@@ -514,12 +509,6 @@ export default function HomePage() {
     : null
   const cuposLibres = cuposTotal - totalConfirmados
 
-  // Header schedule — derived from real matches, deduped weekday abbreviations
-  const headerDias = [...new Set(
-    [ventana?.partido?.fecha, ultimoPartido?.partido?.fecha].map(weekdayAbbr).filter(Boolean)
-  )].join(' · ')
-  const headerHora = formatHora12(ventana?.partido?.hora ?? ultimoPartido?.partido?.hora)
-
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
@@ -533,7 +522,7 @@ export default function HomePage() {
   if (!user) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 32 }}>
-        <Header club={club} dias={headerDias} hora={headerHora} />
+        <Header club={club} />
         <div style={{ display: 'flex', gap: 12 }}>
           <Link href="/login" className="btn btn-primary">Iniciar sesión</Link>
           <Link href="/registro" className="btn btn-ghost">Registrarse</Link>
@@ -597,7 +586,7 @@ export default function HomePage() {
 
       <div className="container" style={{ paddingTop: 48 }}>
         {/* Header */}
-        <Header club={club} dias={headerDias} hora={headerHora} />
+        <Header club={club} />
 
         <div style={{ height: 48 }} />
 
@@ -641,19 +630,45 @@ export default function HomePage() {
           <div className="fade-in">
             {/* Partido info */}
             <div style={{ marginBottom: 24 }}>
-              <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 8 }}>
-                PRÓXIMO PARTIDO
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-                <h2 className="display" style={{ fontSize: 52, lineHeight: 1 }}>
-                  {ventana.partido?.dia_semana?.toUpperCase()}
-                </h2>
-                <span className="mono" style={{ fontSize: 14, color: 'var(--text-muted)' }}>
-                  {ventana.partido?.fecha
-                    ? new Date(ventana.partido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })
-                    : ''}{formatHora12(ventana.partido?.hora) && ` · ${formatHora12(ventana.partido?.hora)}`}
-                </span>
-              </div>
+              {ventana.partido?.tipo === 'minitorneo' ? (
+                <>
+                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: '#a78bfa', marginBottom: 8 }}>
+                    PRÓXIMO EVENTO
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 48, lineHeight: 1 }}>🏆</span>
+                    <h2 className="display" style={{ fontSize: 46, lineHeight: 1, color: '#a78bfa' }}>
+                      MINITORNEO
+                    </h2>
+                  </div>
+                  <div className="mono" style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 10 }}>
+                    {ventana.partido?.dia_semana}{ventana.partido?.fecha
+                      ? ` · ${new Date(ventana.partido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })}`
+                      : ''}{formatHora12(ventana.partido?.hora) && ` · ${formatHora12(ventana.partido?.hora)}`}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 8 }}>
+                    PRÓXIMO PARTIDO
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+                    <h2 className="display" style={{ fontSize: 52, lineHeight: 1 }}>
+                      {ventana.partido?.dia_semana?.toUpperCase()}
+                    </h2>
+                    <span className="mono" style={{ fontSize: 14, color: 'var(--text-muted)' }}>
+                      {ventana.partido?.fecha
+                        ? new Date(ventana.partido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })
+                        : ''}{formatHora12(ventana.partido?.hora) && ` · ${formatHora12(ventana.partido?.hora)}`}
+                    </span>
+                  </div>
+                </>
+              )}
+              {ventana.partido?.lugar && (
+                <div className="mono" style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 8 }}>
+                  📍 {ventana.partido.lugar}
+                </div>
+              )}
             </div>
 
             {/* Barra de cupos */}
@@ -1049,10 +1064,9 @@ export default function HomePage() {
   )
 }
 
-function Header({ club, dias, hora }: { club?: import('@/hooks/useClub').ClubInfo; dias?: string; hora?: string }) {
+function Header({ club }: { club?: import('@/hooks/useClub').ClubInfo }) {
   const nombre = club?.nombre ?? 'MBA FC'
   const lines = nombre.split(' ')
-  const subtitle = [dias, hora].filter(Boolean).join(' · ')
   return (
     <div>
       <div className="display" style={{ fontSize: 64, lineHeight: 0.9, letterSpacing: '0.03em' }}>
@@ -1063,11 +1077,6 @@ function Header({ club, dias, hora }: { club?: import('@/hooks/useClub').ClubInf
           </span>
         ))}
       </div>
-      {subtitle && (
-        <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.1em', marginTop: 16 }}>
-          {subtitle}
-        </div>
-      )}
     </div>
   )
 }

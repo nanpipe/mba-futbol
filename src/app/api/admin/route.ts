@@ -456,7 +456,7 @@ export async function POST(req: NextRequest) {
 
   // ── Crear partido ──────────────────────────────────────────────────────────
   if (accion === 'crear_partido') {
-    const { fecha, hora, cupos_total, hora_apertura, dias_antes_apertura, tipo, notif_apertura_at, notif_recordatorio_at } = body
+    const { fecha, hora, cupos_total, hora_apertura, dias_antes_apertura, tipo, notif_apertura_at, notif_recordatorio_at, lugar } = body
 
     if (!isDate(fecha)) return NextResponse.json({ error: 'Fecha inválida' }, { status: 400 })
     if (!isIntInRange(cupos_total, 2, 30)) return NextResponse.json({ error: 'Cupos debe ser entre 2 y 30' }, { status: 400 })
@@ -479,6 +479,7 @@ export async function POST(req: NextRequest) {
         dias_antes_apertura: parseInt(String(dias_antes_apertura), 10),
         inscripcion_abierta: false,
         tipo: tipoPartido,
+        ...(isString(lugar, 1, 120) ? { lugar: (lugar as string).trim() } : {}),
         ...(notif_apertura_at ? { notif_apertura_at } : {}),
         ...(notif_recordatorio_at ? { notif_recordatorio_at } : {}),
       })
@@ -507,7 +508,7 @@ export async function POST(req: NextRequest) {
 
   // ── Editar partido ─────────────────────────────────────────────────────────
   if (accion === 'editar_partido') {
-    const { partido_id, fecha, hora, cupos_total, hora_apertura, dias_antes_apertura } = body
+    const { partido_id, fecha, hora, cupos_total, hora_apertura, dias_antes_apertura, lugar } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
     if (!isDate(fecha)) return NextResponse.json({ error: 'Fecha inválida' }, { status: 400 })
     if (!isIntInRange(cupos_total, 2, 30)) return NextResponse.json({ error: 'Cupos debe ser entre 2 y 30' }, { status: 400 })
@@ -524,6 +525,7 @@ export async function POST(req: NextRequest) {
       cupos_total: parseInt(String(cupos_total), 10),
       hora_apertura: isString(hora_apertura, 4, 8) ? (hora_apertura as string) : '10:00:00',
       dias_antes_apertura: parseInt(String(dias_antes_apertura), 10),
+      lugar: isString(lugar, 1, 120) ? (lugar as string).trim() : null,
     }).eq('id', partido_id as string).eq('club_id', clubId)
 
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
@@ -673,7 +675,7 @@ export async function POST(req: NextRequest) {
   if (accion === 'forzar_notif_apertura') {
     const { partido_id } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
-    const { data: partido } = await admin.from('partidos').select('dia_semana, fecha, hora').eq('id', partido_id as string).single()
+    const { data: partido } = await admin.from('partidos').select('dia_semana, fecha, hora, lugar').eq('id', partido_id as string).single()
     const { data: clubProfiles } = await admin.from('profiles').select('id, email, username').eq('club_id', clubId).eq('aprobado', true).eq('baneado', false).neq('role', 'admin')
     const clubPlayerIds = (clubProfiles ?? []).map((p: { id: string }) => p.id)
     const { data: subs } = clubPlayerIds.length > 0
@@ -681,12 +683,13 @@ export async function POST(req: NextRequest) {
       : { data: [] }
     const { sendPush, isDeadPushError } = await import('@/lib/push')
     const diaSemana = (partido as { dia_semana?: string })?.dia_semana ?? ''
+    const lugarPartido = (partido as { lugar?: string | null })?.lugar
     let enviados = 0
     for (const sub of subs ?? []) {
       try {
         await sendPush(sub, {
           title: '⚽ ¡Inscripciones abiertas!',
-          body: `Ya puedes anotarte para el partido del ${diaSemana}. ¡Entra ahora!`,
+          body: `Ya puedes anotarte para el partido del ${diaSemana}${lugarPartido ? ` en 📍 ${lugarPartido}` : ''}. ¡Entra ahora!`,
           url: '/',
         })
         enviados++
@@ -702,7 +705,7 @@ export async function POST(req: NextRequest) {
     for (const p of (clubProfiles ?? []) as { email?: string; username?: string }[]) {
       if (!p.email) continue
       try {
-        await sendAperturaEmail({ email: p.email, username: p.username ?? '', diaSemana, fechaPartido, hora: matchHora, clubNombre })
+        await sendAperturaEmail({ email: p.email, username: p.username ?? '', diaSemana, fechaPartido, hora: matchHora, lugar: lugarPartido, clubNombre })
       } catch (err) { console.error('[admin] forzar_notif email failed:', err) }
     }
     await admin.from('partidos').update({ notif_apertura_sent: true }).eq('id', partido_id as string)
@@ -788,7 +791,7 @@ export async function POST(req: NextRequest) {
     const ALLOWED_KEYS = [
       'usar_uniforme', 'usar_invitados', 'usuarios_pueden_cambiar_username',
       'club_nombre', 'club_ciudad',
-      'hora_promo_invitados',
+      'hora_promo_invitados', 'ubicaciones',
       ...GAME_CONFIG_KEYS,
       ...NOTIF_CHANNEL_KEYS,
     ]
@@ -799,8 +802,8 @@ export async function POST(req: NextRequest) {
     if ((GAME_CONFIG_KEYS as readonly string[]).includes(key) && adminUser.role !== 'superadmin') {
       return NextResponse.json({ error: 'Configuración de juego reservada para superadmin' }, { status: 403 })
     }
-    if (typeof value === 'string' && value.length > 200) {
-      return NextResponse.json({ error: 'Valor demasiado largo (máx 200 caracteres)' }, { status: 400 })
+    if (typeof value === 'string' && value.length > 500) {
+      return NextResponse.json({ error: 'Valor demasiado largo (máx 500 caracteres)' }, { status: 400 })
     }
     // Booleans stored as bool, strings stored as string
     const storedValue = typeof value === 'string' && value !== 'true' && value !== 'false'

@@ -72,6 +72,7 @@ export interface Partido {
   notif_apertura_at?: string | null
   notif_recordatorio_at?: string | null
   tipo?: 'normal' | 'minitorneo'
+  lugar?: string | null
   puntos_blanco?: number | null
   puntos_negro?: number | null
   puntos_morado?: number | null

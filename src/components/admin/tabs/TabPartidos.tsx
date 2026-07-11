@@ -11,6 +11,41 @@ import { ModalOverlay } from '@/components/ModalOverlay'
 import type { Player, Partido, Inscripcion, Invitado, AdminAction } from '@/types/admin'
 import { gameNumber, gameString } from '@/lib/gameConfig'
 
+/** Venue selector: saved list + "Otro…" free text. */
+function LugarPicker({ ubicaciones, value, custom, onValue, onCustom }: {
+  ubicaciones: string[]
+  value: string
+  custom: boolean
+  onValue: (v: string) => void
+  onCustom: (c: boolean) => void
+}) {
+  return (
+    <div>
+      <FormLabel label="Lugar" />
+      <select
+        value={custom ? '__otro__' : value}
+        onChange={e => {
+          if (e.target.value === '__otro__') { onCustom(true); onValue('') }
+          else { onCustom(false); onValue(e.target.value) }
+        }}
+        style={{ width: '100%', boxSizing: 'border-box' }}
+      >
+        {ubicaciones.map(u => <option key={u} value={u}>{u}</option>)}
+        <option value="__otro__">Otro…</option>
+      </select>
+      {custom && (
+        <input
+          type="text"
+          value={value}
+          placeholder="Nombre de la cancha"
+          onChange={e => onValue(e.target.value)}
+          style={{ width: '100%', boxSizing: 'border-box', marginTop: 8 }}
+        />
+      )}
+    </div>
+  )
+}
+
 // Notification fires 5 min before the inscription window opens.
 function notifTime(horaApertura: string): string {
   const [h, m] = horaApertura.split(':').map(Number)
@@ -52,6 +87,10 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
       .then(d => { if (d?.settings) setGameCfg(d.settings) })
       .catch(err => console.error('[TabPartidos] settings fetch failed:', err))
   }, [])
+  // Venues: one per line in settings, first = default
+  const ubicaciones = String(gameCfg['ubicaciones'] ?? 'Maracaná, Cali').split('\n').map(s => s.trim()).filter(Boolean)
+  const defLugar = () => ubicaciones[0] ?? 'Maracaná, Cali'
+
   const defCupos = () => String(gameNumber(gameCfg, 'cupos_default'))
   const defCuposMini = () => String(gameNumber(gameCfg, 'cupos_minitorneo'))
   const defHora = () => gameString(gameCfg, 'hora_partido_default')
@@ -67,6 +106,8 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
   const [nuevaHoraApertura, setNuevaHoraApertura] = useState('10:00')
   const [nuevosDiasAntes, setNuevosDiasAntes] = useState('2')
   const [nuevoTipo, setNuevoTipo] = useState<'normal' | 'minitorneo'>('normal')
+  const [nuevoLugar, setNuevoLugar] = useState('')
+  const [lugarCustom, setLugarCustom] = useState(false)
   const [notifAperturaAt, setNotifAperturaAt] = useState('')
   const [notifRecordatorioAt, setNotifRecordatorioAt] = useState('')
 
@@ -191,6 +232,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
       hora_apertura: nuevaHoraApertura + ':00',
       dias_antes_apertura: nuevosDiasAntes,
       tipo: nuevoTipo,
+      lugar: nuevoLugar.trim(),
       notif_apertura_at: notifAperturaAt ? new Date(notifAperturaAt).toISOString() : '',
       notif_recordatorio_at: notifRecordatorioAt ? new Date(notifRecordatorioAt).toISOString() : '',
     })
@@ -226,6 +268,9 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
     setNuevaHoraApertura(p.hora_apertura?.substring(0, 5) ?? '10:00')
     setNuevosDiasAntes(String(p.dias_antes_apertura ?? 2))
     setNuevoTipo(p.tipo ?? 'normal')
+    const lug = p.lugar ?? defLugar()
+    setNuevoLugar(lug)
+    setLugarCustom(!ubicaciones.includes(lug))
   }
 
   const editarPartido = async () => {
@@ -237,6 +282,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
       cupos_total: nuevosCupos,
       hora_apertura: nuevaHoraApertura + ':00',
       dias_antes_apertura: nuevosDiasAntes,
+      lugar: nuevoLugar.trim(),
     })
     if (ok) {
       setEditPartidoModal(null)
@@ -267,6 +313,8 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                   setNuevosCupos(defCupos())
                   setNuevaHoraApertura(defHoraApertura())
                   setNuevosDiasAntes(defDiasAntes())
+                  setNuevoLugar(defLugar())
+                  setLugarCustom(false)
                   setCrearModal(true)
                 }}
                 className="btn btn-ghost"
@@ -308,6 +356,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                         </div>
                         <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                           {new Date(p.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}
+                          {p.lugar && <span style={{ color: 'var(--text-dim)' }}> · 📍 {p.lugar}</span>}
                         </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
@@ -768,6 +817,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 </label>
                 <input type="number" min="1" max="30" value={nuevosCupos} onChange={e => setNuevosCupos(e.target.value)} />
               </div>
+              <LugarPicker ubicaciones={ubicaciones} value={nuevoLugar} custom={lugarCustom} onValue={setNuevoLugar} onCustom={setLugarCustom} />
               <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.6, padding: '10px 12px', background: 'var(--surface)', borderRadius: 4 }}>
                 📣 Las notificaciones se envían automáticamente: apertura 5 min antes de abrir inscripciones, recordatorio el día del partido. Ajústalas por partido con el botón 🔔.
               </div>
@@ -818,6 +868,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 <FormLabel label="Cupos" />
                 <input type="number" min="1" max="30" value={nuevosCupos} onChange={e => setNuevosCupos(e.target.value)} />
               </div>
+              <LugarPicker ubicaciones={ubicaciones} value={nuevoLugar} custom={lugarCustom} onValue={setNuevoLugar} onCustom={setLugarCustom} />
             </div>
             <ButtonGroup gap={12} marginTop={24}>
               <button onClick={editarPartido} disabled={!nuevaFecha} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>

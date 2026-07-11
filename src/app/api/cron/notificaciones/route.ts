@@ -152,7 +152,7 @@ export async function GET(req: NextRequest) {
 
   const { data: aperturaCandidates } = await admin
     .from('partidos')
-    .select('id, club_id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_apertura_at')
+    .select('id, club_id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_apertura_at, tipo, lugar')
     .gte('fecha', hoy)
     .eq('notif_apertura_sent', false)
     .order('fecha', { ascending: true })
@@ -172,6 +172,9 @@ export async function GET(req: NextRequest) {
     const settings = await getClubSettings(admin, clubId, settingsCache)
     const ch = channelsFor(settings, 'apertura')
     const matchHora = partido.hora?.substring(0, 5) ?? '19:00'
+    const lugar = (partido as { lugar?: string | null }).lugar
+    const esMini = (partido as { tipo?: string }).tipo === 'minitorneo'
+    const evento = esMini ? `Minitorneo del ${partido.dia_semana} 🏆` : `Partido del ${partido.dia_semana}`
 
     // Push → all club players
     if (ch.push) {
@@ -182,7 +185,7 @@ export async function GET(req: NextRequest) {
 
       results.apertura += await sendToMany(admin, subs ?? [], {
         title: '⚽ ¡Inscripciones abiertas!',
-        body: `Partido del ${partido.dia_semana}. ¡Corre a inscribirte!`,
+        body: `${evento}${lugar ? ` en 📍 ${lugar}` : ''}. ¡Corre a inscribirte!`,
         url: '/',
       })
     }
@@ -203,6 +206,7 @@ export async function GET(req: NextRequest) {
           diaSemana: partido.dia_semana,
           fechaPartido: partido.fecha,
           hora: matchHora,
+          lugar,
           clubNombre,
         }))
       )
@@ -231,7 +235,7 @@ export async function GET(req: NextRequest) {
 
   const { data: recordatorioCandidates } = await admin
     .from('partidos')
-    .select('id, club_id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_recordatorio_at')
+    .select('id, club_id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_recordatorio_at, tipo, lugar')
     .gte('fecha', hoy)
     .eq('notif_recordatorio_sent', false)
     .order('fecha', { ascending: true })
@@ -266,9 +270,11 @@ export async function GET(req: NextRequest) {
           .select('endpoint, p256dh, auth')
           .in('player_id', confirmedIds)
 
+        const recLugar = (partido as { lugar?: string | null }).lugar
+        const recMini = (partido as { tipo?: string }).tipo === 'minitorneo'
         results.recordatorio += await sendToMany(admin, subs ?? [], {
-          title: '⏰ Partido hoy',
-          body: `Recuerda: partido del ${partido.dia_semana} esta noche. ¡Nos vemos!`,
+          title: recMini ? '🏆 Minitorneo hoy' : '⏰ Partido hoy',
+          body: `Recuerda: ${recMini ? 'minitorneo' : 'partido'} del ${partido.dia_semana} a las ${matchHora}${recLugar ? ` en 📍 ${recLugar}` : ''}. ¡Nos vemos!`,
           url: '/',
         })
       }
@@ -285,6 +291,7 @@ export async function GET(req: NextRequest) {
             username: (p as { username: string }).username,
             diaSemana: partido.dia_semana,
             hora: matchHora,
+            lugar: (partido as { lugar?: string | null }).lugar,
             clubNombre,
           }))
         )
@@ -298,7 +305,7 @@ export async function GET(req: NextRequest) {
   // ── Load upcoming partidos for remaining checks (dia_antes, cupos, invitados) ─
   const { data: partidos } = await admin
     .from('partidos')
-    .select('id, club_id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_dia_antes_sent, notif_cupos_sent, cupos_total, evaluaciones_abiertas, equipos_confirmados')
+    .select('id, club_id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_dia_antes_sent, notif_cupos_sent, cupos_total, evaluaciones_abiertas, equipos_confirmados, tipo, lugar')
     .gte('fecha', hoy)
     .order('fecha', { ascending: true })
     .limit(20)
@@ -330,9 +337,10 @@ export async function GET(req: NextRequest) {
           .select('endpoint, p256dh, auth')
           .in('player_id', confirmedIds)
 
+        const daLugar = (partido as { lugar?: string | null }).lugar
         results.dia_antes += await sendToMany(admin, subs ?? [], {
           title: '📅 Partido mañana',
-          body: `Mañana a las ${matchHora} es el partido del ${partido.dia_semana}. ¿Vas a poder ir? Si no puedes, cancela tu cupo 🙏`,
+          body: `Mañana a las ${matchHora} es el partido del ${partido.dia_semana}${daLugar ? ` en 📍 ${daLugar}` : ''}. ¿Vas a poder ir? Si no puedes, cancela tu cupo 🙏`,
           url: '/',
         })
 

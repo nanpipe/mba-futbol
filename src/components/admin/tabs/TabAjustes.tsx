@@ -249,6 +249,23 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
             </div>
           </Card>
 
+          {/* Ubicaciones — canchas del club */}
+          <Card padding="20px 24px">
+            <SectionHeader title="UBICACIONES" icon="📍" color="var(--green)" />
+            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 10, lineHeight: 1.6 }}>
+              Una cancha por línea. La primera es la predeterminada al crear partidos.
+              {savingText === 'ubicaciones' && <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>guardando...</span>}
+            </div>
+            <textarea
+              rows={4}
+              value={(settings['ubicaciones'] as string) ?? ''}
+              placeholder={'Maracaná, Cali'}
+              onChange={e => setSettings(prev => ({ ...prev, ubicaciones: e.target.value }))}
+              onBlur={e => guardarTexto('ubicaciones', e.target.value)}
+              style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical' }}
+            />
+          </Card>
+
           {/* Configuración de juego — superadmin only */}
           {isSuperAdmin && (
             <Card padding="20px 24px">

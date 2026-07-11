@@ -45,7 +45,7 @@ async function sendToMany(
 
 // ── Per-club helpers (cached within one cron run) ──────────────────────────
 type AdminClient = ReturnType<typeof createAdminClient>
-type Settings = Record<string, boolean>
+type Settings = Record<string, unknown>
 
 async function getClubSettings(
   admin: AdminClient,
@@ -54,8 +54,10 @@ async function getClubSettings(
 ): Promise<Settings> {
   if (cache.has(clubId)) return cache.get(clubId)!
   const { data } = await admin.from('app_settings').select('key, value').eq('club_id', clubId)
+  // Keep RAW values: booleans stay booleans, strings (e.g. hora_promo_invitados)
+  // stay strings — the old `=== true` coercion destroyed string settings.
   const s: Settings = {}
-  for (const row of data ?? []) s[(row as { key: string }).key] = (row as { value: unknown }).value === true
+  for (const row of data ?? []) s[(row as { key: string }).key] = (row as { value: unknown }).value
   cache.set(clubId, s)
   return s
 }
@@ -296,7 +298,7 @@ export async function GET(req: NextRequest) {
   // ── Load upcoming partidos for remaining checks (dia_antes, cupos, invitados) ─
   const { data: partidos } = await admin
     .from('partidos')
-    .select('id, club_id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_dia_antes_sent, cupos_total, evaluaciones_abiertas, equipos_confirmados')
+    .select('id, club_id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_dia_antes_sent, notif_cupos_sent, cupos_total, evaluaciones_abiertas, equipos_confirmados')
     .gte('fecha', hoy)
     .order('fecha', { ascending: true })
     .limit(20)
@@ -338,8 +340,11 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── Cupos disponibles ──────────────────────────────────────────────────
-    if (sendCupos && abierta) {
+    // ── Cupos disponibles — ONCE per partido, day-of, if still free ─────────
+    // Guarded by notif_cupos_sent: cron runs every minute, without the flag this
+    // push repeated per-minute while the window was open.
+    const cuposSent = (partido as { notif_cupos_sent?: boolean }).notif_cupos_sent
+    if (sendCupos && abierta && !cuposSent && partido.fecha === hoy) {
       const { count: confirmados } = await admin
         .from('inscripciones')
         .select('id', { count: 'exact', head: true })
@@ -370,11 +375,21 @@ export async function GET(req: NextRequest) {
           body: `Quedan ${cuposLibres} cupo${cuposLibres !== 1 ? 's' : ''} para el partido del ${partido.dia_semana}. ¡Anótate antes de que se llene!`,
           url: '/',
         })
+        await admin.from('partidos').update({ notif_cupos_sent: true }).eq('id', partido.id)
       }
     }
 
-    // ── Invitee promotion: today's match ───────────────────────────────────
-    if (sendInvitados && partido.fecha === hoy) {
+    // ── Invitee promotion: today's match, only from the club's promo hour ──
+    // (default 2 PM Colombia; without this gate they promoted at midnight)
+    const promoRaw = String(settings['hora_promo_invitados'] ?? '2:00 PM')
+    const pm = promoRaw.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?/i)
+    let promoHour = 14
+    if (pm) {
+      promoHour = parseInt(pm[1], 10) % 12
+      if ((pm[3] ?? 'PM').toUpperCase() === 'PM') promoHour += 12
+    }
+    const colHour = new Date(now.getTime() - 5 * 3600 * 1000).getUTCHours()
+    if (sendInvitados && partido.fecha === hoy && colHour >= promoHour) {
       const { count: confirmados } = await admin
         .from('inscripciones')
         .select('id', { count: 'exact', head: true })

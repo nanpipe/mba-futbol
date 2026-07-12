@@ -9,6 +9,7 @@ import { PlayerAvatar } from '@/components/PlayerAvatar'
 import { colorLabel } from '@/lib/design'
 import { useClub } from '@/hooks/useClub'
 import { EvaluationCTA } from '@/components/EvaluationCTA'
+import { MatchResultCard } from '@/components/MatchResultCard'
 
 interface Partido {
   id: string
@@ -119,6 +120,8 @@ export default function HomePage() {
   const [countdown, setCountdown] = useState('')
   const [ultimoPartido, setUltimoPartido] = useState<{ partido: Partido; inscripciones: Inscripcion[]; badges: Badge[] } | null>(null)
   const [misEquipos, setMisEquipos] = useState<{ equipos: Equipo[]; miEquipo: Equipo | null; partido_id: string } | null>(null)
+  const [partidosAbiertos, setPartidosAbiertos] = useState<Partido[]>([])
+  const partidoSelIdRef = useRef<string | null>(null)
   const abreEnRef = useRef<Date | null>(null)
   const [pushPermission, setPushPermission] = useState<NotificationPermission | null>(null)
   const [installPrompt, setInstallPrompt] = useState<Event & { prompt: () => void } | null>(null)
@@ -193,6 +196,52 @@ export default function HomePage() {
     return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
   }
 
+  // Per-partido data: inscriptions, teams, invitees — reloaded when switching
+  // between open matches via the selector pills.
+  const cargarDatosPartido = useCallback(async (partido: Partido, u: User) => {
+    const { data: ins } = await supabase
+      .from('inscripciones')
+      .select('id, player_id, estado, posicion_espera, profiles!player_id(username)')
+      .eq('partido_id', partido.id)
+      .order('estado', { ascending: true })
+      .order('posicion_espera', { ascending: true, nullsFirst: false })
+
+    setInscripciones((ins as unknown as Inscripcion[]) ?? [])
+    setMiInscripcion((ins as unknown as Inscripcion[])?.find(i => i.player_id === u.id) ?? null)
+
+    // Load teams if confirmed
+    if (partido.equipos_confirmados) {
+      const teamsRes = await fetch(`/api/equipos?partido_id=${partido.id}`)
+      const teamsData = await teamsRes.json()
+      if (teamsData.equipos) {
+        const eqs: Equipo[] = teamsData.equipos
+        const mine = eqs.find(e => e.jugadores.some(j => j.id === u.id)) ?? null
+        setMisEquipos({ equipos: eqs, miEquipo: mine, partido_id: partido.id })
+      } else {
+        setMisEquipos(null)
+      }
+    } else {
+      setMisEquipos(null)
+    }
+
+    // Load player's own invitees + all invitees for public waiting list
+    const [{ data: invs }, { data: todosInvs }] = await Promise.all([
+      supabase
+        .from('invitados')
+        .select('id, nombre, estado, posicion_espera')
+        .eq('partido_id', partido.id)
+        .eq('player_id', u.id)
+        .order('posicion_espera', { ascending: true }),
+      supabase
+        .from('invitados')
+        .select('id, nombre, estado, posicion_espera, player_id, profiles(username)')
+        .eq('partido_id', partido.id)
+        .order('posicion_espera', { ascending: true, nullsFirst: false }),
+    ])
+    setMisInvitados((invs as Invitado[]) ?? [])
+    setTodosInvitados((todosInvs as unknown as InvitadoPublico[]) ?? [])
+  }, [supabase])
+
   const cargarDatos = useCallback(async (u: User) => {
     const { data: prof } = await supabase.from('profiles').select('username, role, baneado, avatar_url').eq('id', u.id).single()
     setProfile(prof)
@@ -228,35 +277,30 @@ export default function HomePage() {
       }
     }
 
-    // Fetch next upcoming partido
-    const { data: partido } = await supabase
+    // Fetch upcoming partidos — multiple inscription windows can overlap
+    // (e.g. Monday opens 1 day before, Tuesday 2 days before).
+    const { data: proximos } = await supabase
       .from('partidos')
       .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, cupos_total, equipos_confirmados, evaluaciones_abiertas, tipo, lugar')
       .gte('fecha', hoy)
       .order('fecha', { ascending: true })
-      .limit(1)
-      .single()
+      .limit(5)
 
-    if (!partido) {
-      await cargarUltimo()
-      setVentana({ abierta: false, partido: null, abreEn: null, msHastaAbre: 0 })
-      setLoading(false)
-      return
-    }
-
-    const { abierta, abreEn, cierra } = calcularVentanaPartido(partido)
     const now = new Date()
+    const candidatos = (proximos ?? []).filter(p => now < calcularVentanaPartido(p).cierra)
+    const abiertos = candidatos.filter(p => calcularVentanaPartido(p).abierta)
 
-    // Match already happened
-    if (now >= cierra) {
-      await cargarUltimo()
-      setVentana({ abierta: false, partido: null, abreEn: null, msHastaAbre: 0 })
-      setLoading(false)
-      return
-    }
-
-    // Window not yet open — show countdown but still load last match for eval
-    if (!abierta) {
+    if (abiertos.length === 0) {
+      setPartidosAbiertos([])
+      const siguiente = candidatos[0]
+      if (!siguiente) {
+        await cargarUltimo()
+        setVentana({ abierta: false, partido: null, abreEn: null, msHastaAbre: 0 })
+        setLoading(false)
+        return
+      }
+      // Window not yet open — countdown to next opening
+      const { abreEn } = calcularVentanaPartido(siguiente)
       abreEnRef.current = abreEn
       cargarUltimo() // fire-and-forget, updates state when done
       setVentana({
@@ -264,59 +308,23 @@ export default function HomePage() {
         partido: null,
         abreEn: null,
         msHastaAbre: abreEn.getTime() - now.getTime(),
-        proximoPartido: { dia_semana: partido.dia_semana, fecha: partido.fecha },
+        proximoPartido: { dia_semana: siguiente.dia_semana, fecha: siguiente.fecha },
         abreEnDate: abreEn.toISOString(),
       })
       setLoading(false)
       return
     }
 
-    // Window is open — also load last match for eval CTA
+    // Window(s) open — keep the previously selected partido if still open
     cargarUltimo() // fire-and-forget
+    setPartidosAbiertos(abiertos)
+    const partido = abiertos.find(p => p.id === partidoSelIdRef.current) ?? abiertos[0]
+    partidoSelIdRef.current = partido.id
     setVentana({ abierta: true, partido, abreEn: null, msHastaAbre: 0 })
 
-    const { data: ins } = await supabase
-      .from('inscripciones')
-      .select('id, player_id, estado, posicion_espera, profiles!player_id(username)')
-      .eq('partido_id', partido.id)
-      .order('estado', { ascending: true })
-      .order('posicion_espera', { ascending: true, nullsFirst: false })
-
-    setInscripciones((ins as unknown as Inscripcion[]) ?? [])
-    setMiInscripcion((ins as unknown as Inscripcion[])?.find(i => i.player_id === u.id) ?? null)
-
-    // Load teams if confirmed
-    if (partido.equipos_confirmados) {
-      const teamsRes = await fetch(`/api/equipos?partido_id=${partido.id}`)
-      const teamsData = await teamsRes.json()
-      if (teamsData.equipos) {
-        const eqs: Equipo[] = teamsData.equipos
-        const mine = eqs.find(e => e.jugadores.some(j => j.id === u.id)) ?? null
-        setMisEquipos({ equipos: eqs, miEquipo: mine, partido_id: partido.id })
-      }
-    } else {
-      setMisEquipos(null)
-    }
-
-    // Load player's own invitees + all invitees for public waiting list
-    const [{ data: invs }, { data: todosInvs }] = await Promise.all([
-      supabase
-        .from('invitados')
-        .select('id, nombre, estado, posicion_espera')
-        .eq('partido_id', partido.id)
-        .eq('player_id', u.id)
-        .order('posicion_espera', { ascending: true }),
-      supabase
-        .from('invitados')
-        .select('id, nombre, estado, posicion_espera, player_id, profiles(username)')
-        .eq('partido_id', partido.id)
-        .order('posicion_espera', { ascending: true, nullsFirst: false }),
-    ])
-    setMisInvitados((invs as Invitado[]) ?? [])
-    setTodosInvitados((todosInvs as unknown as InvitadoPublico[]) ?? [])
-
+    await cargarDatosPartido(partido, u)
     setLoading(false)
-  }, [supabase])
+  }, [supabase, cargarDatosPartido])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user: u } }) => {
@@ -355,6 +363,15 @@ export default function HomePage() {
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [user, cargarDatos])
+
+  // Switch between simultaneously-open matches (selector pills)
+  const seleccionarPartido = (p: Partido) => {
+    if (!user || p.id === ventana?.partido?.id) return
+    partidoSelIdRef.current = p.id
+    setVentana(prev => (prev ? { ...prev, partido: p } : prev))
+    setMensaje(null)
+    cargarDatosPartido(p, user)
+  }
 
   const inscribirse = async () => {
     if (!ventana?.partido || !user) return
@@ -436,77 +453,16 @@ export default function HomePage() {
       return null
     }
     const p = ultimoPartido.partido
-    const esMinitorneo = p.tipo === 'minitorneo'
     return (
-      <div style={{ marginTop: 40 }} className="fade-in">
-        <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 4 }}>
-          ÚLTIMO PARTIDO — {p.dia_semana.toUpperCase()}
-        </div>
-        <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 16 }}>
-          {new Date(p.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })}{formatHora12(p.hora) && ` · ${formatHora12(p.hora)}`}
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {p.foto_url && (
-            <div style={{ borderRadius: 6, overflow: 'hidden' }}>
-              <img
-                src={p.foto_url}
-                alt="Foto del partido"
-                style={{ width: '100%', display: 'block', maxHeight: 400, objectFit: 'contain' }}
-              />
-            </div>
-          )}
-          {(() => {
-            if (esMinitorneo && p.puntos_blanco != null) {
-              const pts = [
-                { label: 'Blancos 🤍', pts: p.puntos_blanco ?? 0 },
-                { label: 'Negros 🖤', pts: p.puntos_negro ?? 0 },
-                { label: 'Morados 💜', pts: p.puntos_morado ?? 0 },
-              ]
-              const winner = pts.reduce((a, b) => b.pts > a.pts ? b : a)
-              return (
-                <div style={{ padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 4 }}>GANADOR DEL PARTIDO</div>
-                    <div className="display" style={{ fontSize: 20 }}>{winner.label}</div>
-                  </div>
-                  <div className="mono" style={{ fontSize: 13, color: 'var(--text-dim)' }}>
-                    B{p.puntos_blanco} · N{p.puntos_negro} · M{p.puntos_morado}
-                  </div>
-                </div>
-              )
-            }
-            if (!esMinitorneo && p.goles_a != null && p.goles_b != null) {
-              const winnerLabel = p.goles_a > p.goles_b ? 'Equipo Blanco 🤍' : p.goles_b > p.goles_a ? 'Equipo Negro 🖤' : 'Empate'
-              return (
-                <div style={{ padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 4 }}>GANADOR DEL PARTIDO</div>
-                    <div className="display" style={{ fontSize: 20 }}>{winnerLabel}</div>
-                  </div>
-                  <div className="display" style={{ fontSize: 24, color: 'var(--green)' }}>
-                    {p.goles_a} – {p.goles_b}
-                  </div>
-                </div>
-              )
-            }
-            return null
-          })()}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {ultimoPartido.badges.map(b => (
-              <div key={b.badge_id} style={{
-                display: 'flex', alignItems: 'center', gap: 12,
-                padding: '10px 14px', background: 'var(--bg-card)',
-                border: '1px solid var(--border)', borderRadius: 4,
-              }}>
-                <span style={{ fontSize: 22, flexShrink: 0 }}>{b.badge_emoji}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 1 }}>{b.badge_nombre}</div>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{b.profiles?.username ?? '?'}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+      <div style={{ marginTop: 40 }}>
+        <MatchResultCard
+          titulo={`ÚLTIMO PARTIDO — ${p.dia_semana.toUpperCase()}`}
+          partido={p}
+          badges={ultimoPartido.badges}
+        />
+        <Link href="/historial" className="mono" style={{ display: 'inline-block', marginTop: 12, fontSize: 11, color: 'var(--text-muted)', textDecoration: 'none', letterSpacing: '0.08em' }}>
+          Ver historial →
+        </Link>
       </div>
     )
   }
@@ -552,6 +508,9 @@ export default function HomePage() {
         <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span className="display" style={{ fontSize: 20, letterSpacing: '0.1em' }}>{club.nombre}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <Link href="/historial" className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.08em', textDecoration: 'none' }}>
+              HISTORIAL
+            </Link>
             {(profile?.role === 'admin' || profile?.role === 'superadmin') && (
               <Link href="/admin" className="mono" style={{ fontSize: 12, color: 'var(--amber)', letterSpacing: '0.08em', textDecoration: 'none' }}>
                 ADMIN ↗
@@ -642,6 +601,31 @@ export default function HomePage() {
           </>
         ) : (
           <div className="fade-in">
+            {/* Selector: multiple inscription windows open at once */}
+            {partidosAbiertos.length >= 2 && (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+                {partidosAbiertos.map(p => {
+                  const sel = p.id === ventana.partido?.id
+                  const esMiniP = p.tipo === 'minitorneo'
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => seleccionarPartido(p)}
+                      className="btn btn-ghost mono"
+                      style={{
+                        fontSize: 12, padding: '8px 16px', letterSpacing: '0.06em',
+                        borderColor: sel ? (esMiniP ? '#7c3aed' : 'var(--green)') : undefined,
+                        color: sel ? (esMiniP ? '#a78bfa' : 'var(--green)') : 'var(--text-muted)',
+                      }}
+                    >
+                      {esMiniP && '🏆 '}
+                      {p.dia_semana.slice(0, 3).toUpperCase()} {new Date(p.fecha + 'T12:00:00').getDate()}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
             {/* Partido info */}
             <div style={{ marginBottom: 24 }}>
               {ventana.partido?.tipo === 'minitorneo' ? (

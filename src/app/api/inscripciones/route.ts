@@ -118,6 +118,38 @@ export async function POST(req: NextRequest) {
     // Uniform + spots free → confirmed
     const { error } = await admin.from('inscripciones').insert({ club_id: clubId, partido_id, player_id: user.id, estado: 'confirmado' })
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+
+    // ── Race reconciliation ──────────────────────────────────────────────────
+    // Two simultaneous signups can both pass the capacity check (TOCTOU) and
+    // both insert as confirmado. Recount now; if over capacity, demote the
+    // LAST confirmado (by created_at, id) — both racers compute the same loser,
+    // so exactly one row ends up in espera regardless of interleaving.
+    const [{ data: confirmadosNow }, { count: invNow }] = await Promise.all([
+      admin.from('inscripciones')
+        .select('id, player_id, created_at')
+        .eq('partido_id', partido_id)
+        .eq('estado', 'confirmado')
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true }),
+      admin.from('invitados').select('id', { count: 'exact', head: true })
+        .eq('partido_id', partido_id).eq('estado', 'confirmado'),
+    ])
+    const overBy = ((confirmadosNow?.length ?? 0) + (invNow ?? 0)) - partido.cupos_total
+    if (overBy > 0 && confirmadosNow && confirmadosNow.length > 0) {
+      const losers = confirmadosNow.slice(-overBy)
+      for (const loser of losers) {
+        const { error: rpcErr } = await admin.rpc('incrementar_posiciones_espera', { p_partido_id: partido_id })
+        if (rpcErr) console.error('[inscripciones] race-demote incrementar failed:', rpcErr.message)
+        await admin.from('inscripciones').update({ estado: 'espera', posicion_espera: 1 }).eq('id', loser.id).eq('estado', 'confirmado')
+      }
+      const yoDemovido = losers.some(l => l.player_id === user.id)
+      if (yoDemovido) {
+        await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'espera', razon: 'cupo_lleno_carrera' } })
+        await pushAdmins('⏳ Nueva inscripción (espera)', `${profile.username} en lista de espera — ${dia}`)
+        return NextResponse.json({ estado: 'espera', posicion_espera: 1 })
+      }
+    }
+
     await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'confirmado' } })
     await pushAdmins('✅ Nueva inscripción', `${profile.username} se inscribió (confirmado) — ${dia}`)
     return NextResponse.json({ estado: 'confirmado' })

@@ -345,6 +345,17 @@ export default function HomePage() {
     return () => clearInterval(interval)
   }, [ventana, user, cargarDatos])
 
+  // Refresh data when the app returns to the foreground — cupos may have
+  // changed while backgrounded (someone else signed up or canceled).
+  useEffect(() => {
+    if (!user) return
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') cargarDatos(user)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [user, cargarDatos])
+
   const inscribirse = async () => {
     if (!ventana?.partido || !user) return
     setInscribiendose(true)
@@ -358,6 +369,9 @@ export default function HomePage() {
       const data = await res.json()
       if (!res.ok) {
         setMensaje({ tipo: 'error', texto: data.error })
+        // State may have changed under us (someone else took the spot,
+        // or we're already inscribed from another tab) — resync.
+        cargarDatos(user)
       } else {
         const texto = data.estado === 'confirmado'
           ? '¡Estás dentro! Cupo confirmado.'

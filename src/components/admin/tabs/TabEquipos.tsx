@@ -245,7 +245,14 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
       const allUsernames = jugadores.map(j => j.username)
       const goalie = prev.porteroFijo ? prev.porteroFijoId : ''
       const fieldPlayers = goalie ? allUsernames.filter(u => u !== goalie) : allUsernames
-      return { ...prev, rotacionBanca: shuffleArray(fieldPlayers), rotacionPortero: prev.porteroFijo ? [] : shuffleArray(allUsernames) }
+      const banca = shuffleArray(fieldPlayers)
+      if (prev.porteroFijo) return { ...prev, rotacionBanca: banca, rotacionPortero: [] }
+      // Goalie order = bench order shifted by a random non-zero offset, so the
+      // same player is never bench AND goalkeeper in the same slot.
+      const n = banca.length
+      const offset = n > 1 ? 1 + Math.floor(Math.random() * (n - 1)) : 0
+      const portero = banca.map((_, i) => banca[(i + offset) % n])
+      return { ...prev, rotacionBanca: banca, rotacionPortero: portero }
     })
   }
 

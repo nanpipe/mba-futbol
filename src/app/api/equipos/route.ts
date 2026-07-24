@@ -3,7 +3,6 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isUUID } from '@/lib/validation'
 import { balancearEquipos, type JugadorEquipo } from '@/lib/teamBalancer'
-import { computeRatings, ratingToStars } from '@/lib/rating'
 import { logActivity } from '@/lib/activityLog'
 import { getClubNombre } from '@/lib/club'
 
@@ -51,14 +50,10 @@ export async function GET(req: NextRequest) {
       .in('equipo_id', equipos.map(e => e.id)),
   ])
 
-  // Real rating from FIFA card OVR (Phase 1). Override the dead static habilidad.
-  const playerIds = (jugadores ?? []).map(r => (r as { player_id: string }).player_id)
-  const ratingMap = await computeRatings(admin, playerIds)
-
+  // Rating is the stateful 1–5 score on profiles.habilidad (v2).
   const byEquipo: Record<string, JugadorEquipo[]> = {}
   for (const row of (jugadores ?? [])) {
     const prof = (row as unknown as { profiles: JugadorEquipo }).profiles
-    prof.habilidad = ratingMap.get(prof.id)?.stars ?? ratingToStars(70)
     if (!byEquipo[row.equipo_id]) byEquipo[row.equipo_id] = []
     byEquipo[row.equipo_id].push(prof)
   }
@@ -71,7 +66,7 @@ export async function GET(req: NextRequest) {
       username: `${inv.nombre} *`,
       avatar_url: null,
       posicion: 'cualquiera',
-      habilidad: ratingToStars(70),
+      habilidad: 3.0,
       isInvitado: true,
     } as JugadorEquipo)
   }
@@ -144,9 +139,7 @@ export async function POST(req: NextRequest) {
       .map(i => (i as unknown as { profiles: JugadorEquipo }).profiles)
       .filter(Boolean)
 
-    // Real rating from FIFA card OVR — override the dead static habilidad
-    const ratingMap = await computeRatings(admin, jugadores.map(j => j.id))
-    for (const j of jugadores) j.habilidad = ratingMap.get(j.id)?.stars ?? ratingToStars(70)
+    // Rating is the stateful 1–5 score already selected as profiles.habilidad (v2).
 
     // Add confirmed invitados as pseudo-players (neutral rating)
     for (const inv of invs ?? []) {
@@ -155,7 +148,7 @@ export async function POST(req: NextRequest) {
         username: `${(inv as { nombre: string }).nombre} *`,
         avatar_url: null,
         posicion: 'cualquiera',
-        habilidad: ratingToStars(70),
+        habilidad: 3.0,
         isInvitado: true,
       })
     }

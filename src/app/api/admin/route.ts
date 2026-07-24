@@ -9,6 +9,7 @@ import { getClubNombre } from '@/lib/club'
 import { isPosicion } from '@/lib/posiciones'
 import { GAME_CONFIG_KEYS } from '@/lib/gameConfig'
 import { NOTIF_CHANNEL_KEYS } from '@/lib/notifications'
+import { applyMatchRatings, revertMatchRatings } from '@/lib/rating'
 
 export const dynamic = 'force-dynamic'
 
@@ -71,16 +72,6 @@ export async function GET(req: NextRequest) {
       .neq('role', 'admin')
       .order('created_at', { ascending: false })
     return NextResponse.json({ ok: true, pendientes: data ?? [] })
-  }
-
-  if (accion === 'cartas') {
-    const { data, error } = await admin
-      .from('evaluaciones_carta')
-      .select('*, profiles!evaluaciones_carta_player_id_fkey(username, avatar_url)')
-      .eq('club_id', clubId)
-      .order('created_at', { ascending: false })
-    if (error) return NextResponse.json({ error: error.message, detail: error.details, hint: error.hint }, { status: 500 })
-    return NextResponse.json({ ok: true, cartas: data ?? [], count: data?.length ?? 0 })
   }
 
   if (accion === 'settings') {
@@ -656,6 +647,10 @@ export async function POST(req: NextRequest) {
         resultado, puntos_blanco: pB, puntos_negro: pN, puntos_morado: pM,
       }).eq('id', partido_id as string)
       if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+      // Recompute rating deltas for this match (no-op if evaluaciones still open).
+      // Secondary to recording the result — never let it break this action.
+      try { await revertMatchRatings(admin, partido_id as string); await applyMatchRatings(admin, partido_id as string) }
+      catch (e) { console.error('[rating] registrar_resultado minitorneo:', e) }
       await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'registrar_resultado', detalles: { partido_id, resultado, ganador, tipo: 'minitorneo' }, ip })
       return NextResponse.json({ ok: true, mensaje: `Resultado minitorneo: ${resultado} — Ganó ${ganador}` })
     }
@@ -667,6 +662,10 @@ export async function POST(req: NextRequest) {
     const resultado = `${gA}-${gB}`
     const { error } = await admin.from('partidos').update({ resultado, goles_a: gA, goles_b: gB }).eq('id', partido_id as string)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    // Recompute rating deltas for this match (no-op if evaluaciones still open).
+    // Secondary to recording the result — never let it break this action.
+    try { await revertMatchRatings(admin, partido_id as string); await applyMatchRatings(admin, partido_id as string) }
+    catch (e) { console.error('[rating] registrar_resultado:', e) }
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'registrar_resultado', detalles: { partido_id, resultado, goles_a: gA, goles_b: gB }, ip })
     return NextResponse.json({ ok: true, mensaje: `Resultado registrado: ${resultado}` })
   }

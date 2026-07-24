@@ -1,111 +1,221 @@
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { CATEGORIAS } from '@/lib/categorias'
 
-// ── Player rating (Phase 2) ──────────────────────────────────────────────────
-// rating = card OVR (neutral 70 if none) + recent-form modifier, where the
-// modifier blends: badge weights (peso), peer thumbs, and match results.
-// Window is rolling so the rating reflects current form, no monthly batch.
+// ── Player rating (v2) ───────────────────────────────────────────────────────
+// Stateful 1–5 rating stored on profiles.habilidad. Everyone starts at 3.0 and
+// the number is earned on the field: small per-match deltas, clamped so no
+// single game swings it wildly and no one can sit at the top untouched.
+//
+//   Jugó (activo)            +STEP
+//   Ganó                     +STEP   ·  Perdió  −STEP  ·  Empató 0
+//   Reconocimiento positivo  +STEP each  (MVP, goleador, defensa, portero, técnico)
+//   Reconocimiento negativo  −STEP each  (desaparecido, aizaga, discutidor)
+//   No se inscribió (pudo)   −STEP
+//   En espera / lesionado    exento (no baja)
+//
+// Net per match is clamped to ±CAP so a great game is at most +CAP and a bad one
+// at most −CAP. Applied once per match via the rating_events ledger (idempotent
+// and reversible).
 
-const NEUTRAL_OVR = 70
-const WINDOW_DAYS = 60
-const MOD_CAP = 15            // clamp the form modifier so OVR stays dominant
-const WIN_WEIGHT = 2          // each net win contributes this to the modifier
+const STEP = 0.02
+const CAP_NORMAL = 0.05
+const CAP_MINI = 0.10
+const MIN_RATING = 1.0
+const MAX_RATING = 5.0
+const BASE_RATING = 3.0
 
-const PESO_BY_ID: Record<string, number> =
-  Object.fromEntries(CATEGORIAS.map(c => [c.id, c.peso]))
-
-export interface PlayerRating {
-  ovr: number
-  badgeScore: number
-  thumbScore: number
-  winScore: number
-  rating: number
-  stars: number
-}
-
-/** OVR-scale number → ★ stars (÷20, 1 decimal). */
-export function ratingToStars(rating: number): number {
-  return Math.round((rating / 20) * 10) / 10
-}
+const POSITIVE_BADGES = new Set<string>(CATEGORIAS.filter(c => c.peso > 0).map(c => c.id))
+const NEGATIVE_BADGES = new Set<string>(CATEGORIAS.filter(c => c.peso < 0).map(c => c.id))
 
 type Admin = ReturnType<typeof createAdminClient>
 
+const round3 = (n: number) => Math.round(n * 1000) / 1000
+const clampRating = (n: number) => Math.max(MIN_RATING, Math.min(MAX_RATING, n))
+const clampDelta = (n: number, cap: number) => Math.max(-cap, Math.min(cap, n))
+
+type Team = { nombre: string; color: string }
+type Outcome = 'win' | 'draw' | 'loss' | null
+
+interface RatingEventRow {
+  club_id: string
+  player_id: string
+  partido_id: string
+  delta: number
+  motivos: string[]
+  rating_after: number
+}
+
 /**
- * Compute current ratings for a set of players from real signals.
- * Single source of truth — used by the team balancer and any rating display.
+ * Apply the rating deltas for a finished match — exactly once.
+ * Idempotent via the rating_events ledger (unique per partido+player). Only runs
+ * when the match has a result AND evaluations are closed, so every signal
+ * (activity, result, recognitions) is final.
  */
-export async function computeRatings(
+export async function applyMatchRatings(
   admin: Admin,
-  playerIds: string[]
-): Promise<Map<string, PlayerRating>> {
-  const map = new Map<string, PlayerRating>()
-  if (!playerIds.length) return map
+  partido_id: string
+): Promise<{ applied: number; skipped?: string }> {
+  const { data: partido } = await admin
+    .from('partidos')
+    .select('id, club_id, tipo, evaluaciones_abiertas, goles_a, goles_b, puntos_blanco, puntos_negro, puntos_morado')
+    .eq('id', partido_id)
+    .single()
 
-  const sinceISO = new Date(Date.now() - WINDOW_DAYS * 86400000).toISOString()
-  const sinceDate = sinceISO.split('T')[0]
+  if (!partido?.club_id) return { applied: 0, skipped: 'sin_partido' }
+  if (partido.evaluaciones_abiertas) return { applied: 0, skipped: 'evaluaciones_abiertas' }
 
-  const [cartasRes, badgesRes, thumbsRes, equiposJRes] = await Promise.all([
-    admin.from('evaluaciones_carta').select('player_id, ovr, aprobado').in('player_id', playerIds),
-    admin.from('player_badges').select('player_id, badge_id').in('player_id', playerIds).gte('earned_at', sinceISO),
-    admin.from('player_thumbs').select('votado_id, value').in('votado_id', playerIds).gte('created_at', sinceISO),
-    admin.from('equipo_jugadores').select('player_id, equipos(nombre, partido_id)').in('player_id', playerIds),
+  const esMini = partido.tipo === 'minitorneo'
+  const gA = partido.goles_a, gB = partido.goles_b
+  const pB = partido.puntos_blanco, pN = partido.puntos_negro, pM = partido.puntos_morado
+  const hasResult = esMini
+    ? [pB, pN, pM].every(p => typeof p === 'number')
+    : typeof gA === 'number' && typeof gB === 'number'
+  if (!hasResult) return { applied: 0, skipped: 'sin_resultado' }
+
+  // Already applied?
+  const { count: already } = await admin
+    .from('rating_events').select('id', { count: 'exact', head: true }).eq('partido_id', partido_id)
+  if ((already ?? 0) > 0) return { applied: 0, skipped: 'ya_aplicado' }
+
+  const clubId = partido.club_id as string
+
+  const { data: equipos } = await admin
+    .from('equipos').select('id, nombre, color').eq('partido_id', partido_id)
+  const equipoById = new Map<string, Team>()
+  for (const e of (equipos ?? []) as { id: string; nombre: string; color: string }[]) {
+    equipoById.set(e.id, { nombre: e.nombre, color: e.color })
+  }
+  const equipoIds = [...equipoById.keys()]
+
+  const [insRes, ejRes, badgesRes, profsRes] = await Promise.all([
+    admin.from('inscripciones').select('player_id, estado').eq('partido_id', partido_id).in('estado', ['confirmado', 'espera']),
+    equipoIds.length
+      ? admin.from('equipo_jugadores').select('player_id, equipo_id').in('equipo_id', equipoIds)
+      : Promise.resolve({ data: [] as { player_id: string; equipo_id: string }[] }),
+    admin.from('player_badges').select('player_id, badge_id').eq('partido_id', partido_id),
+    admin.from('profiles').select('id, habilidad, aprobado, baneado').eq('club_id', clubId),
   ])
 
-  // OVR (self card, approved only)
-  const ovrMap = new Map<string, number>()
-  for (const c of (cartasRes.data ?? []) as { player_id: string; ovr: number | null; aprobado: boolean }[]) {
-    if (c.aprobado && typeof c.ovr === 'number') ovrMap.set(c.player_id, c.ovr)
+  const confirmados = new Set<string>()
+  const espera = new Set<string>()
+  for (const i of (insRes.data ?? []) as { player_id: string; estado: string }[]) {
+    if (i.estado === 'confirmado') confirmados.add(i.player_id)
+    else if (i.estado === 'espera') espera.add(i.player_id)
   }
 
-  // Badge weights (rolling)
-  const badgeMap = new Map<string, number>()
+  const teamByPlayer = new Map<string, Team>()
+  for (const ej of (ejRes.data ?? []) as { player_id: string; equipo_id: string }[]) {
+    const t = equipoById.get(ej.equipo_id)
+    if (t) teamByPlayer.set(ej.player_id, t)
+  }
+
+  const badgePos = new Map<string, number>()
+  const badgeNeg = new Map<string, number>()
   for (const b of (badgesRes.data ?? []) as { player_id: string; badge_id: string }[]) {
-    badgeMap.set(b.player_id, (badgeMap.get(b.player_id) ?? 0) + (PESO_BY_ID[b.badge_id] ?? 0))
+    if (POSITIVE_BADGES.has(b.badge_id)) badgePos.set(b.player_id, (badgePos.get(b.player_id) ?? 0) + 1)
+    else if (NEGATIVE_BADGES.has(b.badge_id)) badgeNeg.set(b.player_id, (badgeNeg.get(b.player_id) ?? 0) + 1)
   }
 
-  // Peer thumbs (rolling)
-  const thumbMap = new Map<string, number>()
-  for (const t of (thumbsRes.data ?? []) as { votado_id: string; value: number }[]) {
-    thumbMap.set(t.votado_id, (thumbMap.get(t.votado_id) ?? 0) + t.value)
+  const ratingById = new Map<string, number>()
+  const eligible: string[] = []
+  for (const p of (profsRes.data ?? []) as { id: string; habilidad: number | null; aprobado: boolean; baneado: boolean }[]) {
+    ratingById.set(p.id, typeof p.habilidad === 'number' ? p.habilidad : BASE_RATING)
+    if (p.aprobado && !p.baneado) eligible.push(p.id)
   }
 
-  // Win record (rolling) — needs partido results, fetched in a second pass
-  const playerTeams: { player_id: string; nombre: string; partido_id: string }[] = []
-  const partidoIds = new Set<string>()
-  for (const ej of (equiposJRes.data ?? []) as unknown as { player_id: string; equipos: { nombre: string; partido_id: string } | null }[]) {
-    if (!ej.equipos?.partido_id) continue
-    playerTeams.push({ player_id: ej.player_id, nombre: ej.equipos.nombre, partido_id: ej.equipos.partido_id })
-    partidoIds.add(ej.equipos.partido_id)
-  }
-  const winMap = new Map<string, number>()
-  if (partidoIds.size) {
-    const { data: partidos } = await admin
-      .from('partidos')
-      .select('id, goles_a, goles_b, fecha')
-      .in('id', [...partidoIds])
-      .gte('fecha', sinceDate)
-    const pById = new Map<string, { goles_a: number | null; goles_b: number | null }>()
-    for (const p of (partidos ?? []) as { id: string; goles_a: number | null; goles_b: number | null; fecha: string }[]) {
-      pById.set(p.id, { goles_a: p.goles_a, goles_b: p.goles_b })
+  const cap = esMini ? CAP_MINI : CAP_NORMAL
+
+  const outcome = (team: Team | undefined): Outcome => {
+    if (!team) return null
+    if (esMini) {
+      const pts: Record<string, number> = {
+        blanco: pB as number, negro: pN as number, morado: pM as number,
+      }
+      const own = pts[team.color]
+      if (typeof own !== 'number') return null
+      const max = Math.max(pB as number, pN as number, pM as number)
+      if (own < max) return 'loss'
+      const atMax = [pB, pN, pM].filter(p => p === max).length
+      return atMax === 1 ? 'win' : 'draw'
     }
-    for (const pt of playerTeams) {
-      const p = pById.get(pt.partido_id)
-      if (!p || p.goles_a == null || p.goles_b == null) continue
-      const draw = p.goles_a === p.goles_b
-      const won = (pt.nombre === 'A' && p.goles_a > p.goles_b) || (pt.nombre === 'B' && p.goles_b > p.goles_a)
-      winMap.set(pt.player_id, (winMap.get(pt.player_id) ?? 0) + (won ? 1 : draw ? 0 : -0.5))
-    }
+    const a = gA as number, b = gB as number
+    if (team.nombre === 'A') return a === b ? 'draw' : a > b ? 'win' : 'loss'
+    if (team.nombre === 'B') return b === a ? 'draw' : b > a ? 'win' : 'loss'
+    return null
   }
 
-  for (const id of playerIds) {
-    const ovr = ovrMap.get(id) ?? NEUTRAL_OVR
-    const badgeScore = badgeMap.get(id) ?? 0
-    const thumbScore = thumbMap.get(id) ?? 0
-    const winScore = winMap.get(id) ?? 0
-    const rawMod = badgeScore + thumbScore + winScore * WIN_WEIGHT
-    const mod = Math.max(-MOD_CAP, Math.min(MOD_CAP, rawMod))
-    const rating = ovr + mod
-    map.set(id, { ovr, badgeScore, thumbScore, winScore, rating, stars: ratingToStars(rating) })
+  const events: RatingEventRow[] = []
+  const updates: { id: string; rating: number }[] = []
+
+  for (const id of eligible) {
+    if (espera.has(id)) continue // exento
+
+    let raw = 0
+    const motivos: string[] = []
+
+    if (confirmados.has(id)) {
+      raw += STEP
+      motivos.push('activo')
+
+      const res = outcome(teamByPlayer.get(id))
+      if (res === 'win') { raw += STEP; motivos.push('ganó') }
+      else if (res === 'loss') { raw -= STEP; motivos.push('perdió') }
+      else if (res === 'draw') { motivos.push('empató') }
+
+      const pos = badgePos.get(id) ?? 0
+      const neg = badgeNeg.get(id) ?? 0
+      if (pos) { raw += STEP * pos; motivos.push(`reconocimiento+ ×${pos}`) }
+      if (neg) { raw -= STEP * neg; motivos.push(`reconocimiento- ×${neg}`) }
+    } else {
+      raw -= STEP
+      motivos.push('inactivo')
+    }
+
+    const delta = round3(clampDelta(raw, cap))
+    const old = ratingById.get(id) ?? BASE_RATING
+    const rating_after = clampRating(round3(old + delta))
+
+    events.push({ club_id: clubId, player_id: id, partido_id, delta, motivos, rating_after })
+    if (rating_after !== old) updates.push({ id, rating: rating_after })
   }
-  return map
+
+  if (events.length === 0) return { applied: 0, skipped: 'sin_jugadores' }
+
+  await admin.from('rating_events').insert(events)
+  await Promise.all(
+    updates.map(u => admin.from('profiles').update({ habilidad: u.rating }).eq('id', u.id))
+  )
+
+  return { applied: events.length }
+}
+
+/**
+ * Reverse a match's applied rating deltas and clear its ledger rows. Used when
+ * an admin reopens voting or re-enters a result, so re-closing recomputes fresh.
+ */
+export async function revertMatchRatings(
+  admin: Admin,
+  partido_id: string
+): Promise<{ reverted: number }> {
+  const { data: evs } = await admin
+    .from('rating_events').select('player_id, delta').eq('partido_id', partido_id)
+  if (!evs || evs.length === 0) return { reverted: 0 }
+
+  const playerIds = evs.map(e => (e as { player_id: string }).player_id)
+  const { data: profs } = await admin
+    .from('profiles').select('id, habilidad').in('id', playerIds)
+  const current = new Map<string, number>()
+  for (const p of (profs ?? []) as { id: string; habilidad: number | null }[]) {
+    current.set(p.id, typeof p.habilidad === 'number' ? p.habilidad : BASE_RATING)
+  }
+
+  await Promise.all(
+    (evs as { player_id: string; delta: number }[]).map(e => {
+      const next = clampRating(round3((current.get(e.player_id) ?? BASE_RATING) - e.delta))
+      return admin.from('profiles').update({ habilidad: next }).eq('id', e.player_id)
+    })
+  )
+  await admin.from('rating_events').delete().eq('partido_id', partido_id)
+
+  return { reverted: evs.length }
 }

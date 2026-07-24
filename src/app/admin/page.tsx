@@ -9,20 +9,18 @@ import { useClub } from '@/hooks/useClub'
 import { TabPartidos } from '@/components/admin/tabs/TabPartidos'
 import { TabEquipos } from '@/components/admin/tabs/TabEquipos'
 import { TabJugadores } from '@/components/admin/tabs/TabJugadores'
-import { TabCartas } from '@/components/admin/tabs/TabCartas'
 import { TabLog } from '@/components/admin/tabs/TabLog'
 import { TabHistorial } from '@/components/admin/tabs/TabHistorial'
 import { TabNotifs } from '@/components/admin/tabs/TabNotifs'
 import { TabAjustes } from '@/components/admin/tabs/TabAjustes'
 import type { Player, Partido, AdminAction } from '@/types/admin'
 
-type Tab = 'partidos' | 'equipos' | 'jugadores' | 'cartas' | 'log' | 'historial' | 'notifs' | 'ajustes'
+type Tab = 'partidos' | 'equipos' | 'jugadores' | 'log' | 'historial' | 'notifs' | 'ajustes'
 
 const MAIN_TABS: { id: Tab; label: string }[] = [
   { id: 'partidos',  label: 'partidos' },
   { id: 'equipos',   label: 'equipos' },
   { id: 'jugadores', label: 'jugadores' },
-  { id: 'cartas',    label: 'cartas' },
   { id: 'log',       label: 'log' },
 ]
 
@@ -264,7 +262,6 @@ export default function AdminPage() {
             usarUniforme={usarUniforme}
           />
         )}
-        {tab === 'cartas'    && <TabCartas active />}
         {tab === 'log'       && <TabLog active />}
         {tab === 'historial' && <TabHistorial active />}
         {tab === 'notifs'    && <TabNotifs partidos={partidos} players={players} onFlash={flash} />}

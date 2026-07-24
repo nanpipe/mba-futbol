@@ -1,24 +1,24 @@
 'use client'
-import { getTierStyle } from '@/lib/tier'
+import { ratingTierStyle } from '@/lib/tier'
 
-export interface CartaStats {
-  stat_res: number; stat_fis: number; stat_def: number
-  stat_ata: number; stat_tec: number; stat_dis: number
-  ovr: number; tier: string; posicion_carta: string; username: string
+export function FifaCard({
+  username,
+  avatar_url,
+  rating,
+  size = 'md',
+  clubNombre,
+}: {
+  username: string
   avatar_url?: string | null
-}
-
-export function FifaCard({ s, size = 'md', clubNombre }: { s: CartaStats; size?: 'sm' | 'md' | 'lg'; clubNombre?: string }) {
-  const ts = getTierStyle(s.tier)
+  rating: number
+  size?: 'sm' | 'md' | 'lg'
+  clubNombre?: string
+}) {
+  const ts = ratingTierStyle(rating)
   const scale = size === 'sm' ? 0.65 : size === 'lg' ? 1.2 : 1
   const w = Math.round(280 * scale)
   const h = Math.round(400 * scale)
-
-  const statRows = [
-    [{ k: 'RES', v: s.stat_res }, { k: 'FÍS', v: s.stat_fis }],
-    [{ k: 'DEF', v: s.stat_def }, { k: 'ATA', v: s.stat_ata }],
-    [{ k: 'TEC', v: s.stat_tec }, { k: 'DIS', v: s.stat_dis }],
-  ]
+  const stars = (Math.round(rating * 10) / 10).toFixed(1)
 
   return (
     <div style={{
@@ -37,86 +37,63 @@ export function FifaCard({ s, size = 'md', clubNombre }: { s: CartaStats; size?:
         pointerEvents: 'none',
       }} />
 
-      {/* OVR + position top-left */}
+      {/* Rating + tier top-left */}
       <div style={{ position: 'absolute', top: Math.round(18 * scale), left: Math.round(20 * scale) }}>
-        <div className="display" style={{ fontSize: Math.round(42 * scale), color: ts.text, lineHeight: 1, opacity: 0.95 }}>
-          {s.ovr}
+        <div className="display" style={{ fontSize: Math.round(40 * scale), color: ts.text, lineHeight: 1, opacity: 0.95 }}>
+          ★{stars}
         </div>
-        <div className="mono" style={{ fontSize: Math.round(11 * scale), color: ts.text, opacity: 0.8, letterSpacing: '0.1em', marginTop: 2 }}>
-          {s.posicion_carta?.toUpperCase() || 'JUG'}
-        </div>
-        <div className="mono" style={{ fontSize: Math.round(9 * scale), color: ts.text, opacity: 0.6, letterSpacing: '0.05em', marginTop: 4 }}>
-          {ts.label}
+        <div className="mono" style={{ fontSize: Math.round(10 * scale), color: ts.text, opacity: 0.75, letterSpacing: '0.1em', marginTop: 6 }}>
+          {ts.emoji} {ts.label}
         </div>
       </div>
 
       {/* Avatar area */}
       <div style={{
         position: 'absolute',
-        top: Math.round(14 * scale),
+        top: Math.round(30 * scale),
         left: '50%', transform: 'translateX(-50%)',
-        width: Math.round(120 * scale), height: Math.round(140 * scale),
+        width: Math.round(150 * scale), height: Math.round(190 * scale),
         overflow: 'hidden',
       }}>
-        {s.avatar_url ? (
-          <img src={s.avatar_url} alt={s.username} style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'bottom' }} />
+        {avatar_url ? (
+          <img src={avatar_url} alt={username} style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'bottom' }} />
         ) : (
           <div style={{
             width: '100%', height: '100%',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <span className="display" style={{ fontSize: Math.round(64 * scale), color: ts.text, opacity: 0.4, lineHeight: 1 }}>
-              {s.username?.[0]?.toUpperCase() ?? '?'}
+            <span className="display" style={{ fontSize: Math.round(80 * scale), color: ts.text, opacity: 0.4, lineHeight: 1 }}>
+              {username?.[0]?.toUpperCase() ?? '?'}
             </span>
           </div>
         )}
       </div>
 
-      {/* Bottom section — name + stats */}
+      {/* Bottom section — name + tier + club */}
       <div style={{
         position: 'absolute',
         bottom: 0, left: 0, right: 0,
         background: 'rgba(0,0,0,0.35)',
         backdropFilter: 'blur(4px)',
-        padding: `${Math.round(10 * scale)}px ${Math.round(16 * scale)}px ${Math.round(14 * scale)}px`,
+        padding: `${Math.round(14 * scale)}px ${Math.round(16 * scale)}px ${Math.round(16 * scale)}px`,
       }}>
-        {/* Name */}
         <div className="display" style={{
-          fontSize: Math.round(20 * scale),
+          fontSize: Math.round(22 * scale),
           color: ts.text,
           textAlign: 'center',
           letterSpacing: '0.08em',
-          marginBottom: Math.round(8 * scale),
           textShadow: '0 1px 3px rgba(0,0,0,0.5)',
         }}>
-          {s.username.toUpperCase()}
+          {username.toUpperCase()}
         </div>
 
-        {/* Divider */}
-        <div style={{ height: 1, background: `${ts.text}40`, margin: `${Math.round(6 * scale)}px 0` }} />
+        <div style={{ height: 1, background: `${ts.text}40`, margin: `${Math.round(8 * scale)}px 0` }} />
 
-        {/* Stats grid */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: Math.round(3 * scale) }}>
-          {statRows.map((row, ri) => (
-            <div key={ri} style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: Math.round(4 * scale) }}>
-              {/* Left stat */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: Math.round(4 * scale), justifyContent: 'flex-end' }}>
-                <span className="display" style={{ fontSize: Math.round(14 * scale), color: ts.text }}>{row[0].v}</span>
-                <span className="mono" style={{ fontSize: Math.round(9 * scale), color: ts.text, opacity: 0.7, letterSpacing: '0.05em' }}>{row[0].k}</span>
-              </div>
-              {/* Divider */}
-              <div style={{ width: 1, height: Math.round(12 * scale), background: `${ts.text}40` }} />
-              {/* Right stat */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: Math.round(4 * scale) }}>
-                <span className="display" style={{ fontSize: Math.round(14 * scale), color: ts.text }}>{row[1].v}</span>
-                <span className="mono" style={{ fontSize: Math.round(9 * scale), color: ts.text, opacity: 0.7, letterSpacing: '0.05em' }}>{row[1].k}</span>
-              </div>
-            </div>
-          ))}
+        <div className="mono" style={{ textAlign: 'center', fontSize: Math.round(11 * scale), color: ts.text, opacity: 0.85, letterSpacing: '0.1em' }}>
+          {ts.emoji} {ts.label}
         </div>
 
-        {/* Club label */}
-        <div className="mono" style={{ textAlign: 'center', fontSize: Math.round(8 * scale), color: ts.text, opacity: 0.5, letterSpacing: '0.15em', marginTop: Math.round(6 * scale) }}>
+        <div className="mono" style={{ textAlign: 'center', fontSize: Math.round(8 * scale), color: ts.text, opacity: 0.5, letterSpacing: '0.15em', marginTop: Math.round(8 * scale) }}>
           {(clubNombre ?? 'FÚTBOL CLUB').toUpperCase()}
         </div>
       </div>

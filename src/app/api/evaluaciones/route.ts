@@ -5,6 +5,7 @@ import { isUUID } from '@/lib/validation'
 import { logActivity } from '@/lib/activityLog'
 import { CATEGORIAS } from '@/lib/categorias'
 import { isRateLimited, getClientIp } from '@/lib/rateLimit'
+import { applyMatchRatings, revertMatchRatings } from '@/lib/rating'
 
 export const dynamic = 'force-dynamic'
 
@@ -315,6 +316,8 @@ export async function POST(req: NextRequest) {
   if (uniqueVotantes >= totalConfirmados && totalConfirmados > 0) {
     await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', partido_id as string)
     const { badges_asignados } = await tallyAndAssign(admin, partido_id as string)
+    // Recognitions are final — apply rating deltas (no-op if result not yet entered).
+    try { await applyMatchRatings(admin, partido_id as string) } catch (e) { console.error('[rating] auto_cerrar:', e) }
     await logActivity({
       user_id: user.id,
       accion: 'auto_cerrar_votacion',
@@ -347,6 +350,8 @@ export async function PUT(req: NextRequest) {
 
   await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', partido_id as string)
   const { badges_asignados } = await tallyAndAssign(admin, partido_id as string)
+  // Recognitions are final — apply rating deltas (no-op if result not yet entered).
+  try { await applyMatchRatings(admin, partido_id as string) } catch (e) { console.error('[rating] cerrar_votacion:', e) }
 
   await logActivity({
     user_id: user.id,
@@ -383,6 +388,8 @@ export async function PATCH(req: NextRequest) {
 
   await admin.from('partidos').update({ evaluaciones_abiertas: true }).eq('id', partido_id as string)
   await admin.from('player_badges').delete().eq('partido_id', partido_id as string)
+  // Undo this match's rating deltas — they'll recompute when it's re-closed.
+  try { await revertMatchRatings(admin, partido_id as string) } catch (e) { console.error('[rating] reabrir_votacion:', e) }
 
   await logActivity({
     user_id: user.id,

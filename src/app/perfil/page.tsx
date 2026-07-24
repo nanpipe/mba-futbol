@@ -22,6 +22,7 @@ interface ProfileData {
   created_at: string
   posicion: Posicion
   posiciones?: Posicion[]
+  habilidad: number
 }
 
 interface Badge {
@@ -51,7 +52,6 @@ export default function PerfilPage() {
   const [badges, setBadges] = useState<Badge[]>([])
   const [totalMatches, setTotalMatches] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [carta, setCarta] = useState<Record<string, unknown> | null>(null)
 
   // Positions (up to 2)
   const [posiciones, setPosiciones] = useState<Posicion[]>([])
@@ -91,7 +91,7 @@ export default function PerfilPage() {
     const [{ data: prof }, { data: badgesData }, { count }] = await Promise.all([
       supabase
         .from('profiles')
-        .select('username, email, avatar_url, created_at, posicion, posiciones')
+        .select('username, email, avatar_url, created_at, posicion, posiciones, habilidad')
         .eq('id', u.id)
         .single(),
       supabase
@@ -114,13 +114,6 @@ export default function PerfilPage() {
     }
     setBadges((badgesData as Badge[]) ?? [])
     setTotalMatches(count ?? 0)
-
-    // Load FIFA card (own)
-    const cartaRes = await fetch('/api/carta')
-    if (cartaRes.ok) {
-      const cartaData = await cartaRes.json()
-      setCarta(cartaData.carta ?? null)
-    }
 
     setLoading(false)
   }, [supabase])
@@ -327,45 +320,21 @@ export default function PerfilPage() {
           </div>
         </Card>
 
-        {/* FIFA Card */}
+        {/* Player card */}
         <div style={{ marginBottom: 28 }}>
-          <SectionHeader title="MI CARTA FIFA" />
-          {carta?.aprobado ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-              <FifaCard size="md" clubNombre={club?.nombre} s={{
-                stat_res: carta.stat_res as number,
-                stat_fis: carta.stat_fis as number,
-                stat_def: carta.stat_def as number,
-                stat_ata: carta.stat_ata as number,
-                stat_tec: carta.stat_tec as number,
-                stat_dis: carta.stat_dis as number,
-                ovr: carta.ovr as number,
-                tier: carta.tier as string,
-                posicion_carta: carta.posicion_carta as string,
-                username: profile?.username ?? '',
-                avatar_url: profile?.avatar_url,
-              }} />
-              <Link href="/mi-carta" className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', textDecoration: 'none', letterSpacing: '0.05em' }}>
-                Ver detalles →
-              </Link>
+          <SectionHeader title="MI CARTA" />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <FifaCard
+              size="md"
+              clubNombre={club?.nombre}
+              username={profile?.username ?? ''}
+              avatar_url={profile?.avatar_url}
+              rating={profile?.habilidad ?? 3.0}
+            />
+            <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', textAlign: 'center', lineHeight: 1.6, maxWidth: 260 }}>
+              Tu puntaje se gana en la cancha: sube si juegas y ganas, baja si faltas o pierdes.
             </div>
-          ) : carta && !carta.aprobado && !carta.rechazado ? (
-            <Card padding="20px" style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 28, marginBottom: 8 }}>⏳</div>
-              <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Carta en revisión</div>
-              <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>OVR estimado: <strong style={{ color: 'var(--amber)' }}>{carta.ovr as number}</strong></div>
-            </Card>
-          ) : (
-            <Card padding="20px" style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 28, marginBottom: 8 }}>🃏</div>
-              <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
-                {carta?.rechazado ? 'Carta rechazada — puedes volver a enviar' : 'Aún no tienes carta FIFA'}
-              </div>
-              <Link href="/mi-carta" className="btn btn-ghost" style={{ fontSize: 12, padding: '8px 20px' }}>
-                {carta?.rechazado ? 'Volver a evaluar →' : 'Crear mi carta →'}
-              </Link>
-            </Card>
-          )}
+          </div>
         </div>
 
         {/* Badges */}

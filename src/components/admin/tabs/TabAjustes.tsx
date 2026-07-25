@@ -28,6 +28,29 @@ const HORARIOS_FIELDS = [
   { key: 'hora_promo_invitados', label: 'Hora promoción invitados', placeholder: '2:00 PM' },
 ] as const
 
+// Settings are grouped into sub-tabs — as one column the page scrolls forever.
+// Ordered by how often they're touched; diagnostics (admin plumbing) last.
+type SubTab = 'club' | 'puntaje' | 'notificaciones' | 'diagnostico'
+
+const SUB_TABS: { id: SubTab; label: string; icon: string }[] = [
+  { id: 'club',           label: 'Club',      icon: '⚽' },
+  { id: 'puntaje',        label: 'Puntaje',   icon: '⭐' },
+  { id: 'notificaciones', label: 'Notifs',    icon: '🔔' },
+  { id: 'diagnostico',    label: 'Diagnóstico', icon: '🔬' },
+]
+
+/**
+ * A sub-tab's group of cards. Hidden with `display:none` rather than unmounted,
+ * so unsaved text and test results survive switching tabs.
+ */
+function Group({ show, children }: { show: boolean; children: React.ReactNode }) {
+  return (
+    <div style={{ display: show ? 'flex' : 'none', flexDirection: 'column', gap: 24 }}>
+      {children}
+    </div>
+  )
+}
+
 interface Props {
   active: boolean
   /** Superadmin sees + edits the game configuration section */
@@ -44,6 +67,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
     usar_invitados: true,
     usuarios_pueden_cambiar_username: false,
   })
+  const [sub, setSub] = useState<SubTab>('club')
   const [badges, setBadges] = useState<Badge[]>(DEFAULT_BADGES)
   const [tiers, setTiers] = useState<TierConfig[]>(DEFAULT_TIERS)
   const [settingsLoading, setSettingsLoading] = useState(false)
@@ -158,6 +182,29 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 560 }}>
 
+          {/* Sub-tab bar */}
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', borderBottom: '1px solid var(--border)' }}>
+            {SUB_TABS.map(({ id, label, icon }) => (
+              <button
+                key={id}
+                onClick={() => setSub(id)}
+                className="mono"
+                style={{
+                  padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: 12, letterSpacing: '0.06em',
+                  color: sub === id ? 'var(--text)' : 'var(--text-muted)',
+                  borderBottom: sub === id ? '2px solid var(--green)' : '2px solid transparent',
+                  marginBottom: -1, whiteSpace: 'nowrap',
+                }}
+              >
+                {icon} {label}
+              </button>
+            ))}
+          </div>
+
+          {/* ── Notificaciones ── */}
+          <Group show={sub === 'notificaciones'}>
+
           {/* Notification channels — per-event email/push matrix */}
           <Card padding="20px 24px">
             <SectionHeader title="NOTIFICACIONES" icon="🔔" color="var(--amber)" />
@@ -190,6 +237,11 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
               })}
             </div>
           </Card>
+
+          </Group>
+
+          {/* ── Club ── */}
+          <Group show={sub === 'club'}>
 
           {/* Club settings */}
           <Card padding="20px 24px">
@@ -273,6 +325,11 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
             />
           </Card>
 
+          </Group>
+
+          {/* ── Puntaje ── */}
+          <Group show={sub === 'puntaje'}>
+
           {/* Insignias + rangos de puntaje */}
           <BadgesEditor badges={badges} onChange={setBadges} />
           <TiersEditor tiers={tiers} onChange={setTiers} />
@@ -305,6 +362,11 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
               </div>
             </Card>
           )}
+
+          </Group>
+
+          {/* ── Diagnóstico ── */}
+          <Group show={sub === 'diagnostico'}>
 
           {/* Test email */}
           <Card padding="20px 24px">
@@ -396,6 +458,8 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
               Corre diariamente. Envía push + email de apertura e inscripciones. Verifica recordatorio (≤10h antes), cupos y promoción de invitados.
             </div>
           </Card>
+
+          </Group>
 
         </div>
       )}

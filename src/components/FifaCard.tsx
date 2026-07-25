@@ -1,5 +1,5 @@
 'use client'
-import { ratingTierStyle } from '@/lib/tier'
+import { ratingTierStyle, DEFAULT_TIERS, type TierConfig } from '@/lib/tier'
 
 export function FifaCard({
   username,
@@ -7,14 +7,16 @@ export function FifaCard({
   rating,
   size = 'md',
   clubNombre,
+  tiers = DEFAULT_TIERS,
 }: {
   username: string
   avatar_url?: string | null
   rating: number
   size?: 'sm' | 'md' | 'lg'
   clubNombre?: string
+  tiers?: TierConfig[]
 }) {
-  const ts = ratingTierStyle(rating)
+  const ts = ratingTierStyle(rating, tiers)
   const scale = size === 'sm' ? 0.65 : size === 'lg' ? 1.2 : 1
   const w = Math.round(280 * scale)
   const h = Math.round(400 * scale)

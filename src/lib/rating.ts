@@ -1,5 +1,5 @@
 import type { createAdminClient } from '@/lib/supabase/admin'
-import { CATEGORIAS } from '@/lib/categorias'
+import { getClubBadges } from '@/lib/categorias'
 
 // ── Player rating (v2) ───────────────────────────────────────────────────────
 // Stateful 1–5 rating stored on profiles.habilidad. Everyone starts at 3.0 and
@@ -24,10 +24,16 @@ const MIN_RATING = 1.0
 const MAX_RATING = 5.0
 const BASE_RATING = 3.0
 
-const POSITIVE_BADGES = new Set<string>(CATEGORIAS.filter(c => c.peso > 0).map(c => c.id))
-const NEGATIVE_BADGES = new Set<string>(CATEGORIAS.filter(c => c.peso < 0).map(c => c.id))
-
 type Admin = ReturnType<typeof createAdminClient>
+
+/** Badge id → sign, from the club's configured badges. */
+async function badgeSigns(admin: Admin, clubId: string): Promise<{ pos: Set<string>; neg: Set<string> }> {
+  const badges = await getClubBadges(admin, clubId)
+  return {
+    pos: new Set(badges.filter(b => b.signo === 'positivo').map(b => b.id)),
+    neg: new Set(badges.filter(b => b.signo === 'negativo').map(b => b.id)),
+  }
+}
 
 const round3 = (n: number) => Math.round(n * 1000) / 1000
 const clampRating = (n: number) => Math.max(MIN_RATING, Math.min(MAX_RATING, n))
@@ -86,6 +92,8 @@ export async function applyMatchRatings(
     equipoById.set(e.id, { nombre: e.nombre, color: e.color })
   }
   const equipoIds = [...equipoById.keys()]
+
+  const { pos: POSITIVE_BADGES, neg: NEGATIVE_BADGES } = await badgeSigns(admin, clubId)
 
   const [insRes, ejRes, badgesRes, profsRes] = await Promise.all([
     admin.from('inscripciones').select('player_id, estado').eq('partido_id', partido_id).in('estado', ['confirmado', 'espera']),

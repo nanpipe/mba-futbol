@@ -8,6 +8,9 @@ import { SectionHeader } from '@/components/SectionHeader'
 import { ButtonGroup } from '@/components/ButtonGroup'
 import { GAME_CONFIG } from '@/lib/gameConfig'
 import { NOTIF_EVENTS } from '@/lib/notifications'
+import { BadgesEditor, TiersEditor } from '@/components/admin/RatingConfigEditor'
+import { DEFAULT_BADGES, type Badge } from '@/lib/categorias'
+import { DEFAULT_TIERS, type TierConfig } from '@/lib/tier'
 
 const CLUB_TOGGLES = [
   { key: 'usar_uniforme',                    label: 'Gestión de uniformes',        desc: 'Prioridad por uniforme en inscripciones y badge en panel de jugadores' },
@@ -41,6 +44,8 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
     usar_invitados: true,
     usuarios_pueden_cambiar_username: false,
   })
+  const [badges, setBadges] = useState<Badge[]>(DEFAULT_BADGES)
+  const [tiers, setTiers] = useState<TierConfig[]>(DEFAULT_TIERS)
   const [settingsLoading, setSettingsLoading] = useState(false)
   const [savingText, setSavingText] = useState<string | null>(null)
   const [testEmailAddr, setTestEmailAddr] = useState('')
@@ -57,6 +62,8 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
     if (res.ok) {
       const json = await res.json()
       setSettings(prev => ({ ...prev, ...(json.settings ?? {}) }))
+      if (Array.isArray(json.badges) && json.badges.length) setBadges(json.badges)
+      if (Array.isArray(json.tiers) && json.tiers.length) setTiers(json.tiers)
     }
     setSettingsLoading(false)
   }, [])
@@ -265,6 +272,10 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
               style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical' }}
             />
           </Card>
+
+          {/* Insignias + rangos de puntaje */}
+          <BadgesEditor badges={badges} onChange={setBadges} />
+          <TiersEditor tiers={tiers} onChange={setTiers} />
 
           {/* Configuración de juego — superadmin only */}
           {isSuperAdmin && (

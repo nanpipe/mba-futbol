@@ -330,6 +330,7 @@ export default function PerfilPage() {
               username={profile?.username ?? ''}
               avatar_url={profile?.avatar_url}
               rating={profile?.habilidad ?? 3.0}
+              tiers={club?.tiers}
             />
             <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', textAlign: 'center', lineHeight: 1.6, maxWidth: 260 }}>
               Tu puntaje se gana en la cancha: sube si juegas y ganas, baja si faltas o pierdes.

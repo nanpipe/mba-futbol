@@ -3,13 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isUUID } from '@/lib/validation'
 import { logActivity } from '@/lib/activityLog'
-import { CATEGORIAS } from '@/lib/categorias'
+import { getClubBadges } from '@/lib/categorias'
 import { isRateLimited, getClientIp } from '@/lib/rateLimit'
 import { applyMatchRatings, revertMatchRatings } from '@/lib/rating'
 
 export const dynamic = 'force-dynamic'
-
-const VALID_CATEGORIAS: Set<string> = new Set(CATEGORIAS.map(c => c.id))
 
 // ── Shared: tally votes → assign player_badges ────────────────────────────────
 export async function tallyAndAssign(
@@ -45,7 +43,7 @@ export async function tallyAndAssign(
   }
 
   let badges_asignados = 0
-  for (const cat of CATEGORIAS) {
+  for (const cat of await getClubBadges(admin, club_id)) {
     const catVotes = tally[cat.id]
     if (!catVotes) continue
     const [winnerId] = Object.entries(catVotes).reduce(
@@ -184,6 +182,7 @@ export async function GET(req: NextRequest) {
     yaVoto,
     partido: { fecha: partido.fecha, dia_semana: partido.dia_semana },
     compañeros: (compañeros ?? []).map(c => (c as unknown as { profiles: object }).profiles),
+    badges: await getClubBadges(admin, clubId),
     resultados,
     progreso,
   })
@@ -251,12 +250,14 @@ export async function POST(req: NextRequest) {
 
   const validTargets = new Set((confirmados ?? []).map((c: { player_id: string }) => c.player_id))
 
+  const validCategorias = new Set((await getClubBadges(admin, clubId)).map(b => b.id))
+
   const rows: object[] = []
   const seen = new Set<string>()
 
   for (const v of (votos as Array<Record<string, unknown>>) ?? []) {
     const { categoria, votado_id } = v
-    if (typeof categoria !== 'string' || !VALID_CATEGORIAS.has(categoria)) continue
+    if (typeof categoria !== 'string' || !validCategorias.has(categoria)) continue
     if (!isUUID(votado_id)) continue
     if (votado_id === user.id) continue
     if (!validTargets.has(votado_id as string)) continue

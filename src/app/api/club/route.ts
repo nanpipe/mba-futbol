@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubId } from '@/lib/club'
+import { parseTiers, TIERS_SETTING_KEY } from '@/lib/tier'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
       .from('app_settings')
       .select('key, value')
       .eq('club_id', clubId)
-      .in('key', Object.keys(SCHEDULE_SETTINGS_DEFAULTS)),
+      .in('key', [...Object.keys(SCHEDULE_SETTINGS_DEFAULTS), TIERS_SETTING_KEY]),
   ])
 
   if (error || !club) {
@@ -37,10 +38,12 @@ export async function GET(req: NextRequest) {
   }
 
   const settings: Record<string, string> = { ...SCHEDULE_SETTINGS_DEFAULTS }
+  let tiersRaw: unknown = null
   for (const row of settingsRows ?? []) {
     const r = row as { key: string; value: unknown }
+    if (r.key === TIERS_SETTING_KEY) { tiersRaw = r.value; continue }
     if (typeof r.value === 'string') settings[r.key] = r.value
   }
 
-  return NextResponse.json({ club, settings })
+  return NextResponse.json({ club, settings, tiers: parseTiers(tiersRaw) })
 }

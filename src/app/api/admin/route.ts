@@ -10,6 +10,8 @@ import { isPosicion } from '@/lib/posiciones'
 import { GAME_CONFIG_KEYS } from '@/lib/gameConfig'
 import { NOTIF_CHANNEL_KEYS } from '@/lib/notifications'
 import { applyMatchRatings, revertMatchRatings } from '@/lib/rating'
+import { sanitizeBadges, parseBadges, BADGES_SETTING_KEY } from '@/lib/categorias'
+import { sanitizeTiers, parseTiers, TIERS_SETTING_KEY } from '@/lib/tier'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,7 +82,13 @@ export async function GET(req: NextRequest) {
     for (const row of (data ?? [])) {
       settings[(row as { key: string; value: unknown }).key] = (row as { key: string; value: unknown }).value
     }
-    return NextResponse.json({ ok: true, settings })
+    // Badges/tiers are structured config — return them parsed (with defaults).
+    return NextResponse.json({
+      ok: true,
+      settings,
+      badges: parseBadges(settings[BADGES_SETTING_KEY]),
+      tiers: parseTiers(settings[TIERS_SETTING_KEY]),
+    })
   }
 
   return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 })
@@ -818,6 +826,42 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'guardar_setting', detalles: { key, value }, ip })
     return NextResponse.json({ ok: true, mensaje: `${key} → ${value}` })
+  }
+
+  // ── Guardar insignias (badges) del club ────────────────────────────────────
+  if (accion === 'guardar_badges') {
+    const badges = sanitizeBadges(body.badges)
+    if (!badges) {
+      return NextResponse.json({ error: 'Insignias inválidas. Cada una necesita id y nombre únicos (máx 30).' }, { status: 400 })
+    }
+    const { error } = await admin.from('app_settings').upsert({
+      club_id: clubId,
+      key: BADGES_SETTING_KEY,
+      value: badges,
+      updated_at: new Date().toISOString(),
+      updated_by: adminUser.id,
+    }, { onConflict: 'club_id,key' })
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'guardar_badges', detalles: { count: badges.length }, ip })
+    return NextResponse.json({ ok: true, mensaje: `${badges.length} insignias guardadas.`, badges })
+  }
+
+  // ── Guardar rangos de rating (tiers) del club ──────────────────────────────
+  if (accion === 'guardar_tiers') {
+    const tiers = sanitizeTiers(body.tiers)
+    if (!tiers) {
+      return NextResponse.json({ error: 'Rangos inválidos. Cada uno necesita nombre y un mínimo entre 1 y 5 (máx 12).' }, { status: 400 })
+    }
+    const { error } = await admin.from('app_settings').upsert({
+      club_id: clubId,
+      key: TIERS_SETTING_KEY,
+      value: tiers,
+      updated_at: new Date().toISOString(),
+      updated_by: adminUser.id,
+    }, { onConflict: 'club_id,key' })
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'guardar_tiers', detalles: { count: tiers.length }, ip })
+    return NextResponse.json({ ok: true, mensaje: `${tiers.length} rangos guardados.`, tiers })
   }
 
   // ── Enviar email de prueba ─────────────────────────────────────────────────

@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { CATEGORIAS } from '@/lib/categorias'
+import { DEFAULT_BADGES, type Badge } from '@/lib/categorias'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
 import { ThumbsRater } from '@/components/ThumbsRater'
 import { FormCenterLayout } from '@/components/FormCenterLayout'
@@ -83,6 +83,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
 
   const [estado, setEstado] = useState<'loading' | 'closed' | 'not-participant' | 'already' | 'open' | 'done'>('loading')
   const [compañeros, setCompañeros] = useState<Compañero[]>([])
+  const [badges, setBadges] = useState<Badge[]>(DEFAULT_BADGES)
   const [votos, setVotos] = useState<Record<string, string>>({})  // categoriaId → playerId
   const [thumbs, setThumbs] = useState<Record<string, 1 | -1>>({})  // playerId → ±1
   const [partido, setPartido] = useState<{ fecha: string; dia_semana: string } | null>(null)
@@ -105,6 +106,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
       }
 
       setPartido(data.partido)
+      if (Array.isArray(data.badges) && data.badges.length) setBadges(data.badges)
       if (data.resultados) setResultados(data.resultados)
       if (data.progreso) setProgreso(data.progreso)
 
@@ -278,7 +280,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
         <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 28, lineHeight: 1.7 }}>
           Vota por un compañero en cada categoría. Es anónimo y opcional.{' '}
           <span style={{ color: votosCount > 0 ? 'var(--green)' : 'var(--text-dim)' }}>
-            {votosCount}/{CATEGORIAS.length} votadas.
+            {votosCount}/{badges.length} votadas.
           </span>
           {progreso && (
             <span style={{ color: 'var(--text-muted)', marginLeft: 8 }}>
@@ -295,7 +297,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
 
         {/* Category cards */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {CATEGORIAS.map(cat => {
+          {badges.map(cat => {
             const winner = votos[cat.id]
               ? compañeros.find(c => c.id === votos[cat.id])
               : null

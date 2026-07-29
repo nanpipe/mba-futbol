@@ -387,7 +387,10 @@ export async function PATCH(req: NextRequest) {
   const { partido_id } = body
   if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
 
-  await admin.from('partidos').update({ evaluaciones_abiertas: true }).eq('id', partido_id as string)
+  // ya_abiertas stops the cron from auto-reopening these once they're closed.
+  await admin.from('partidos')
+    .update({ evaluaciones_abiertas: true, evaluaciones_ya_abiertas: true })
+    .eq('id', partido_id as string)
   await admin.from('player_badges').delete().eq('partido_id', partido_id as string)
   // Undo this match's rating deltas — they'll recompute when it's re-closed.
   try { await revertMatchRatings(admin, partido_id as string) } catch (e) { console.error('[rating] reabrir_votacion:', e) }

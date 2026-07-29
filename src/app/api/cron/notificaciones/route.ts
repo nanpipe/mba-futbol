@@ -6,6 +6,7 @@ import { logActivity } from '@/lib/activityLog'
 import { sendAperturaEmail, sendRecordatorioEmail } from '@/lib/email'
 import { tallyAndAssign } from '@/app/api/evaluaciones/route'
 import { channelsFor } from '@/lib/notifications'
+import { applyMatchRatings } from '@/lib/rating'
 
 // Every-minute cron metronome — pg_cron fires every minute, all timing logic lives here.
 // Handles 5 tasks in one pass:
@@ -123,11 +124,13 @@ export async function GET(req: NextRequest) {
 
   const { data: pasados } = await admin
     .from('partidos')
-    .select('id, fecha, evaluaciones_abiertas, equipos_confirmados')
+    .select('id, fecha, evaluaciones_abiertas, evaluaciones_ya_abiertas, equipos_confirmados')
     .in('fecha', [ayerStr, dosDiasAtrasStr])
 
   for (const p of pasados ?? []) {
-    if (p.fecha === ayerStr && !(p.evaluaciones_abiertas as boolean)) {
+    // Auto-open only once, ever. `evaluaciones_ya_abiertas` is what makes an
+    // admin's close final — without it this ran every minute and reopened them.
+    if (p.fecha === ayerStr && !(p.evaluaciones_abiertas as boolean) && !(p.evaluaciones_ya_abiertas as boolean)) {
       // Auto-open if at least 4 confirmed players (real match happened)
       const { count: insCount } = await admin
         .from('inscripciones')
@@ -135,13 +138,15 @@ export async function GET(req: NextRequest) {
         .eq('partido_id', p.id)
         .eq('estado', 'confirmado')
       if ((insCount ?? 0) >= 4) {
-        await admin.from('partidos').update({ evaluaciones_abiertas: true }).eq('id', p.id)
+        await admin.from('partidos').update({ evaluaciones_abiertas: true, evaluaciones_ya_abiertas: true }).eq('id', p.id)
         await logActivity({ accion: 'auto_abrir_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha, confirmados: insCount } })
       }
     }
     if (p.fecha === dosDiasAtrasStr && (p.evaluaciones_abiertas as boolean)) {
       await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', p.id)
       const { badges_asignados } = await tallyAndAssign(admin, p.id)
+      // Recognitions are final — apply rating deltas (no-op without a result).
+      try { await applyMatchRatings(admin, p.id) } catch (e) { console.error('[rating] cron auto_cerrar:', e) }
       await logActivity({ accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha, badges_asignados } })
     }
   }
@@ -225,6 +230,8 @@ export async function GET(req: NextRequest) {
     for (const ep of evalAbiertas ?? []) {
       await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', ep.id)
       const { badges_asignados } = await tallyAndAssign(admin, ep.id)
+      // Recognitions are final — apply rating deltas (no-op without a result).
+      try { await applyMatchRatings(admin, ep.id) } catch (e) { console.error('[rating] cron auto_cerrar nueva_apertura:', e) }
       await logActivity({ accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: ep.id, fecha: ep.fecha, razon: 'nueva_apertura', badges_asignados } })
     }
   }

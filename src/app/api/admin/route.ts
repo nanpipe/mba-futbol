@@ -724,7 +724,10 @@ export async function POST(req: NextRequest) {
   if (accion === 'abrir_evaluaciones') {
     const { partido_id } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
-    const { error } = await admin.from('partidos').update({ evaluaciones_abiertas: true }).eq('id', partido_id as string)
+    // ya_abiertas stops the cron from auto-reopening these once they're closed.
+    const { error } = await admin.from('partidos')
+      .update({ evaluaciones_abiertas: true, evaluaciones_ya_abiertas: true })
+      .eq('id', partido_id as string)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
 
     const { data: partidoEval } = await admin.from('partidos').select('dia_semana').eq('id', partido_id as string).single()

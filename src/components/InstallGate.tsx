@@ -43,6 +43,17 @@ export function useInstallState(): InstallState {
     read()
     mq.addEventListener('change', read)
 
+    // The event usually fires before hydration, so layout.tsx stashes it on
+    // window. Read the stash first, then keep listening for a later one.
+    type W = Window & { __mbafcInstallPrompt?: Event & { prompt: () => void } }
+    const stashed = (window as W).__mbafcInstallPrompt
+    if (stashed) setInstallPrompt(stashed)
+    const fromStash = () => {
+      const e = (window as W).__mbafcInstallPrompt
+      if (e) setInstallPrompt(e)
+    }
+    window.addEventListener('mbafc:installprompt', fromStash)
+
     const handler = (e: Event) => { e.preventDefault(); setInstallPrompt(e as Event & { prompt: () => void }) }
     window.addEventListener('beforeinstallprompt', handler)
     // Installed mid-session — drop the nagging immediately.
@@ -51,6 +62,7 @@ export function useInstallState(): InstallState {
 
     return () => {
       mq.removeEventListener('change', read)
+      window.removeEventListener('mbafc:installprompt', fromStash)
       window.removeEventListener('beforeinstallprompt', handler)
       window.removeEventListener('appinstalled', installed)
     }
@@ -59,6 +71,8 @@ export function useInstallState(): InstallState {
   const promptInstall = useCallback(() => {
     if (!installPrompt) return
     installPrompt.prompt()
+    // A prompt event can only be used once — drop it and the stash.
+    delete (window as Window & { __mbafcInstallPrompt?: unknown }).__mbafcInstallPrompt
     setInstallPrompt(null)
   }, [installPrompt])
 
@@ -98,6 +112,37 @@ function Benefits({ compact = false }: { compact?: boolean }) {
   )
 }
 
+/** iOS share glyph, drawn inline — the SF Symbols character renders as tofu off Apple. */
+function ShareIcon({ size = 15 }: { size?: number }) {
+  return (
+    <svg
+      width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      style={{ display: 'inline-block', verticalAlign: '-0.18em', margin: '0 2px' }}
+      aria-hidden="true"
+    >
+      <path d="M12 15V3" />
+      <path d="M8 7l4-4 4 4" />
+      <path d="M4 13v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6" />
+    </svg>
+  )
+}
+
+/** Android overflow-menu glyph (⋮). */
+function MenuIcon({ size = 15 }: { size?: number }) {
+  return (
+    <svg
+      width={size} height={size} viewBox="0 0 24 24" fill="currentColor"
+      style={{ display: 'inline-block', verticalAlign: '-0.18em', margin: '0 2px' }}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="5" r="1.8" />
+      <circle cx="12" cy="12" r="1.8" />
+      <circle cx="12" cy="19" r="1.8" />
+    </svg>
+  )
+}
+
 /** How to install, tailored to the browser the user is actually in. */
 function HowTo({ state, big }: { state: InstallState; big: boolean }) {
   const { isIos, isInApp, canPrompt, promptInstall } = state
@@ -126,18 +171,28 @@ function HowTo({ state, big }: { state: InstallState; big: boolean }) {
     )
   }
 
-  // iOS (and any browser without the prompt API): manual steps only.
+  // No prompt available — manual steps, worded for the actual platform.
   return (
     <div className="mono" style={{
       fontSize: 12, color: 'var(--green)', lineHeight: 1.8, textAlign: 'center',
       background: '#0f2d1a', border: '1px solid #16a34a', borderRadius: 6, padding: '14px 16px',
     }}>
-      <div style={{ marginBottom: 6 }}>
-        1. Toca <strong>Compartir</strong> <span style={{ fontSize: 15 }}>􀈂</span> {isIos ? 'abajo' : 'en el menú'}
-      </div>
-      <div>2. Elige <strong>Agregar a pantalla de inicio</strong></div>
-      {isIos && (
-        <div style={{ fontSize: 22, marginTop: 8, animation: 'mbafcBounce 1.2s ease-in-out infinite' }}>↓</div>
+      {isIos ? (
+        <>
+          <div style={{ marginBottom: 6 }}>
+            1. Toca <strong>Compartir</strong><ShareIcon /> abajo
+          </div>
+          <div>2. Elige <strong>Agregar a pantalla de inicio</strong></div>
+          <div style={{ fontSize: 22, marginTop: 8, animation: 'mbafcBounce 1.2s ease-in-out infinite' }}>↓</div>
+        </>
+      ) : (
+        <>
+          <div style={{ marginBottom: 6 }}>
+            1. Toca el menú<MenuIcon /> arriba a la derecha
+          </div>
+          <div>2. Elige <strong>Instalar app</strong> o <strong>Agregar a pantalla de inicio</strong></div>
+          <div style={{ fontSize: 22, marginTop: 8, animation: 'mbafcBounce 1.2s ease-in-out infinite' }}>↑</div>
+        </>
       )}
     </div>
   )

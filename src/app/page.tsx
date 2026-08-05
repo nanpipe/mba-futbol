@@ -10,6 +10,7 @@ import { colorLabel } from '@/lib/design'
 import { useClub } from '@/hooks/useClub'
 import { EvaluationCTA } from '@/components/EvaluationCTA'
 import { MatchResultCard } from '@/components/MatchResultCard'
+import { useInstallState, InstallInterstitial, InstallNagModal } from '@/components/InstallGate'
 
 interface Partido {
   id: string
@@ -124,25 +125,18 @@ export default function HomePage() {
   const partidoSelIdRef = useRef<string | null>(null)
   const abreEnRef = useRef<Date | null>(null)
   const [pushPermission, setPushPermission] = useState<NotificationPermission | null>(null)
-  const [installPrompt, setInstallPrompt] = useState<Event & { prompt: () => void } | null>(null)
-  const [isIos, setIsIos] = useState(false)
-  const [isStandalone, setIsStandalone] = useState(false)
-
+  const install = useInstallState()
+  // Shown before signing up when the app isn't installed — nags, then lets them through.
+  const [nagAbierto, setNagAbierto] = useState(false)
 
   useEffect(() => {
     if ('Notification' in window) setPushPermission(Notification.permission)
-    setIsIos(/iphone|ipad|ipod/i.test(navigator.userAgent))
-    setIsStandalone(window.matchMedia('(display-mode: standalone)').matches)
 
     // Auto-heal: if push already granted, silently refresh the subscription.
     // Repairs subs minted under a rotated VAPID key (otherwise 403 forever).
     if ('Notification' in window && Notification.permission === 'granted') {
       ensurePushSubscription().catch(err => console.error('[push] auto-heal failed:', err))
     }
-
-    const handler = (e: Event) => { e.preventDefault(); setInstallPrompt(e as Event & { prompt: () => void }) }
-    window.addEventListener('beforeinstallprompt', handler)
-    return () => window.removeEventListener('beforeinstallprompt', handler)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -373,8 +367,16 @@ export default function HomePage() {
     cargarDatosPartido(p, user)
   }
 
-  const inscribirse = async () => {
+  // Signing up is the moment they actually want something — nag first, then let
+  // them through either way. Never blocks: install is impossible in some browsers.
+  const inscribirse = () => {
+    if (!install.isStandalone) { setNagAbierto(true); return }
+    ejecutarInscripcion()
+  }
+
+  const ejecutarInscripcion = async () => {
     if (!ventana?.partido || !user) return
+    setNagAbierto(false)
     setInscribiendose(true)
     setMensaje(null)
     try {
@@ -516,8 +518,8 @@ export default function HomePage() {
                 ADMIN ↗
               </Link>
             )}
-            {installPrompt && !isStandalone && (
-              <button onClick={() => { installPrompt.prompt(); setInstallPrompt(null) }} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 11, color: 'var(--green)', borderColor: '#16a34a' }}>
+            {install.canPrompt && !install.isStandalone && (
+              <button onClick={install.promptInstall} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 11, color: 'var(--green)', borderColor: '#16a34a' }}>
                 📲 Instalar app
               </button>
             )}
@@ -551,11 +553,14 @@ export default function HomePage() {
         </div>
       </nav>
 
-      {isIos && !isStandalone && (
-        <div className="mono" style={{ background: '#0f1f0f', borderBottom: '1px solid #1a3a1a', padding: '10px 0', textAlign: 'center', fontSize: 11, color: 'var(--green)', letterSpacing: '0.05em' }}>
-          Para instalar: toca <strong>Compartir</strong> → <strong>Agregar a pantalla de inicio</strong>
-        </div>
-      )}
+      {/* Install push — full-screen once per session, plus a nag before signing up. */}
+      <InstallInterstitial state={install} />
+      <InstallNagModal
+        open={nagAbierto}
+        state={install}
+        onContinue={ejecutarInscripcion}
+        onCancel={() => setNagAbierto(false)}
+      />
 
       <div className="container" style={{ paddingTop: 48 }}>
         {/* Header */}

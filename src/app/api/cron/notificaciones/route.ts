@@ -23,10 +23,6 @@ function verifyCron(req: NextRequest) {
   return true
 }
 
-function isDeadPushError(err: unknown): boolean {
-  return (err as { statusCode?: number }).statusCode === 410
-}
-
 async function sendToMany(
   admin: ReturnType<typeof createAdminClient>,
   subs: { endpoint: string; p256dh: string; auth: string }[],
@@ -456,10 +452,6 @@ export async function GET(req: NextRequest) {
     .eq('enviado', false)
     .order('created_at', { ascending: true })
     .limit(20)
-
-  if ((pendientes ?? []).length > 50) {
-    // safety guard — should not happen given .limit(20), but kept for clarity
-  }
 
   let promovidos_enviados = 0
   for (const notif of pendientes ?? []) {

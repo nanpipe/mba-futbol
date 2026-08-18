@@ -72,9 +72,9 @@ export async function GET(req: NextRequest) {
         : await subsQuery)
       : { data: [] }
 
-    const results = await Promise.allSettled(
-      (subs ?? []).map(sub =>
-        sendPush(sub, {
+    for (const sub of subs ?? []) {
+      try {
+        await sendPush(sub, {
           title: '⚽ Cupos disponibles',
           body: `Quedan ${cuposLibres} cupo${cuposLibres !== 1 ? 's' : ''} para el partido del ${partido.dia_semana}. ¡Anótate antes de que se llene!`,
           url: '/',

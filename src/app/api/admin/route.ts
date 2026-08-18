@@ -715,17 +715,6 @@ export async function POST(req: NextRequest) {
         await sendAperturaEmail({ email: p.email, username: p.username ?? '', diaSemana, fechaPartido, hora: matchHora, lugar: lugarPartido, clubNombre })
       } catch (err) { console.error('[admin] forzar_notif email failed:', err) }
     }
-    // Also email each club player (best-effort)
-    const clubNombre = getClubNombre(req)
-    const partidoTyped = partido as { dia_semana?: string; fecha?: string; hora?: string } | null
-    const diaSemana = partidoTyped?.dia_semana ?? ''
-    const fechaPartido = partidoTyped?.fecha ?? ''
-    const hora = partidoTyped?.hora?.substring(0, 5) ?? '19:00'
-    for (const p of (clubProfiles ?? []) as { id: string; email?: string; username?: string }[]) {
-      if (p.email && p.username) {
-        sendAperturaEmail({ email: p.email, username: p.username, diaSemana, fechaPartido, hora, clubNombre }).catch(e => console.error('[admin] forzar_notif_apertura email failed:', e))
-      }
-    }
     await admin.from('partidos').update({ notif_apertura_sent: true }).eq('id', partido_id as string)
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'forzar_notif_apertura', detalles: { partido_id, enviados }, ip })
     return NextResponse.json({ ok: true, mensaje: `Notificación apertura enviada a ${enviados} dispositivos.` })

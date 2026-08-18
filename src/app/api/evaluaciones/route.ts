@@ -338,10 +338,12 @@ export async function PUT(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
-  const { data: prof } = await admin.from('profiles').select('role, username').eq('id', user.id).single()
+  const { data: prof } = await admin.from('profiles').select('role, username, club_id').eq('id', user.id).single()
   if ((prof as { role?: string })?.role !== 'admin' && (prof as { role?: string })?.role !== 'superadmin') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
+  const clubId = (prof as { club_id?: string })?.club_id
+  if (!clubId) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
 
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON inválido' }, { status: 400 }) }
@@ -349,7 +351,13 @@ export async function PUT(req: NextRequest) {
   const { partido_id } = body
   if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
 
-  await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', partido_id as string)
+  // The match must belong to this admin's club — otherwise an admin could close
+  // another club's evaluaciones.
+  const { data: pOwn } = await admin
+    .from('partidos').select('id').eq('id', partido_id as string).eq('club_id', clubId).maybeSingle()
+  if (!pOwn) return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
+
+  await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', partido_id as string).eq('club_id', clubId)
   const { badges_asignados } = await tallyAndAssign(admin, partido_id as string)
   // Recognitions are final — apply rating deltas (no-op if result not yet entered).
   try { await applyMatchRatings(admin, partido_id as string) } catch (e) { console.error('[rating] cerrar_votacion:', e) }
@@ -376,10 +384,12 @@ export async function PATCH(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
-  const { data: prof } = await admin.from('profiles').select('role, username').eq('id', user.id).single()
+  const { data: prof } = await admin.from('profiles').select('role, username, club_id').eq('id', user.id).single()
   if ((prof as { role?: string })?.role !== 'admin' && (prof as { role?: string })?.role !== 'superadmin') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
+  const clubId = (prof as { club_id?: string })?.club_id
+  if (!clubId) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
 
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON inválido' }, { status: 400 }) }
@@ -387,11 +397,17 @@ export async function PATCH(req: NextRequest) {
   const { partido_id } = body
   if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
 
+  // Scope to this admin's club — reopening also deletes badges, so an unscoped
+  // id would let one club destroy another's awarded badges.
+  const { data: pOwn } = await admin
+    .from('partidos').select('id').eq('id', partido_id as string).eq('club_id', clubId).maybeSingle()
+  if (!pOwn) return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
+
   // ya_abiertas stops the cron from auto-reopening these once they're closed.
   await admin.from('partidos')
     .update({ evaluaciones_abiertas: true, evaluaciones_ya_abiertas: true })
-    .eq('id', partido_id as string)
-  await admin.from('player_badges').delete().eq('partido_id', partido_id as string)
+    .eq('id', partido_id as string).eq('club_id', clubId)
+  await admin.from('player_badges').delete().eq('partido_id', partido_id as string).eq('club_id', clubId)
   // Undo this match's rating deltas — they'll recompute when it's re-closed.
   try { await revertMatchRatings(admin, partido_id as string) } catch (e) { console.error('[rating] reabrir_votacion:', e) }
 

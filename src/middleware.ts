@@ -76,6 +76,8 @@ async function resolveClubBySlug(slug: string) {
   return entry
 }
 
+const CLUB_HEADERS = ['x-club-id', 'x-club-slug', 'x-club-nombre', 'x-club-status']
+
 // ─── Main middleware ──────────────────────────────────────────────────────────
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl
@@ -108,8 +110,39 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     )
   }
 
+  // ── Club resolution from subdomain ───────────────────────────────────────
+  // Resolved BEFORE the response is built, so the values can be forwarded to
+  // route handlers as REQUEST headers. Setting them on the response only sends
+  // them to the browser — handlers never saw them, so getClubId(req) was
+  // reading whatever the caller chose to send.
+  let club: { id: string; slug: string; nombre?: string; subscription_status?: string }
+
+  if (hostname.startsWith('localhost') || hostname.startsWith('127.0.0.1')) {
+    club = { id: MBAFC_CLUB_ID, slug: 'mbafc' }
+  } else {
+    const escapedRoot = ROOT_DOMAIN.replace(/\./g, '\\.')
+    const subMatch = hostname.match(new RegExp(`^([a-z0-9-]+)\\.${escapedRoot}$`))
+    if (subMatch && subMatch[1] !== 'www') {
+      const resolved = await resolveClubBySlug(subMatch[1])
+      if (!resolved) return new NextResponse('Club not found', { status: 404 })
+      club = resolved
+    } else {
+      // Root domain or preview URL — default tenant.
+      club = { id: MBAFC_CLUB_ID, slug: 'mbafc' }
+    }
+  }
+
+  // Strip anything the caller sent under these names before setting our own.
+  // Without this a request could carry x-club-id and read another tenant.
+  const reqHeaders = new Headers(request.headers)
+  for (const h of CLUB_HEADERS) reqHeaders.delete(h)
+  reqHeaders.set('x-club-id', club.id)
+  reqHeaders.set('x-club-slug', club.slug)
+  if (club.nombre) reqHeaders.set('x-club-nombre', club.nombre)
+  if (club.subscription_status) reqHeaders.set('x-club-status', club.subscription_status)
+
   // ── Supabase session refresh ──────────────────────────────────────────────
-  let supabaseResponse = NextResponse.next({ request })
+  let supabaseResponse = NextResponse.next({ request: { headers: reqHeaders } })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -119,7 +152,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
         getAll() { return request.cookies.getAll() },
         setAll(cookiesToSet: { name: string; value: string; options?: object }[]) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({ request })
+          supabaseResponse = NextResponse.next({ request: { headers: reqHeaders } })
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           )
@@ -130,38 +163,8 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
   await supabase.auth.getUser()
 
-  // ── Club resolution from subdomain ───────────────────────────────────────
-  if (hostname.startsWith('localhost') || hostname.startsWith('127.0.0.1')) {
-    // Dev: always MBA FC
-    supabaseResponse.headers.set('x-club-id', MBAFC_CLUB_ID)
-    supabaseResponse.headers.set('x-club-slug', 'mbafc')
-    supabaseResponse.cookies.set('__club_id', MBAFC_CLUB_ID, { path: '/', sameSite: 'lax' })
-    return supabaseResponse
-  }
-
-  const escapedRoot = ROOT_DOMAIN.replace(/\./g, '\\.')
-  const subMatch = hostname.match(new RegExp(`^([a-z0-9-]+)\\.${escapedRoot}$`))
-
-  if (subMatch && subMatch[1] !== 'www') {
-    const slug = subMatch[1]
-    const club = await resolveClubBySlug(slug)
-
-    if (!club) {
-      return new NextResponse('Club not found', { status: 404 })
-    }
-
-    supabaseResponse.headers.set('x-club-id', club.id)
-    supabaseResponse.headers.set('x-club-slug', club.slug)
-    supabaseResponse.headers.set('x-club-nombre', club.nombre)
-    supabaseResponse.headers.set('x-club-status', club.subscription_status)
-    supabaseResponse.cookies.set('__club_id', club.id, { path: '/', sameSite: 'lax' })
-    supabaseResponse.cookies.set('__club_slug', club.slug, { path: '/', sameSite: 'lax' })
-  } else {
-    // Root domain or Vercel preview URL — default to MBA FC
-    supabaseResponse.headers.set('x-club-id', MBAFC_CLUB_ID)
-    supabaseResponse.headers.set('x-club-slug', 'mbafc')
-    supabaseResponse.cookies.set('__club_id', MBAFC_CLUB_ID, { path: '/', sameSite: 'lax' })
-  }
+  supabaseResponse.cookies.set('__club_id', club.id, { path: '/', sameSite: 'lax' })
+  supabaseResponse.cookies.set('__club_slug', club.slug, { path: '/', sameSite: 'lax' })
 
   return supabaseResponse
 }

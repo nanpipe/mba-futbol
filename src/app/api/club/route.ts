@@ -14,6 +14,8 @@ export const dynamic = 'force-dynamic'
 // Only club-policy values that aren't derivable live here.
 const SCHEDULE_SETTINGS_DEFAULTS: Record<string, string> = {
   hora_promo_invitados: '2:00 PM',
+  // Mirrored so the guest UI shows the same limit the API enforces.
+  max_invitados: '3',
 }
 
 export async function GET(req: NextRequest) {

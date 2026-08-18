@@ -12,6 +12,7 @@ import { Card } from '@/components/Card'
 import { SectionHeader } from '@/components/SectionHeader'
 import { ErrorAlert } from '@/components/ErrorAlert'
 import { useClub } from '@/hooks/useClub'
+import { InvitadosGuardados } from '@/components/InvitadosGuardados'
 
 import { POSICIONES, type Posicion } from '@/lib/posiciones'
 
@@ -362,6 +363,10 @@ export default function PerfilPage() {
         )}
 
         {/* Positions (up to 2) */}
+        <Section title="MIS INVITADOS GUARDADOS">
+          <InvitadosGuardados />
+        </Section>
+
         <Section title="MIS POSICIONES">
           <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 10 }}>
             Elige hasta 2 posiciones.

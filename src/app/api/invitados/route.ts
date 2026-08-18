@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { calcularVentanaPartido } from '@/lib/partidos'
-import { isUUID, isString, safeError } from '@/lib/validation'
+import { isUUID, isString, isEmail, safeError } from '@/lib/validation'
 import { sendPush, isDeadPushError } from '@/lib/push'
 import { logActivity } from '@/lib/activityLog'
-import { sendInvitadoConfirmadoEmail } from '@/lib/email'
+import { notificarInvitadoConfirmado } from '@/lib/invitados'
 import { gameNumber } from '@/lib/gameConfig'
 
 export const dynamic = 'force-dynamic'
@@ -36,12 +36,17 @@ export async function POST(req: NextRequest) {
   const { data: playerProfile } = await supabase.from('profiles').select('aprobado, username').eq('id', user.id).single()
   if (!playerProfile?.aprobado) return NextResponse.json({ error: 'Tu cuenta aún no ha sido aprobada.' }, { status: 403 })
 
-  let body: { partido_id?: unknown; nombre?: unknown }
+  let body: { partido_id?: unknown; nombre?: unknown; email?: unknown; guardar?: unknown }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Cuerpo inválido' }, { status: 400 }) }
 
-  const { partido_id, nombre } = body
+  const { partido_id, nombre, email, guardar } = body
   if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
   if (!isString(nombre, 2, 80)) return NextResponse.json({ error: 'Nombre debe tener entre 2 y 80 caracteres' }, { status: 400 })
+  // Email is optional — it exists so the guest can be told directly when they
+  // get a spot. Reject a malformed one instead of silently dropping it.
+  const emailRaw = typeof email === 'string' ? email.trim().toLowerCase() : ''
+  if (emailRaw && !isEmail(emailRaw)) return NextResponse.json({ error: 'Email del invitado inválido' }, { status: 400 })
+  const emailInvitado = emailRaw || null
 
   // Verify inscription window is open
   const { data: partido } = await admin
@@ -85,11 +90,25 @@ export async function POST(req: NextRequest) {
       partido_id,
       player_id: user.id,
       nombre: (nombre as string).trim(),
+      email: emailInvitado,
       estado: 'espera',
       posicion_espera: posicion,
     })
 
   if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+
+  // Optionally remember this guest for next time. Best-effort: the signup already
+  // succeeded, so a failed bookmark must not surface as an error.
+  if (guardar === true) {
+    await admin.from('invitados_guardados').upsert({
+      club_id: clubId,
+      player_id: user.id,
+      nombre: (nombre as string).trim(),
+      email: emailInvitado,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'player_id,nombre' })
+  }
+
   await logActivity({ user_id: user.id, username: (playerProfile as { username?: string })?.username ?? '', accion: 'alta_invitado', detalles: { partido_id, nombre: nombre as string, fecha: (partido as { fecha?: string })?.fecha } })
   return NextResponse.json({ ok: true, mensaje: `${nombre} agregado a lista de espera de invitados.` })
 }
@@ -199,51 +218,11 @@ export async function PATCH(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
 
-  // Push notification to the invitador
-  const invPartido = inv.partidos as unknown as { fecha: string; dia_semana: string } | null
-  const fechaStr = invPartido
-    ? `${invPartido.dia_semana} ${new Date(invPartido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })}`
-    : 'el partido'
-
-  const { data: subs } = await admin
-    .from('push_subscriptions')
-    .select('endpoint, p256dh, auth')
-    .eq('player_id', inv.player_id)
-
-  for (const sub of subs ?? []) {
-    try {
-      await sendPush(sub, {
-        title: '¡Tu invitado entró al partido!',
-        body: `${inv.nombre} fue confirmado para ${fechaStr}. ⚽`,
-        url: '/',
-      })
-    } catch (pushErr: unknown) {
-      if (isDeadPushError(pushErr)) {
-        await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
-      } else {
-        console.error('[invitados] sendPush failed:', pushErr)
-      }
-    }
-  }
-
-  // Email notification to the invitador (best-effort)
-  try {
-    const { data: invitadorProfile } = await admin
-      .from('profiles')
-      .select('email, username')
-      .eq('id', inv.player_id)
-      .single()
-    if (invitadorProfile?.email) {
-      await sendInvitadoConfirmadoEmail({
-        email: (invitadorProfile as { email: string }).email,
-        username: (invitadorProfile as { username: string }).username ?? '',
-        nombreInvitado: inv.nombre,
-        fechaStr,
-      })
-    }
-  } catch (emailErr) {
-    console.error('[invitados] sendInvitadoConfirmadoEmail failed:', emailErr)
-  }
+  // Notify: push + email to the inviting player, and the guest themselves if
+  // they left an address. Shared with the cron promotion so both paths behave
+  // identically and neither can double-send.
+  try { await notificarInvitadoConfirmado(admin, invitado_id as string) }
+  catch (notifErr) { console.error('[invitados] notificar failed:', notifErr) }
 
   await logActivity({
     user_id: user.id,

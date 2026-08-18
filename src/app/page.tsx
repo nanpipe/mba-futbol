@@ -11,6 +11,7 @@ import { useClub } from '@/hooks/useClub'
 import { EvaluationCTA } from '@/components/EvaluationCTA'
 import { MatchResultCard } from '@/components/MatchResultCard'
 import { useInstallState, InstallInterstitial, InstallNagModal } from '@/components/InstallGate'
+import { MisInvitados } from '@/components/MisInvitados'
 
 interface Partido {
   id: string
@@ -116,8 +117,6 @@ export default function HomePage() {
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [misInvitados, setMisInvitados] = useState<Invitado[]>([])
   const [todosInvitados, setTodosInvitados] = useState<InvitadoPublico[]>([])
-  const [nuevoInvitado, setNuevoInvitado] = useState('')
-  const [agregandoInvitado, setAgregandoInvitado] = useState(false)
   const [countdown, setCountdown] = useState('')
   const [ultimoPartido, setUltimoPartido] = useState<{ partido: Partido; inscripciones: Inscripcion[]; badges: Badge[] } | null>(null)
   const [misEquipos, setMisEquipos] = useState<{ equipos: Equipo[]; miEquipo: Equipo | null; partido_id: string } | null>(null)
@@ -418,32 +417,6 @@ export default function HomePage() {
     }
   }
 
-  const agregarInvitado = async () => {
-    if (!ventana?.partido || !nuevoInvitado.trim()) return
-    setAgregandoInvitado(true)
-    const res = await fetch('/api/invitados', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ partido_id: ventana.partido.id, nombre: nuevoInvitado.trim() }),
-    })
-    const data = await res.json()
-    if (res.ok) {
-      setNuevoInvitado('')
-      if (user) cargarDatos(user)
-    } else {
-      setMensaje({ tipo: 'error', texto: data.error })
-    }
-    setAgregandoInvitado(false)
-  }
-
-  const eliminarInvitado = async (invitado_id: string) => {
-    await fetch('/api/invitados', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ invitado_id }),
-    })
-    if (user) cargarDatos(user)
-  }
 
   const cerrarSesion = async () => {
     await supabase.auth.signOut()
@@ -472,6 +445,7 @@ export default function HomePage() {
   const confirmados = inscripciones.filter(i => i.estado === 'confirmado')
   const enEspera = inscripciones.filter(i => i.estado === 'espera')
   const cuposTotal = ventana?.partido?.cupos_total ?? 14
+  const maxInvitados = parseInt(club.settings?.max_invitados ?? '3', 10) || 3
   const invitadosConfirmados = todosInvitados.filter(i => i.estado === 'confirmado')
   const invitadosEspera = todosInvitados.filter(i => i.estado === 'espera')
   const totalConfirmados = confirmados.length + invitadosConfirmados.length
@@ -745,62 +719,15 @@ export default function HomePage() {
             )}
 
             {/* Mis invitados */}
-            {miInscripcion && (
-              <div style={{ marginTop: 32 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
-                    MIS INVITADOS ({misInvitados.length}/3)
-                  </div>
-                </div>
-
-                {misInvitados.map(inv => (
-                  <div key={inv.id} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '10px 14px', background: 'var(--bg-card)', borderRadius: 3,
-                    border: '1px solid #1a2a3a', marginBottom: 4
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span className={`badge ${inv.estado === 'confirmado' ? 'badge-green' : 'badge-amber'}`}>
-                        {inv.estado === 'confirmado' ? '✓' : `ESPERA #${invitadosEspera.findIndex(i => i.id === inv.id) + 1}`}
-                      </span>
-                      <span style={{ fontSize: 14 }}>{inv.nombre}</span>
-                    </div>
-                    <button
-                      onClick={() => eliminarInvitado(inv.id)}
-                      className="mono"
-                      style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-
-                {misInvitados.length < 3 && (
-                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                    <input
-                      type="text"
-                      value={nuevoInvitado}
-                      onChange={e => setNuevoInvitado(e.target.value)}
-                      placeholder="Nombre del invitado"
-                      maxLength={80}
-                      onKeyDown={e => e.key === 'Enter' && agregarInvitado()}
-                      style={{ flex: 1 }}
-                    />
-                    <button
-                      onClick={agregarInvitado}
-                      disabled={agregandoInvitado || !nuevoInvitado.trim()}
-                      className="btn btn-ghost"
-                      style={{ fontSize: 12, padding: '8px 14px', whiteSpace: 'nowrap' }}
-                    >
-                      {agregandoInvitado ? '...' : '+ Agregar'}
-                    </button>
-                  </div>
-                )}
-
-                <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 8, lineHeight: 1.6 }}>
-                  Los invitados están en lista de espera. Si quedan cupos a las {club.settings?.hora_promo_invitados ?? '2:00 PM'} del día del partido, entran automáticamente.
-                </div>
-              </div>
+            {miInscripcion && ventana?.partido && (
+              <MisInvitados
+                partidoId={ventana.partido.id}
+                misInvitados={misInvitados}
+                invitadosEspera={invitadosEspera}
+                maxInvitados={maxInvitados}
+                horaPromo={club.settings?.hora_promo_invitados ?? '2:00 PM'}
+                onChanged={() => user && cargarDatos(user)}
+              />
             )}
 
             {/* Teams display when confirmed */}

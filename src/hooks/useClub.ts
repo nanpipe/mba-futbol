@@ -6,6 +6,7 @@ import { DEFAULT_TIERS, type TierConfig } from '@/lib/tier'
 export interface ClubSettings {
   // Schedule/days are derived from real matches; only club-policy values remain.
   hora_promo_invitados?: string
+  max_invitados?: string
 }
 
 export interface ClubInfo {

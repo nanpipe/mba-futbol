@@ -7,6 +7,7 @@ import { sendAperturaEmail, sendRecordatorioEmail } from '@/lib/email'
 import { tallyAndAssign } from '@/app/api/evaluaciones/route'
 import { channelsFor } from '@/lib/notifications'
 import { applyMatchRatings } from '@/lib/rating'
+import { notificarInvitadoConfirmado } from '@/lib/invitados'
 
 // Every-minute cron metronome — pg_cron fires every minute, all timing logic lives here.
 // Handles 5 tasks in one pass:
@@ -98,6 +99,10 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient()
   const now = new Date()
   const hoy = now.toISOString().split('T')[0]
+  // Colombia (UTC-5) calendar date. `hoy` is UTC, which after 19:00 Colombia
+  // has already rolled to tomorrow — the guest promotion compared a Colombia
+  // hour against a UTC date, so its window died at 7 PM on match day.
+  const hoyCol = new Date(now.getTime() - 5 * 3600 * 1000).toISOString().split('T')[0]
 
   // mañana in Colombia time
   const manana = new Date(now)
@@ -313,7 +318,7 @@ export async function GET(req: NextRequest) {
   const { data: partidos } = await admin
     .from('partidos')
     .select('id, club_id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_dia_antes_sent, notif_cupos_sent, cupos_total, evaluaciones_abiertas, equipos_confirmados, tipo, lugar')
-    .gte('fecha', hoy)
+    .gte('fecha', hoyCol)
     .order('fecha', { ascending: true })
     .limit(20)
 
@@ -327,7 +332,10 @@ export async function GET(req: NextRequest) {
 
     const sendDiaAntes  = settings['notif_dia_antes']  !== false
     const sendCupos     = settings['notif_cupos']      !== false
-    const sendInvitados = settings['notif_invitados']  !== false
+    // Promotion is an action, not a notification: gate it on the feature toggle.
+    // It used to read notif_invitados — the *push* toggle for "Invitado
+    // confirmado" — so muting that push silently stopped guests being promoted.
+    const promoverInvitados = settings['usar_invitados'] !== false
 
     // ── Día antes: tomorrow's match, not yet notified ──────────────────────
     if (sendDiaAntes && !(partido as { notif_dia_antes_sent?: boolean }).notif_dia_antes_sent && partido.fecha === mananaStr) {
@@ -404,25 +412,33 @@ export async function GET(req: NextRequest) {
       if ((pm[3] ?? 'PM').toUpperCase() === 'PM') promoHour += 12
     }
     const colHour = new Date(now.getTime() - 5 * 3600 * 1000).getUTCHours()
-    if (sendInvitados && partido.fecha === hoy && colHour >= promoHour) {
-      const { count: confirmados } = await admin
-        .from('inscripciones')
-        .select('id', { count: 'exact', head: true })
-        .eq('partido_id', partido.id)
-        .eq('estado', 'confirmado')
+    if (promoverInvitados && partido.fecha === hoyCol && colHour >= promoHour) {
+      // Confirmed guests occupy spots too — counting only inscripciones let the
+      // promotion overfill the match.
+      const [{ count: confirmados }, { count: invConfirmados }] = await Promise.all([
+        admin.from('inscripciones').select('id', { count: 'exact', head: true })
+          .eq('partido_id', partido.id).eq('estado', 'confirmado'),
+        admin.from('invitados').select('id', { count: 'exact', head: true })
+          .eq('partido_id', partido.id).eq('estado', 'confirmado'),
+      ])
 
-      const cuposLibres = partido.cupos_total - (confirmados ?? 0)
+      const cuposLibres = partido.cupos_total - (confirmados ?? 0) - (invConfirmados ?? 0)
       if (cuposLibres > 0) {
         const { data: invitadosPendientes } = await admin
           .from('invitados')
           .select('id')
           .eq('partido_id', partido.id)
           .eq('estado', 'espera')
-          .order('created_at', { ascending: true })
+          .order('posicion_espera', { ascending: true })
           .limit(cuposLibres)
 
         for (const inv of invitadosPendientes ?? []) {
-          await admin.from('invitados').update({ estado: 'confirmado' }).eq('id', inv.id)
+          await admin.from('invitados')
+            .update({ estado: 'confirmado', posicion_espera: null })
+            .eq('id', inv.id)
+          // Tell the guest (and whoever invited them) they're in.
+          try { await notificarInvitadoConfirmado(admin, inv.id) }
+          catch (e) { console.error('[cron] notificarInvitadoConfirmado:', e) }
           results.invitados++
         }
       }

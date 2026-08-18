@@ -447,3 +447,62 @@ export async function sendUsernameEmail({
     return { ok: false, error: msg }
   }
 }
+
+/**
+ * Sent to the guest themselves (not the player who invited them) once they get
+ * a spot. Only fires when the player supplied the guest's email — it's optional.
+ */
+export async function sendInvitadoEntraEmail({
+  email,
+  nombreInvitado,
+  invitadoPor,
+  fechaStr,
+  hora,
+  lugar,
+  clubNombre = 'MBA Fútbol Club',
+}: {
+  email: string
+  nombreInvitado: string
+  invitadoPor: string
+  fechaStr: string
+  hora?: string | null
+  lugar?: string | null
+  clubNombre?: string
+}): Promise<{ ok: boolean; error?: string; id?: string }> {
+  try {
+    const detalles = [
+      `<p style="margin: 0 0 6px 0; font-size: 15px; color: #f0f0f0;">📅 ${esc(fechaStr)}</p>`,
+      hora ? `<p style="margin: 0 0 6px 0; font-size: 15px; color: #f0f0f0;">🕐 ${esc(hora)}</p>` : '',
+      lugar ? `<p style="margin: 0; font-size: 15px; color: #f0f0f0;">📍 ${esc(lugar)}</p>` : '',
+    ].join('')
+
+    const result = await resend.emails.send({
+      from: FROM,
+      to: email,
+      subject: `⚽ ¡Tienes cupo para el partido! · ${clubNombre}`,
+      html: `
+        <div style="font-family: 'Georgia', serif; max-width: 480px; margin: 0 auto; background: #0a0a0a; color: #f0f0f0; padding: 40px 32px; border-radius: 8px;">
+          <div style="font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #888; margin-bottom: 32px;">${esc(clubNombre)}</div>
+          <h1 style="font-size: 28px; font-weight: 400; margin: 0 0 16px 0; line-height: 1.2;">
+            ¡Hola <strong>${esc(nombreInvitado)}</strong>!
+          </h1>
+          <p style="color: #aaa; font-size: 16px; line-height: 1.6; margin: 0 0 28px 0;">
+            <strong style="color: #f0f0f0;">${esc(invitadoPor)}</strong> te invitó y ya tienes cupo confirmado. ⚽
+          </p>
+          <div style="background: #1a1a1a; border-left: 3px solid #4ade80; padding: 16px 20px; border-radius: 4px; margin-bottom: 32px;">
+            ${detalles}
+          </div>
+          <p style="color: #aaa; font-size: 14px; line-height: 1.6; margin: 0 0 32px 0;">
+            Si no vas a poder ir, avísale a ${esc(invitadoPor)} para que le den el cupo a alguien más.
+          </p>
+          <hr style="border: none; border-top: 1px solid #222; margin: 32px 0;" />
+          <p style="color: #444; font-size: 12px; margin: 0; letter-spacing: 1px;">${esc(clubNombre.toUpperCase())}</p>
+        </div>
+      `,
+    })
+    return { ok: true, id: (result as { data?: { id?: string } }).data?.id }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { ok: false, error: msg }
+  }
+}

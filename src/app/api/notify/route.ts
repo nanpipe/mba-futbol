@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPromovido } from '@/lib/email'
-import { sendPush } from '@/lib/push'
+import { sendPush, isDeadPushError } from '@/lib/push'
 import { verifyInternalSecret } from '@/lib/validation'
 import { logActivity } from '@/lib/activityLog'
 
@@ -67,9 +67,11 @@ export async function POST(req: NextRequest) {
           })
           pushEnviados++
         } catch (pushErr: unknown) {
-          // Subscription expirada — eliminar
-          if ((pushErr as { statusCode?: number }).statusCode === 410) {
+          // Subscription muerta (VAPID mismatch / expirada) — eliminar
+          if (isDeadPushError(pushErr)) {
             await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+          } else {
+            console.error('[notify] sendPush failed:', pushErr)
           }
         }
       }

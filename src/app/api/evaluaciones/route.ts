@@ -3,12 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isUUID } from '@/lib/validation'
 import { logActivity } from '@/lib/activityLog'
-import { CATEGORIAS } from '@/lib/categorias'
+import { getClubBadges } from '@/lib/categorias'
 import { isRateLimited, getClientIp } from '@/lib/rateLimit'
+import { applyMatchRatings, revertMatchRatings } from '@/lib/rating'
 
 export const dynamic = 'force-dynamic'
-
-const VALID_CATEGORIAS: Set<string> = new Set(CATEGORIAS.map(c => c.id))
 
 // ── Shared: tally votes → assign player_badges ────────────────────────────────
 export async function tallyAndAssign(
@@ -32,6 +31,11 @@ export async function tallyAndAssign(
 
   if (!votos || votos.length === 0) return { badges_asignados: 0 }
 
+  // Clear this match's badges first so a re-tally fully recomputes — otherwise a
+  // category whose winner changed keeps BOTH winners (upsert only dedups per
+  // player, not per category).
+  await admin.from('player_badges').delete().eq('partido_id', partido_id)
+
   const tally: Record<string, Record<string, number>> = {}
   for (const v of votos) {
     if (!tally[v.categoria]) tally[v.categoria] = {}
@@ -39,7 +43,7 @@ export async function tallyAndAssign(
   }
 
   let badges_asignados = 0
-  for (const cat of CATEGORIAS) {
+  for (const cat of await getClubBadges(admin, club_id)) {
     const catVotes = tally[cat.id]
     if (!catVotes) continue
     const [winnerId] = Object.entries(catVotes).reduce(
@@ -178,6 +182,7 @@ export async function GET(req: NextRequest) {
     yaVoto,
     partido: { fecha: partido.fecha, dia_semana: partido.dia_semana },
     compañeros: (compañeros ?? []).map(c => (c as unknown as { profiles: object }).profiles),
+    badges: await getClubBadges(admin, clubId),
     resultados,
     progreso,
   })
@@ -203,7 +208,7 @@ export async function POST(req: NextRequest) {
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON inválido' }, { status: 400 }) }
 
-  const { partido_id, votos } = body
+  const { partido_id, votos, thumbs } = body
   if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
 
   const { data: partido } = await admin
@@ -245,12 +250,14 @@ export async function POST(req: NextRequest) {
 
   const validTargets = new Set((confirmados ?? []).map((c: { player_id: string }) => c.player_id))
 
+  const validCategorias = new Set((await getClubBadges(admin, clubId)).map(b => b.id))
+
   const rows: object[] = []
   const seen = new Set<string>()
 
   for (const v of (votos as Array<Record<string, unknown>>) ?? []) {
     const { categoria, votado_id } = v
-    if (typeof categoria !== 'string' || !VALID_CATEGORIAS.has(categoria)) continue
+    if (typeof categoria !== 'string' || !validCategorias.has(categoria)) continue
     if (!isUUID(votado_id)) continue
     if (votado_id === user.id) continue
     if (!validTargets.has(votado_id as string)) continue
@@ -259,18 +266,43 @@ export async function POST(req: NextRequest) {
     rows.push({ club_id: clubId, partido_id, votante_id: user.id, votado_id, categoria })
   }
 
-  if (rows.length === 0) return NextResponse.json({ error: 'No hay votos válidos.' }, { status: 400 })
+  // Thumbs up/down — one per target, must be a confirmed participant, not self
+  const thumbRows: object[] = []
+  const thumbSeen = new Set<string>()
+  for (const t of (thumbs as Array<Record<string, unknown>>) ?? []) {
+    const { votado_id, value } = t
+    if (!isUUID(votado_id)) continue
+    if (votado_id === user.id) continue
+    if (!validTargets.has(votado_id as string)) continue
+    if (value !== 1 && value !== -1) continue
+    if (thumbSeen.has(votado_id as string)) continue
+    thumbSeen.add(votado_id as string)
+    thumbRows.push({ club_id: clubId, partido_id, votante_id: user.id, votado_id, value })
+  }
 
-  const { error } = await admin.from('votos_reconocimiento').insert(rows)
-  if (error) {
-    if (error.code === '23505') return NextResponse.json({ error: 'Ya enviaste tus votos.' }, { status: 409 })
-    return NextResponse.json({ error: 'Error guardando votos.' }, { status: 500 })
+  if (rows.length === 0 && thumbRows.length === 0) {
+    return NextResponse.json({ error: 'No hay evaluaciones válidas.' }, { status: 400 })
+  }
+
+  if (rows.length > 0) {
+    const { error } = await admin.from('votos_reconocimiento').insert(rows)
+    if (error) {
+      if (error.code === '23505') return NextResponse.json({ error: 'Ya enviaste tus votos.' }, { status: 409 })
+      return NextResponse.json({ error: 'Error guardando votos.' }, { status: 500 })
+    }
+  }
+
+  if (thumbRows.length > 0) {
+    const { error: thumbErr } = await admin.from('player_thumbs').insert(thumbRows)
+    if (thumbErr && thumbErr.code !== '23505') {
+      console.error('[evaluaciones] thumbs insert error:', thumbErr.message)
+    }
   }
 
   await logActivity({
     user_id: user.id,
     accion: 'enviar_votos',
-    detalles: { partido_id, categorias: rows.length },
+    detalles: { partido_id, categorias: rows.length, thumbs: thumbRows.length },
   })
 
   // ── Auto-close if all confirmed players have now voted ────────────────────
@@ -285,6 +317,8 @@ export async function POST(req: NextRequest) {
   if (uniqueVotantes >= totalConfirmados && totalConfirmados > 0) {
     await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', partido_id as string)
     const { badges_asignados } = await tallyAndAssign(admin, partido_id as string)
+    // Recognitions are final — apply rating deltas (no-op if result not yet entered).
+    try { await applyMatchRatings(admin, partido_id as string) } catch (e) { console.error('[rating] auto_cerrar:', e) }
     await logActivity({
       user_id: user.id,
       accion: 'auto_cerrar_votacion',
@@ -317,6 +351,8 @@ export async function PUT(req: NextRequest) {
 
   await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', partido_id as string)
   const { badges_asignados } = await tallyAndAssign(admin, partido_id as string)
+  // Recognitions are final — apply rating deltas (no-op if result not yet entered).
+  try { await applyMatchRatings(admin, partido_id as string) } catch (e) { console.error('[rating] cerrar_votacion:', e) }
 
   await logActivity({
     user_id: user.id,
@@ -351,8 +387,13 @@ export async function PATCH(req: NextRequest) {
   const { partido_id } = body
   if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
 
-  await admin.from('partidos').update({ evaluaciones_abiertas: true }).eq('id', partido_id as string)
+  // ya_abiertas stops the cron from auto-reopening these once they're closed.
+  await admin.from('partidos')
+    .update({ evaluaciones_abiertas: true, evaluaciones_ya_abiertas: true })
+    .eq('id', partido_id as string)
   await admin.from('player_badges').delete().eq('partido_id', partido_id as string)
+  // Undo this match's rating deltas — they'll recompute when it's re-closed.
+  try { await revertMatchRatings(admin, partido_id as string) } catch (e) { console.error('[rating] reabrir_votacion:', e) }
 
   await logActivity({
     user_id: user.id,

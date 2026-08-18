@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendPush } from '@/lib/push'
+import { sendPush, isDeadPushError } from '@/lib/push'
 import { calcularVentanaPartido } from '@/lib/partidos'
+import { sendCuposEmail } from '@/lib/email'
+import { channelsFor } from '@/lib/notifications'
 
 function verifyCron(req: NextRequest) {
   const secret = process.env.CRON_SECRET
@@ -22,7 +24,7 @@ export async function GET(req: NextRequest) {
 
   const { data: partidos } = await admin
     .from('partidos')
-    .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, cupos_total')
+    .select('id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, club_id, cupos_total')
     .gte('fecha', hoy)
     .order('fecha', { ascending: true })
     .limit(5)
@@ -38,7 +40,7 @@ export async function GET(req: NextRequest) {
       .eq('partido_id', partido.id)
       .eq('estado', 'confirmado')
 
-    const cuposLibres = (partido.cupos_total ?? 14) - (confirmados ?? 0)
+    const cuposLibres = ((partido as { cupos_total?: number }).cupos_total ?? 14) - (confirmados ?? 0)
     if (cuposLibres <= 0) continue
 
     // Get IDs of players already on the list (confirmed + waitlist)
@@ -49,15 +51,26 @@ export async function GET(req: NextRequest) {
 
     const inscritosIds = (inscritos ?? []).map((i: { player_id: string }) => i.player_id)
 
+    // Channel settings for this club's 'cupos' event
+    const clubId = (partido as { club_id?: string }).club_id
+    const settings: Record<string, unknown> = {}
+    if (clubId) {
+      const { data: sRows } = await admin.from('app_settings').select('key, value').eq('club_id', clubId)
+      for (const r of (sRows ?? []) as { key: string; value: unknown }[]) settings[r.key] = r.value
+    }
+    const ch = channelsFor(settings, 'cupos')
+
     // Get push subscriptions for players NOT on the list
     // Use parameterized .not().in() to avoid string concatenation
     const subsQuery = admin
       .from('push_subscriptions')
-      .select('endpoint, p256dh, auth')
+      .select('endpoint, p256dh, auth, player_id')
 
-    const { data: subs } = inscritosIds.length > 0
-      ? await subsQuery.not('player_id', 'in', `(${inscritosIds.join(',')})`)
-      : await subsQuery
+    const { data: subs } = ch.push
+      ? (inscritosIds.length > 0
+        ? await subsQuery.not('player_id', 'in', `(${inscritosIds.join(',')})`)
+        : await subsQuery)
+      : { data: [] }
 
     const results = await Promise.allSettled(
       (subs ?? []).map(sub =>
@@ -66,16 +79,43 @@ export async function GET(req: NextRequest) {
           body: `Quedan ${cuposLibres} cupo${cuposLibres !== 1 ? 's' : ''} para el partido del ${partido.dia_semana}. ¡Anótate antes de que se llene!`,
           url: '/',
         })
-          .then(() => 1 as const)
-          .catch(async (err: unknown) => {
-            if ((err as { statusCode?: number }).statusCode === 410) {
-              await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
-            }
-            return 0 as const
+        totalEnviados++
+      } catch (err: unknown) {
+        if (isDeadPushError(err)) {
+          await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+        } else {
+          console.error('[cron/cupos] sendPush failed:', err)
+        }
+      }
+    }
+
+    // Send emails to approved, non-banned club players not on the list
+    if (clubId && ch.email) {
+      const emailProfilesQuery = admin
+        .from('profiles')
+        .select('id, email, username')
+        .eq('club_id', clubId)
+        .eq('aprobado', true)
+        .eq('baneado', false)
+        .neq('role', 'admin')
+
+      const { data: eligibleProfiles } = inscritosIds.length > 0
+        ? await emailProfilesQuery.not('id', 'in', `(${inscritosIds.join(',')})`)
+        : await emailProfilesQuery
+
+      for (const profile of eligibleProfiles ?? []) {
+        try {
+          await sendCuposEmail({
+            email: (profile as { email: string }).email,
+            username: (profile as { username: string }).username,
+            diaSemana: partido.dia_semana,
+            cuposLibres,
           })
-      )
-    )
-    totalEnviados += results.reduce((sum, r) => sum + (r.status === 'fulfilled' ? r.value : 0), 0)
+        } catch (err) {
+          console.error('[cron/cupos] sendCuposEmail failed:', err)
+        }
+      }
+    }
   }
 
   console.log('[cron/cupos]', new Date().toISOString(), { enviados: totalEnviados })

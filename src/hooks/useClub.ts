@@ -1,17 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { DEFAULT_TIERS, type TierConfig } from '@/lib/tier'
 
 export interface ClubSettings {
-  hora_partido?: string
-  hora_apertura_martes?: string
-  hora_apertura_viernes?: string
-  dia_juego_1?: string
-  dia_juego_2?: string
-  dia_apertura_1?: string
-  dia_apertura_2?: string
+  // Schedule/days are derived from real matches; only club-policy values remain.
   hora_promo_invitados?: string
-  dias_display?: string
+  max_invitados?: string
 }
 
 export interface ClubInfo {
@@ -29,6 +24,7 @@ export interface ClubInfo {
   hora_apertura_default: string | null
   dias_antes_apertura_default: number | null
   settings?: ClubSettings
+  tiers: TierConfig[]
 }
 
 const FALLBACK: ClubInfo = {
@@ -46,6 +42,7 @@ const FALLBACK: ClubInfo = {
   hora_apertura_default: null,
   dias_antes_apertura_default: null,
   settings: undefined,
+  tiers: DEFAULT_TIERS,
 }
 
 // Module-level cache — survives re-renders, resets on cold reload
@@ -63,9 +60,13 @@ export function useClub(): ClubInfo {
     }
     fetch('/api/club')
       .then(r => r.json())
-      .then(({ club, settings }) => {
+      .then(({ club, settings, tiers }) => {
         if (club) {
-          const full: ClubInfo = { ...(club as ClubInfo), settings: settings ?? undefined }
+          const full: ClubInfo = {
+            ...(club as ClubInfo),
+            settings: settings ?? undefined,
+            tiers: Array.isArray(tiers) && tiers.length ? tiers : DEFAULT_TIERS,
+          }
           _cache = full
           _cacheTs = Date.now()
           setClub(_cache)

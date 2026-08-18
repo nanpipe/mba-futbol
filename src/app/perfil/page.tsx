@@ -11,9 +11,10 @@ import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { Card } from '@/components/Card'
 import { SectionHeader } from '@/components/SectionHeader'
 import { ErrorAlert } from '@/components/ErrorAlert'
+import { useClub } from '@/hooks/useClub'
+import { InvitadosGuardados } from '@/components/InvitadosGuardados'
 
-const POSICIONES = ['portero', 'defensa', 'medio', 'delantero', 'cualquiera'] as const
-type Posicion = typeof POSICIONES[number]
+import { POSICIONES, type Posicion } from '@/lib/posiciones'
 
 interface ProfileData {
   username: string
@@ -21,6 +22,8 @@ interface ProfileData {
   avatar_url: string | null
   created_at: string
   posicion: Posicion
+  posiciones?: Posicion[]
+  habilidad: number
 }
 
 interface Badge {
@@ -44,16 +47,25 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function PerfilPage() {
   const supabase = createClient()
+  const club = useClub()
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<ProfileData | null>(null)
   const [badges, setBadges] = useState<Badge[]>([])
   const [totalMatches, setTotalMatches] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [carta, setCarta] = useState<Record<string, unknown> | null>(null)
 
-  // Position
-  const [posicion, setPosicion] = useState<Posicion>('cualquiera')
+  // Positions (up to 2)
+  const [posiciones, setPosiciones] = useState<Posicion[]>([])
   const [savingPos, setSavingPos] = useState(false)
+  const togglePos = (p: Posicion) => {
+    setPosiciones(prev => {
+      if (p === 'cualquiera') return ['cualquiera']
+      const base = prev.filter(x => x !== 'cualquiera')
+      if (base.includes(p)) return base.filter(x => x !== p)
+      if (base.length >= 2) return [base[1], p] // keep newest two
+      return [...base, p]
+    })
+  }
 
   // Email
   const [newEmail, setNewEmail] = useState('')
@@ -80,7 +92,7 @@ export default function PerfilPage() {
     const [{ data: prof }, { data: badgesData }, { count }] = await Promise.all([
       supabase
         .from('profiles')
-        .select('username, email, avatar_url, created_at, posicion')
+        .select('username, email, avatar_url, created_at, posicion, posiciones, habilidad')
         .eq('id', u.id)
         .single(),
       supabase
@@ -97,18 +109,12 @@ export default function PerfilPage() {
 
     if (prof) {
       setProfile(prof as ProfileData)
-      setPosicion((prof.posicion ?? 'cualquiera') as Posicion)
+      const pos = (prof.posiciones as Posicion[] | null)
+      setPosiciones(pos?.length ? pos : (prof.posicion ? [prof.posicion as Posicion] : []))
       setNewEmail(prof.email ?? '')
     }
     setBadges((badgesData as Badge[]) ?? [])
     setTotalMatches(count ?? 0)
-
-    // Load FIFA card (own)
-    const cartaRes = await fetch('/api/carta')
-    if (cartaRes.ok) {
-      const cartaData = await cartaRes.json()
-      setCarta(cartaData.carta ?? null)
-    }
 
     setLoading(false)
   }, [supabase])
@@ -126,12 +132,12 @@ export default function PerfilPage() {
     const res = await fetch('/api/perfil', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ posicion }),
+      body: JSON.stringify({ posiciones }),
     })
     const data = await res.json()
     if (res.ok) {
       flash('ok', data.mensaje)
-      setProfile(p => p ? { ...p, posicion } : p)
+      setProfile(p => p ? { ...p, posiciones, posicion: posiciones[0] } : p)
     } else {
       flash('error', data.error)
     }
@@ -287,7 +293,8 @@ export default function PerfilPage() {
           <div style={{ textAlign: 'center' }}>
             <div className="display" style={{ fontSize: 22, letterSpacing: '0.05em' }}>{profile?.username}</div>
             <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
-              {posicionEmoji(profile?.posicion ?? 'cualquiera')} {profile?.posicion ?? 'cualquiera'}
+              {(profile?.posiciones?.length ? profile.posiciones : [profile?.posicion ?? 'cualquiera'])
+                .map(p => `${posicionEmoji(p)} ${p}`).join('  ·  ')}
             </div>
           </div>
 
@@ -314,45 +321,22 @@ export default function PerfilPage() {
           </div>
         </Card>
 
-        {/* FIFA Card */}
+        {/* Player card */}
         <div style={{ marginBottom: 28 }}>
-          <SectionHeader title="MI CARTA FIFA" />
-          {carta?.aprobado ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-              <FifaCard size="md" s={{
-                stat_res: carta.stat_res as number,
-                stat_fis: carta.stat_fis as number,
-                stat_def: carta.stat_def as number,
-                stat_ata: carta.stat_ata as number,
-                stat_tec: carta.stat_tec as number,
-                stat_dis: carta.stat_dis as number,
-                ovr: carta.ovr as number,
-                tier: carta.tier as string,
-                posicion_carta: carta.posicion_carta as string,
-                username: profile?.username ?? '',
-                avatar_url: profile?.avatar_url,
-              }} />
-              <Link href="/mi-carta" className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', textDecoration: 'none', letterSpacing: '0.05em' }}>
-                Ver detalles →
-              </Link>
+          <SectionHeader title="MI CARTA" />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <FifaCard
+              size="md"
+              clubNombre={club?.nombre}
+              username={profile?.username ?? ''}
+              avatar_url={profile?.avatar_url}
+              rating={profile?.habilidad ?? 3.0}
+              tiers={club?.tiers}
+            />
+            <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', textAlign: 'center', lineHeight: 1.6, maxWidth: 260 }}>
+              Tu puntaje se gana en la cancha: sube si juegas y ganas, baja si faltas o pierdes.
             </div>
-          ) : carta && !carta.aprobado && !carta.rechazado ? (
-            <Card padding="20px" style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 28, marginBottom: 8 }}>⏳</div>
-              <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Carta en revisión</div>
-              <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>OVR estimado: <strong style={{ color: 'var(--amber)' }}>{carta.ovr as number}</strong></div>
-            </Card>
-          ) : (
-            <Card padding="20px" style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 28, marginBottom: 8 }}>🃏</div>
-              <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
-                {carta?.rechazado ? 'Carta rechazada — puedes volver a enviar' : 'Aún no tienes carta FIFA'}
-              </div>
-              <Link href="/mi-carta" className="btn btn-ghost" style={{ fontSize: 12, padding: '8px 20px' }}>
-                {carta?.rechazado ? 'Volver a evaluar →' : 'Crear mi carta →'}
-              </Link>
-            </Card>
-          )}
+          </div>
         </div>
 
         {/* Badges */}
@@ -378,34 +362,44 @@ export default function PerfilPage() {
           </Section>
         )}
 
-        {/* Position */}
-        <Section title="MI POSICIÓN">
+        {/* Positions (up to 2) */}
+        <Section title="MIS INVITADOS GUARDADOS">
+          <InvitadosGuardados />
+        </Section>
+
+        <Section title="MIS POSICIONES">
+          <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 10 }}>
+            Elige hasta 2 posiciones.
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(60px, 1fr))', gap: 6, marginBottom: 14 }}>
-            {POSICIONES.map(p => (
-              <button
-                key={p}
-                onClick={() => setPosicion(p)}
-                style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                  padding: '10px 4px', borderRadius: 4, cursor: 'pointer',
-                  background: posicion === p ? '#0f2d1a' : 'transparent',
-                  border: `1px solid ${posicion === p ? '#16a34a' : 'var(--border)'}`,
-                  color: posicion === p ? 'var(--green)' : 'var(--text-muted)',
-                  transition: 'all 0.15s',
-                }}
-              >
-                <span style={{ fontSize: 20 }}>{posicionEmoji(p)}</span>
-                <span className="mono" style={{ fontSize: 9, letterSpacing: '0.06em', textTransform: 'capitalize' }}>{p}</span>
-              </button>
-            ))}
+            {POSICIONES.map(p => {
+              const sel = posiciones.includes(p)
+              return (
+                <button
+                  key={p}
+                  onClick={() => togglePos(p)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                    padding: '10px 4px', borderRadius: 4, cursor: 'pointer',
+                    background: sel ? '#0f2d1a' : 'transparent',
+                    border: `1px solid ${sel ? '#16a34a' : 'var(--border)'}`,
+                    color: sel ? 'var(--green)' : 'var(--text-muted)',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <span style={{ fontSize: 20 }}>{posicionEmoji(p)}</span>
+                  <span className="mono" style={{ fontSize: 9, letterSpacing: '0.06em', textTransform: 'capitalize' }}>{p}</span>
+                </button>
+              )
+            })}
           </div>
           <button
             onClick={guardarPosicion}
-            disabled={savingPos || posicion === profile?.posicion}
+            disabled={savingPos || posiciones.length === 0 || posiciones.join(',') === (profile?.posiciones?.join(',') ?? profile?.posicion ?? '')}
             className="btn btn-ghost"
             style={{ fontSize: 11, padding: '8px 16px' }}
           >
-            {savingPos ? 'Guardando...' : 'Guardar posición'}
+            {savingPos ? 'Guardando...' : 'Guardar posiciones'}
           </button>
         </Section>
 

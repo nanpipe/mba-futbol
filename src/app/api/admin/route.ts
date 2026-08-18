@@ -4,8 +4,14 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { safeError, isUUID, isString, isEmail, isDate, isIntInRange } from '@/lib/validation'
 import { internalFetch } from '@/lib/internalFetch'
 import { logActivity } from '@/lib/activityLog'
-import { sendTestEmail, sendAperturaEmail, sendAdminAlertEmail } from '@/lib/email'
+import { sendTestEmail, sendEvaluacionesEmail, sendAperturaEmail } from '@/lib/email'
 import { getClubNombre } from '@/lib/club'
+import { isPosicion } from '@/lib/posiciones'
+import { GAME_CONFIG_KEYS } from '@/lib/gameConfig'
+import { NOTIF_CHANNEL_KEYS } from '@/lib/notifications'
+import { applyMatchRatings, revertMatchRatings } from '@/lib/rating'
+import { sanitizeBadges, parseBadges, BADGES_SETTING_KEY } from '@/lib/categorias'
+import { sanitizeTiers, parseTiers, TIERS_SETTING_KEY } from '@/lib/tier'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,12 +54,14 @@ export async function GET(req: NextRequest) {
   const accion = req.nextUrl.searchParams.get('accion')
 
   if (accion === 'logs') {
+    const since = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() // last 10 days
     const { data } = await admin
       .from('activity_log')
-      .select('*')
+      .select('id, user_id, username, accion, detalles, ip, created_at')
       .eq('club_id', clubId)
+      .gte('created_at', since)
       .order('created_at', { ascending: false })
-      .limit(300)
+      .limit(500)
     return NextResponse.json({ ok: true, logs: data ?? [] })
   }
 
@@ -68,23 +76,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, pendientes: data ?? [] })
   }
 
-  if (accion === 'cartas') {
-    const { data, error } = await admin
-      .from('evaluaciones_carta')
-      .select('*, profiles!evaluaciones_carta_player_id_fkey(username, avatar_url)')
-      .eq('club_id', clubId)
-      .order('created_at', { ascending: false })
-    if (error) return NextResponse.json({ error: error.message, detail: error.details, hint: error.hint }, { status: 500 })
-    return NextResponse.json({ ok: true, cartas: data ?? [], count: data?.length ?? 0 })
-  }
-
   if (accion === 'settings') {
     const { data } = await admin.from('app_settings').select('key, value, updated_at').eq('club_id', clubId)
     const settings: Record<string, unknown> = {}
     for (const row of (data ?? [])) {
       settings[(row as { key: string; value: unknown }).key] = (row as { key: string; value: unknown }).value
     }
-    return NextResponse.json({ ok: true, settings })
+    // Badges/tiers are structured config — return them parsed (with defaults).
+    return NextResponse.json({
+      ok: true,
+      settings,
+      badges: parseBadges(settings[BADGES_SETTING_KEY]),
+      tiers: parseTiers(settings[TIERS_SETTING_KEY]),
+    })
   }
 
   return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 })
@@ -451,7 +455,7 @@ export async function POST(req: NextRequest) {
 
   // ── Crear partido ──────────────────────────────────────────────────────────
   if (accion === 'crear_partido') {
-    const { fecha, hora, cupos_total, hora_apertura, dias_antes_apertura, tipo } = body
+    const { fecha, hora, cupos_total, hora_apertura, dias_antes_apertura, tipo, notif_apertura_at, notif_recordatorio_at, lugar } = body
 
     if (!isDate(fecha)) return NextResponse.json({ error: 'Fecha inválida' }, { status: 400 })
     if (!isIntInRange(cupos_total, 2, 30)) return NextResponse.json({ error: 'Cupos debe ser entre 2 y 30' }, { status: 400 })
@@ -474,6 +478,9 @@ export async function POST(req: NextRequest) {
         dias_antes_apertura: parseInt(String(dias_antes_apertura), 10),
         inscripcion_abierta: false,
         tipo: tipoPartido,
+        ...(isString(lugar, 1, 120) ? { lugar: (lugar as string).trim() } : {}),
+        ...(notif_apertura_at ? { notif_apertura_at } : {}),
+        ...(notif_recordatorio_at ? { notif_recordatorio_at } : {}),
       })
 
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
@@ -481,9 +488,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, mensaje: `${tipoPartido === 'minitorneo' ? '🟣 Minitorneo' : 'Partido'} del ${dia_semana} ${fecha} creado.` })
   }
 
+  // ── Actualizar tiempos de notificación de un partido ───────────────────────
+  if (accion === 'actualizar_notif') {
+    const { partido_id, notif_apertura_at, notif_recordatorio_at } = body
+    if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
+
+    const { error } = await admin.from('partidos').update({
+      ...(notif_apertura_at !== undefined ? { notif_apertura_at: notif_apertura_at || null } : {}),
+      ...(notif_recordatorio_at !== undefined ? { notif_recordatorio_at: notif_recordatorio_at || null } : {}),
+      notif_apertura_sent: false,
+      notif_recordatorio_sent: false,
+    }).eq('id', partido_id as string).eq('club_id', adminUser.club_id)
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'actualizar_notif_partido', detalles: { partido_id, notif_apertura_at, notif_recordatorio_at } })
+    return NextResponse.json({ ok: true })
+  }
+
   // ── Editar partido ─────────────────────────────────────────────────────────
   if (accion === 'editar_partido') {
-    const { partido_id, fecha, hora, cupos_total, hora_apertura, dias_antes_apertura } = body
+    const { partido_id, fecha, hora, cupos_total, hora_apertura, dias_antes_apertura, lugar } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
     if (!isDate(fecha)) return NextResponse.json({ error: 'Fecha inválida' }, { status: 400 })
     if (!isIntInRange(cupos_total, 2, 30)) return NextResponse.json({ error: 'Cupos debe ser entre 2 y 30' }, { status: 400 })
@@ -500,7 +524,8 @@ export async function POST(req: NextRequest) {
       cupos_total: parseInt(String(cupos_total), 10),
       hora_apertura: isString(hora_apertura, 4, 8) ? (hora_apertura as string) : '10:00:00',
       dias_antes_apertura: parseInt(String(dias_antes_apertura), 10),
-    }).eq('id', partido_id as string)
+      lugar: isString(lugar, 1, 120) ? (lugar as string).trim() : null,
+    }).eq('id', partido_id as string).eq('club_id', clubId)
 
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'editar_partido', detalles: { partido_id, fecha, dia_semana, hora, cupos_total }, ip })
@@ -512,8 +537,8 @@ export async function POST(req: NextRequest) {
     const { partido_id } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
 
-    const { data: p } = await admin.from('partidos').select('fecha, dia_semana').eq('id', partido_id as string).single()
-    const { error } = await admin.from('partidos').delete().eq('id', partido_id as string)
+    const { data: p } = await admin.from('partidos').select('fecha, dia_semana').eq('id', partido_id as string).eq('club_id', clubId).single()
+    const { error } = await admin.from('partidos').delete().eq('id', partido_id as string).eq('club_id', clubId)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
 
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'eliminar_partido', detalles: { partido_id, fecha: (p as { fecha?: string })?.fecha, dia_semana: (p as { dia_semana?: string })?.dia_semana }, ip })
@@ -576,16 +601,21 @@ export async function POST(req: NextRequest) {
 
   // ── Actualizar posición del jugador (admin) ────────────────────────────────
   if (accion === 'actualizar_posicion') {
-    const { player_id, posicion } = body
+    const { player_id, posicion, posiciones } = body
     if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
-    const POSICIONES = ['portero', 'defensa', 'medio', 'delantero', 'cualquiera']
-    if (typeof posicion !== 'string' || !POSICIONES.includes(posicion)) {
+    let posArr: string[]
+    if (Array.isArray(posiciones)) {
+      posArr = [...new Set(posiciones)].filter(isPosicion)
+      if (posArr.length < 1 || posArr.length > 2) return NextResponse.json({ error: 'Elige 1 o 2 posiciones.' }, { status: 400 })
+    } else if (isPosicion(posicion)) {
+      posArr = [posicion]
+    } else {
       return NextResponse.json({ error: 'Posición inválida' }, { status: 400 })
     }
-    const { error } = await admin.from('profiles').update({ posicion }).eq('club_id', clubId).eq('id', player_id as string)
+    const { error } = await admin.from('profiles').update({ posicion: posArr[0], posiciones: posArr }).eq('club_id', clubId).eq('id', player_id as string)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
-    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'actualizar_posicion', detalles: { player_id, posicion }, ip })
-    return NextResponse.json({ ok: true, mensaje: `Posición actualizada a ${posicion}.` })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'actualizar_posicion', detalles: { player_id, posiciones: posArr }, ip })
+    return NextResponse.json({ ok: true, mensaje: `Posición actualizada a ${posArr.join(' / ')}.` })
   }
 
   // ── Confirmar que el partido se jugó ─────────────────────────────────────
@@ -625,6 +655,10 @@ export async function POST(req: NextRequest) {
         resultado, puntos_blanco: pB, puntos_negro: pN, puntos_morado: pM,
       }).eq('id', partido_id as string)
       if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+      // Recompute rating deltas for this match (no-op if evaluaciones still open).
+      // Secondary to recording the result — never let it break this action.
+      try { await revertMatchRatings(admin, partido_id as string); await applyMatchRatings(admin, partido_id as string) }
+      catch (e) { console.error('[rating] registrar_resultado minitorneo:', e) }
       await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'registrar_resultado', detalles: { partido_id, resultado, ganador, tipo: 'minitorneo' }, ip })
       return NextResponse.json({ ok: true, mensaje: `Resultado minitorneo: ${resultado} — Ganó ${ganador}` })
     }
@@ -636,6 +670,10 @@ export async function POST(req: NextRequest) {
     const resultado = `${gA}-${gB}`
     const { error } = await admin.from('partidos').update({ resultado, goles_a: gA, goles_b: gB }).eq('id', partido_id as string)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    // Recompute rating deltas for this match (no-op if evaluaciones still open).
+    // Secondary to recording the result — never let it break this action.
+    try { await revertMatchRatings(admin, partido_id as string); await applyMatchRatings(admin, partido_id as string) }
+    catch (e) { console.error('[rating] registrar_resultado:', e) }
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'registrar_resultado', detalles: { partido_id, resultado, goles_a: gA, goles_b: gB }, ip })
     return NextResponse.json({ ok: true, mensaje: `Resultado registrado: ${resultado}` })
   }
@@ -644,23 +682,38 @@ export async function POST(req: NextRequest) {
   if (accion === 'forzar_notif_apertura') {
     const { partido_id } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
-    const { data: partido } = await admin.from('partidos').select('dia_semana, fecha, hora').eq('id', partido_id as string).single()
-    const { data: clubProfiles } = await admin.from('profiles').select('id, email, username').eq('club_id', clubId).eq('aprobado', true).eq('baneado', false)
+    const { data: partido } = await admin.from('partidos').select('dia_semana, fecha, hora, lugar').eq('id', partido_id as string).single()
+    const { data: clubProfiles } = await admin.from('profiles').select('id, email, username').eq('club_id', clubId).eq('aprobado', true).eq('baneado', false).neq('role', 'admin')
     const clubPlayerIds = (clubProfiles ?? []).map((p: { id: string }) => p.id)
     const { data: subs } = clubPlayerIds.length > 0
       ? await admin.from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', clubPlayerIds)
       : { data: [] }
-    const { sendPush } = await import('@/lib/push')
+    const { sendPush, isDeadPushError } = await import('@/lib/push')
+    const diaSemana = (partido as { dia_semana?: string })?.dia_semana ?? ''
+    const lugarPartido = (partido as { lugar?: string | null })?.lugar
     let enviados = 0
     for (const sub of subs ?? []) {
       try {
         await sendPush(sub, {
           title: '⚽ ¡Inscripciones abiertas!',
-          body: `Ya puedes anotarte para el partido del ${(partido as { dia_semana?: string })?.dia_semana ?? ''}. ¡Entra ahora!`,
+          body: `Ya puedes anotarte para el partido del ${diaSemana}${lugarPartido ? ` en 📍 ${lugarPartido}` : ''}. ¡Entra ahora!`,
           url: '/',
         })
         enviados++
-      } catch { /* ignore dead subs */ }
+      } catch (err) {
+        if (isDeadPushError(err)) await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+        else console.error('[admin] forzar_notif sendPush failed:', err)
+      }
+    }
+    // Email all club players too
+    const matchHora = (partido as { hora?: string })?.hora?.substring(0, 5) ?? '19:00'
+    const fechaPartido = (partido as { fecha?: string })?.fecha ?? ''
+    const clubNombre = getClubNombre(req)
+    for (const p of (clubProfiles ?? []) as { email?: string; username?: string }[]) {
+      if (!p.email) continue
+      try {
+        await sendAperturaEmail({ email: p.email, username: p.username ?? '', diaSemana, fechaPartido, hora: matchHora, lugar: lugarPartido, clubNombre })
+      } catch (err) { console.error('[admin] forzar_notif email failed:', err) }
     }
     // Also email each club player (best-effort)
     const clubNombre = getClubNombre(req)
@@ -682,8 +735,14 @@ export async function POST(req: NextRequest) {
   if (accion === 'abrir_evaluaciones') {
     const { partido_id } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
-    const { error } = await admin.from('partidos').update({ evaluaciones_abiertas: true }).eq('id', partido_id as string)
+    // ya_abiertas stops the cron from auto-reopening these once they're closed.
+    const { error } = await admin.from('partidos')
+      .update({ evaluaciones_abiertas: true, evaluaciones_ya_abiertas: true })
+      .eq('id', partido_id as string)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+
+    const { data: partidoEval } = await admin.from('partidos').select('dia_semana').eq('id', partido_id as string).single()
+    const diaSemanaEval = (partidoEval as { dia_semana?: string } | null)?.dia_semana ?? ''
 
     const { data: ins } = await admin
       .from('inscripciones').select('player_id')
@@ -694,7 +753,7 @@ export async function POST(req: NextRequest) {
     if (playerIds.length > 0) {
       const { data: subs } = await admin
         .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', playerIds)
-      const { sendPush } = await import('@/lib/push')
+      const { sendPush, isDeadPushError } = await import('@/lib/push')
       for (const sub of (subs ?? [])) {
         try {
           await sendPush(sub, {
@@ -704,12 +763,27 @@ export async function POST(req: NextRequest) {
           })
           pushEnviados++
         } catch (err) {
-          const code = (err as { statusCode?: number }).statusCode
-          if (code === 410) {
+          if (isDeadPushError(err)) {
             await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
           } else {
             console.error('[admin] sendPush failed:', err)
           }
+        }
+      }
+
+      // Email confirmed players (best-effort)
+      const { data: evalProfiles } = await admin
+        .from('profiles').select('email, username').in('id', playerIds)
+      for (const profile of evalProfiles ?? []) {
+        try {
+          await sendEvaluacionesEmail({
+            email: (profile as { email: string }).email,
+            username: (profile as { username: string }).username,
+            diaSemana: diaSemanaEval,
+            partidoId: partido_id as string,
+          })
+        } catch (emailErr) {
+          console.error('[admin] sendEvaluacionesEmail failed:', emailErr)
         }
       }
     }
@@ -736,18 +810,21 @@ export async function POST(req: NextRequest) {
   if (accion === 'guardar_setting') {
     const { key, value } = body
     const ALLOWED_KEYS = [
-      'notif_apertura', 'notif_recordatorio', 'notif_cupos', 'notif_invitados',
-      'email_apertura', 'email_recordatorio',
       'usar_uniforme', 'usar_invitados', 'usuarios_pueden_cambiar_username',
-      'club_nombre', 'club_ciudad', 'club_dias_juego',
-      'hora_partido', 'dias_display', 'dia_juego_1', 'dia_juego_2',
-      'hora_apertura_martes', 'hora_apertura_viernes', 'hora_promo_invitados',
+      'club_nombre', 'club_ciudad',
+      'hora_promo_invitados', 'ubicaciones',
+      ...GAME_CONFIG_KEYS,
+      ...NOTIF_CHANNEL_KEYS,
     ]
     if (typeof key !== 'string' || !ALLOWED_KEYS.includes(key)) {
       return NextResponse.json({ error: 'Clave inválida' }, { status: 400 })
     }
-    if (typeof value === 'string' && value.length > 200) {
-      return NextResponse.json({ error: 'Valor demasiado largo (máx 200 caracteres)' }, { status: 400 })
+    // Game configuration is superadmin-only
+    if ((GAME_CONFIG_KEYS as readonly string[]).includes(key) && adminUser.role !== 'superadmin') {
+      return NextResponse.json({ error: 'Configuración de juego reservada para superadmin' }, { status: 403 })
+    }
+    if (typeof value === 'string' && value.length > 500) {
+      return NextResponse.json({ error: 'Valor demasiado largo (máx 500 caracteres)' }, { status: 400 })
     }
     // Booleans stored as bool, strings stored as string
     const storedValue = typeof value === 'string' && value !== 'true' && value !== 'false'
@@ -765,6 +842,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, mensaje: `${key} → ${value}` })
   }
 
+  // ── Guardar insignias (badges) del club ────────────────────────────────────
+  if (accion === 'guardar_badges') {
+    const badges = sanitizeBadges(body.badges)
+    if (!badges) {
+      return NextResponse.json({ error: 'Insignias inválidas. Cada una necesita id y nombre únicos (máx 30).' }, { status: 400 })
+    }
+    const { error } = await admin.from('app_settings').upsert({
+      club_id: clubId,
+      key: BADGES_SETTING_KEY,
+      value: badges,
+      updated_at: new Date().toISOString(),
+      updated_by: adminUser.id,
+    }, { onConflict: 'club_id,key' })
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'guardar_badges', detalles: { count: badges.length }, ip })
+    return NextResponse.json({ ok: true, mensaje: `${badges.length} insignias guardadas.`, badges })
+  }
+
+  // ── Guardar rangos de rating (tiers) del club ──────────────────────────────
+  if (accion === 'guardar_tiers') {
+    const tiers = sanitizeTiers(body.tiers)
+    if (!tiers) {
+      return NextResponse.json({ error: 'Rangos inválidos. Cada uno necesita nombre y un mínimo entre 1 y 5 (máx 12).' }, { status: 400 })
+    }
+    const { error } = await admin.from('app_settings').upsert({
+      club_id: clubId,
+      key: TIERS_SETTING_KEY,
+      value: tiers,
+      updated_at: new Date().toISOString(),
+      updated_by: adminUser.id,
+    }, { onConflict: 'club_id,key' })
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'guardar_tiers', detalles: { count: tiers.length }, ip })
+    return NextResponse.json({ ok: true, mensaje: `${tiers.length} rangos guardados.`, tiers })
+  }
+
   // ── Enviar email de prueba ─────────────────────────────────────────────────
   if (accion === 'enviar_email_prueba') {
     const { email } = body
@@ -773,6 +886,44 @@ export async function POST(req: NextRequest) {
     if (!result.ok) return NextResponse.json({ error: result.error ?? 'Error enviando email' }, { status: 500 })
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'enviar_email_prueba', detalles: { email }, ip })
     return NextResponse.json({ ok: true, mensaje: `Email de prueba enviado a ${email}`, id: result.id })
+  }
+
+  // ── Enviar notificación de prueba (push + email al admin actual) ───────────
+  if (accion === 'enviar_notif_prueba') {
+    const { data: me } = await admin.from('profiles').select('email, username').eq('id', adminUser.id).single()
+    const { data: subs } = await admin.from('push_subscriptions').select('endpoint, p256dh, auth').eq('player_id', adminUser.id)
+    const { sendPush: sendPushFn, isDeadPushError: isDeadFn } = await import('@/lib/push')
+    let pushOk = 0, pushFail = 0
+    for (const sub of subs ?? []) {
+      try {
+        await sendPushFn(sub, { title: '🔔 Prueba de notificación', body: 'Si ves esto, el push funciona.', url: '/admin' })
+        pushOk++
+      } catch (err) {
+        pushFail++
+        if (isDeadFn(err)) await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+        else console.error('[notif_prueba] push fail', err)
+      }
+    }
+    const emailRes = (me as { email?: string } | null)?.email
+      ? await sendTestEmail({ email: (me as { email: string }).email, clubNombre: getClubNombre(req) })
+      : { ok: false, error: 'sin email' }
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'enviar_notif_prueba', detalles: { pushOk, pushFail, subs: (subs ?? []).length, emailOk: emailRes.ok }, ip })
+    return NextResponse.json({ ok: true, pushOk, pushFail, subsTotal: (subs ?? []).length, emailOk: emailRes.ok, emailError: emailRes.ok ? undefined : (emailRes as { error?: string }).error })
+  }
+
+  // ── Disparar cron manualmente ──────────────────────────────────────────────
+  if (accion === 'disparar_cron') {
+    const secret = process.env.CRON_SECRET
+    if (!secret) return NextResponse.json({ error: 'CRON_SECRET no configurado' }, { status: 500 })
+    const base = process.env.NEXT_PUBLIC_SITE_URL || `https://${req.headers.get('host')}`
+    try {
+      const r = await fetch(`${base}/api/cron/notificaciones`, { headers: { Authorization: `Bearer ${secret}` } })
+      const data = await r.json().catch(() => ({}))
+      await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'disparar_cron_manual', detalles: { status: r.status }, ip })
+      return NextResponse.json({ ok: r.ok, status: r.status, resultado: data })
+    } catch (e) {
+      return NextResponse.json({ error: 'Error llamando cron: ' + (e instanceof Error ? e.message : String(e)) }, { status: 500 })
+    }
   }
 
   return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 })

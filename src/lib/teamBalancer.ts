@@ -3,6 +3,7 @@ export interface JugadorEquipo {
   username: string
   avatar_url: string | null
   posicion: string
+  posiciones?: string[]
   habilidad: number
   isInvitado?: boolean
 }
@@ -55,17 +56,19 @@ export function balancearEquipos(jugadores: JugadorEquipo[]): {
   // Fix goalkeeper imbalance: if one team has 2+ keepers and other has 0,
   // swap the weakest keeper from the stacked side with the weakest outfield
   // player from the other side.
+  const esPortero = (j: JugadorEquipo) => j.posicion === 'portero' || !!j.posiciones?.includes('portero')
+
   const fixKeepers = (rich: JugadorEquipo[], poor: JugadorEquipo[]) => {
-    if (rich.filter(j => j.posicion === 'portero').length < 2) return
-    const spare = [...rich].filter(j => j.posicion === 'portero').sort((a, b) => a.habilidad - b.habilidad)[0]
-    const swap = [...poor].filter(j => j.posicion !== 'portero').sort((a, b) => a.habilidad - b.habilidad)[0]
+    if (rich.filter(esPortero).length < 2) return
+    const spare = [...rich].filter(esPortero).sort((a, b) => a.habilidad - b.habilidad)[0]
+    const swap = [...poor].filter(j => !esPortero(j)).sort((a, b) => a.habilidad - b.habilidad)[0]
     if (!spare || !swap) return
     rich.splice(rich.indexOf(spare), 1, swap)
     poor.splice(poor.indexOf(swap), 1, spare)
   }
 
-  const keepsA = equipoA.filter(j => j.posicion === 'portero').length
-  const keepsB = equipoB.filter(j => j.posicion === 'portero').length
+  const keepsA = equipoA.filter(esPortero).length
+  const keepsB = equipoB.filter(esPortero).length
   if (keepsA === 0 && keepsB >= 2) fixKeepers(equipoB, equipoA)
   else if (keepsB === 0 && keepsA >= 2) fixKeepers(equipoA, equipoB)
 

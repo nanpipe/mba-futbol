@@ -17,7 +17,7 @@ export default function RegistroPage() {
   const [error, setError] = useState('')
   const [exito, setExito] = useState(false)
   const [clubId, setClubId] = useState<string | null>(null)
-  const [clubNombre, setClubNombre] = useState('MBA FC')
+  const [clubNombre, setClubNombre] = useState('')
 
   // Fetch club context from middleware-resolved header
   useState(() => {
@@ -140,7 +140,7 @@ export default function RegistroPage() {
       <div style={{ padding: '40px 0' }}>
         <div style={{ marginBottom: 48, textAlign: 'center' }}>
           <div className="display" style={{ fontSize: 48, letterSpacing: '0.05em', lineHeight: 1 }}>
-            {clubNombre}
+            {clubNombre || 'Fútbol Club'}
           </div>
           <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.15em', marginTop: 8 }}>
             CREAR CUENTA

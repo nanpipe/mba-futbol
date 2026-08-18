@@ -6,18 +6,11 @@ import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { Card } from '@/components/Card'
 import { SectionHeader } from '@/components/SectionHeader'
 import { ButtonGroup } from '@/components/ButtonGroup'
-
-const PUSH_SETTINGS = [
-  { key: 'notif_apertura',     label: 'Inscripciones abiertas',  desc: 'Cuando abre la ventana de inscripción para un partido' },
-  { key: 'notif_recordatorio', label: 'Recordatorio de partido', desc: 'A los confirmados, ≤10h antes del partido' },
-  { key: 'notif_cupos',        label: 'Cupos disponibles',       desc: 'A no-inscritos cuando quedan cupos libres' },
-  { key: 'notif_invitados',    label: 'Promoción de invitados',  desc: 'Mueve invitados de espera a confirmado el día del partido' },
-] as const
-
-const EMAIL_SETTINGS = [
-  { key: 'email_apertura',     label: 'Email apertura partido',    desc: 'Correo a todos los jugadores cuando se abren inscripciones' },
-  { key: 'email_recordatorio', label: 'Email recordatorio partido', desc: 'Correo a confirmados el día del partido (cron 10am)' },
-] as const
+import { GAME_CONFIG } from '@/lib/gameConfig'
+import { NOTIF_EVENTS } from '@/lib/notifications'
+import { BadgesEditor, TiersEditor } from '@/components/admin/RatingConfigEditor'
+import { DEFAULT_BADGES, type Badge } from '@/lib/categorias'
+import { DEFAULT_TIERS, type TierConfig } from '@/lib/tier'
 
 const CLUB_TOGGLES = [
   { key: 'usar_uniforme',                    label: 'Gestión de uniformes',        desc: 'Prioridad por uniforme en inscripciones y badge en panel de jugadores' },
@@ -26,26 +19,45 @@ const CLUB_TOGGLES = [
 ] as const
 
 const CLUB_TEXT_FIELDS = [
-  { key: 'club_nombre',     label: 'Nombre del club',   placeholder: 'MBA FC' },
-  { key: 'club_ciudad',     label: 'Ciudad',             placeholder: 'Bogotá' },
-  { key: 'club_dias_juego', label: 'Días de juego',      placeholder: 'Martes y Viernes' },
+  { key: 'club_nombre', label: 'Nombre del club', placeholder: 'MBA FC' },
+  { key: 'club_ciudad', label: 'Ciudad',           placeholder: 'Bogotá' },
 ] as const
 
+// Días/horarios de partido se derivan de los partidos reales, no se configuran como texto.
 const HORARIOS_FIELDS = [
-  { key: 'hora_partido',          label: 'Hora del partido',                       placeholder: '7:00 PM' },
-  { key: 'dias_display',          label: 'Días en el header',                      placeholder: 'MAR · VIE' },
-  { key: 'dia_juego_1',           label: 'Día de partido 1',                       placeholder: 'martes' },
-  { key: 'dia_juego_2',           label: 'Día de partido 2',                       placeholder: 'viernes' },
-  { key: 'hora_apertura_martes',  label: 'Apertura inscripciones partido 1',       placeholder: 'domingos a las 10:00 am' },
-  { key: 'hora_apertura_viernes', label: 'Apertura inscripciones partido 2',       placeholder: 'jueves a las 10:00 am' },
-  { key: 'hora_promo_invitados',  label: 'Hora promoción invitados',               placeholder: '2:00 PM' },
+  { key: 'hora_promo_invitados', label: 'Hora promoción invitados', placeholder: '2:00 PM' },
 ] as const
+
+// Settings are grouped into sub-tabs — as one column the page scrolls forever.
+// Ordered by how often they're touched; diagnostics (admin plumbing) last.
+type SubTab = 'club' | 'puntaje' | 'notificaciones' | 'diagnostico'
+
+const SUB_TABS: { id: SubTab; label: string; icon: string }[] = [
+  { id: 'club',           label: 'Club',      icon: '⚽' },
+  { id: 'puntaje',        label: 'Puntaje',   icon: '⭐' },
+  { id: 'notificaciones', label: 'Notifs',    icon: '🔔' },
+  { id: 'diagnostico',    label: 'Diagnóstico', icon: '🔬' },
+]
+
+/**
+ * A sub-tab's group of cards. Hidden with `display:none` rather than unmounted,
+ * so unsaved text and test results survive switching tabs.
+ */
+function Group({ show, children }: { show: boolean; children: React.ReactNode }) {
+  return (
+    <div style={{ display: show ? 'flex' : 'none', flexDirection: 'column', gap: 24 }}>
+      {children}
+    </div>
+  )
+}
 
 interface Props {
   active: boolean
+  /** Superadmin sees + edits the game configuration section */
+  isSuperAdmin?: boolean
 }
 
-export function TabAjustes({ active }: Props) {
+export function TabAjustes({ active, isSuperAdmin = false }: Props) {
   const [settings, setSettings] = useState<Record<string, boolean | string>>({
     notif_apertura: true,
     notif_recordatorio: true,
@@ -55,11 +67,18 @@ export function TabAjustes({ active }: Props) {
     usar_invitados: true,
     usuarios_pueden_cambiar_username: false,
   })
+  const [sub, setSub] = useState<SubTab>('club')
+  const [badges, setBadges] = useState<Badge[]>(DEFAULT_BADGES)
+  const [tiers, setTiers] = useState<TierConfig[]>(DEFAULT_TIERS)
   const [settingsLoading, setSettingsLoading] = useState(false)
   const [savingText, setSavingText] = useState<string | null>(null)
   const [testEmailAddr, setTestEmailAddr] = useState('')
   const [testEmailSending, setTestEmailSending] = useState(false)
   const [testEmailResult, setTestEmailResult] = useState<{ ok: boolean; msg: string } | null>(null)
+  const [notifPruebaSending, setNotifPruebaSending] = useState(false)
+  const [notifPruebaResult, setNotifPruebaResult] = useState<{ ok: boolean; msg: string } | null>(null)
+  const [cronSending, setCronSending] = useState(false)
+  const [cronResult, setCronResult] = useState<{ ok: boolean; msg: string } | null>(null)
 
   const cargarSettings = useCallback(async () => {
     setSettingsLoading(true)
@@ -67,6 +86,8 @@ export function TabAjustes({ active }: Props) {
     if (res.ok) {
       const json = await res.json()
       setSettings(prev => ({ ...prev, ...(json.settings ?? {}) }))
+      if (Array.isArray(json.badges) && json.badges.length) setBadges(json.badges)
+      if (Array.isArray(json.tiers) && json.tiers.length) setTiers(json.tiers)
     }
     setSettingsLoading(false)
   }, [])
@@ -74,6 +95,15 @@ export function TabAjustes({ active }: Props) {
   useEffect(() => {
     if (active) cargarSettings()
   }, [active, cargarSettings])
+
+  // Resolve a channel toggle: stored value if present, else the event default.
+  const chanOn = (key: string, def: boolean) => {
+    const v = settings[key]
+    if (v === true || v === false) return v
+    if (v === 'true') return true
+    if (v === 'false') return false
+    return def
+  }
 
   const toggleSetting = async (key: string, value: boolean) => {
     setSettings(prev => ({ ...prev, [key]: value }))
@@ -108,6 +138,41 @@ export function TabAjustes({ active }: Props) {
     setTestEmailSending(false)
   }
 
+  const enviarNotifPrueba = async () => {
+    setNotifPruebaSending(true)
+    setNotifPruebaResult(null)
+    const res = await fetch('/api/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion: 'enviar_notif_prueba' }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      const msg = `Push: ${data.pushOk ?? 0} ok / ${data.pushFail ?? 0} fail (${data.subsTotal ?? 0} subs) · Email: ${data.emailOk ? 'ok' : data.emailError ?? 'error'}`
+      setNotifPruebaResult({ ok: true, msg })
+    } else {
+      setNotifPruebaResult({ ok: false, msg: data.error ?? 'Error desconocido' })
+    }
+    setNotifPruebaSending(false)
+  }
+
+  const dispararCron = async () => {
+    setCronSending(true)
+    setCronResult(null)
+    const res = await fetch('/api/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion: 'disparar_cron' }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      setCronResult({ ok: data.ok ?? false, msg: `Status ${data.status} · ${JSON.stringify(data.resultado ?? {})}` })
+    } else {
+      setCronResult({ ok: false, msg: data.error ?? 'Error desconocido' })
+    }
+    setCronSending(false)
+  }
+
   return (
     <div id="tab-ajustes" className="fade-in">
       <SectionHeader title="CONFIGURACIÓN" color="var(--text-muted)" />
@@ -117,43 +182,66 @@ export function TabAjustes({ active }: Props) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 560 }}>
 
-          {/* Push notifications */}
+          {/* Sub-tab bar */}
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', borderBottom: '1px solid var(--border)' }}>
+            {SUB_TABS.map(({ id, label, icon }) => (
+              <button
+                key={id}
+                onClick={() => setSub(id)}
+                className="mono"
+                style={{
+                  padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: 12, letterSpacing: '0.06em',
+                  color: sub === id ? 'var(--text)' : 'var(--text-muted)',
+                  borderBottom: sub === id ? '2px solid var(--green)' : '2px solid transparent',
+                  marginBottom: -1, whiteSpace: 'nowrap',
+                }}
+              >
+                {icon} {label}
+              </button>
+            ))}
+          </div>
+
+          {/* ── Notificaciones ── */}
+          <Group show={sub === 'notificaciones'}>
+
+          {/* Notification channels — per-event email/push matrix */}
           <Card padding="20px 24px">
-            <SectionHeader title="NOTIFICACIONES PUSH" icon="🔔" color="var(--amber)" />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {PUSH_SETTINGS.map(({ key, label, desc }) => (
-                <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 500 }}>{label}</div>
-                    <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{desc}</div>
+            <SectionHeader title="NOTIFICACIONES" icon="🔔" color="var(--amber)" />
+            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+              Elige canal por evento. El email de alertas de admin viene apagado para no saturar — actívalo si lo quieres.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
+                <div style={{ flex: 1 }} />
+                <div className="mono" style={{ width: 44, textAlign: 'center', fontSize: 10, color: 'var(--text-muted)' }}>📧</div>
+                <div className="mono" style={{ width: 44, textAlign: 'center', fontSize: 10, color: 'var(--text-muted)' }}>🔔</div>
+              </div>
+              {NOTIF_EVENTS.map(ev => {
+                const emailOn = chanOn(ev.emailKey, ev.emailDefault)
+                const pushOn = chanOn(ev.pushKey, ev.pushDefault)
+                return (
+                  <div key={ev.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>{ev.label}</div>
+                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>{ev.desc}</div>
+                    </div>
+                    <div style={{ width: 44, display: 'flex', justifyContent: 'center' }}>
+                      <ToggleSwitch checked={emailOn} onChange={v => toggleSetting(ev.emailKey, v)} />
+                    </div>
+                    <div style={{ width: 44, display: 'flex', justifyContent: 'center' }}>
+                      <ToggleSwitch checked={pushOn} onChange={v => toggleSetting(ev.pushKey, v)} />
+                    </div>
                   </div>
-                  <ToggleSwitch
-                    checked={settings[key] !== false}
-                    onChange={v => toggleSetting(key, v)}
-                  />
-                </div>
-              ))}
+                )
+              })}
             </div>
           </Card>
 
-          {/* Email notifications */}
-          <Card padding="20px 24px">
-            <SectionHeader title="NOTIFICACIONES EMAIL" icon="✉️" color="var(--amber)" />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {EMAIL_SETTINGS.map(({ key, label, desc }) => (
-                <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 500 }}>{label}</div>
-                    <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{desc}</div>
-                  </div>
-                  <ToggleSwitch
-                    checked={settings[key] !== false}
-                    onChange={v => toggleSetting(key, v)}
-                  />
-                </div>
-              ))}
-            </div>
-          </Card>
+          </Group>
+
+          {/* ── Club ── */}
+          <Group show={sub === 'club'}>
 
           {/* Club settings */}
           <Card padding="20px 24px">
@@ -200,7 +288,7 @@ export function TabAjustes({ active }: Props) {
 
           {/* Horarios y días */}
           <Card padding="20px 24px">
-            <SectionHeader title="HORARIOS Y DÍAS" icon="🕐" color="var(--amber)" />
+            <SectionHeader title="INVITADOS" icon="🎟️" color="var(--amber)" />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {HORARIOS_FIELDS.map(({ key, label, placeholder }) => (
                 <div key={key}>
@@ -219,6 +307,66 @@ export function TabAjustes({ active }: Props) {
               ))}
             </div>
           </Card>
+
+          {/* Ubicaciones — canchas del club */}
+          <Card padding="20px 24px">
+            <SectionHeader title="UBICACIONES" icon="📍" color="var(--green)" />
+            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 10, lineHeight: 1.6 }}>
+              Una cancha por línea. La primera es la predeterminada al crear partidos.
+              {savingText === 'ubicaciones' && <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>guardando...</span>}
+            </div>
+            <textarea
+              rows={4}
+              value={(settings['ubicaciones'] as string) ?? ''}
+              placeholder={'Maracaná, Cali'}
+              onChange={e => setSettings(prev => ({ ...prev, ubicaciones: e.target.value }))}
+              onBlur={e => guardarTexto('ubicaciones', e.target.value)}
+              style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical' }}
+            />
+          </Card>
+
+          </Group>
+
+          {/* ── Puntaje ── */}
+          <Group show={sub === 'puntaje'}>
+
+          {/* Insignias + rangos de puntaje */}
+          <BadgesEditor badges={badges} onChange={setBadges} />
+          <TiersEditor tiers={tiers} onChange={setTiers} />
+
+          {/* Configuración de juego — superadmin only */}
+          {isSuperAdmin && (
+            <Card padding="20px 24px">
+              <SectionHeader title="CONFIGURACIÓN DE JUEGO" icon="🎮" color="#a78bfa" />
+              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+                Cómo se arman y juegan los equipos de este club. Solo superadmin.
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
+                {GAME_CONFIG.map(({ key, label, desc, def }) => (
+                  <div key={key} style={{ minWidth: 0 }}>
+                    <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
+                      {label}
+                      {savingText === key && <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>guardando...</span>}
+                    </label>
+                    <input
+                      type="text"
+                      value={(settings[key] as string) ?? ''}
+                      placeholder={def}
+                      onChange={e => setSettings(prev => ({ ...prev, [key]: e.target.value }))}
+                      onBlur={e => guardarTexto(key, e.target.value)}
+                      style={{ width: '100%', boxSizing: 'border-box' }}
+                    />
+                    <div className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 4 }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          </Group>
+
+          {/* ── Diagnóstico ── */}
+          <Group show={sub === 'diagnostico'}>
 
           {/* Test email */}
           <Card padding="20px 24px">
@@ -252,6 +400,53 @@ export function TabAjustes({ active }: Props) {
             )}
           </Card>
 
+          {/* Diagnóstico de notificaciones */}
+          <Card padding="20px 24px">
+            <SectionHeader title="DIAGNÓSTICO DE NOTIFICACIONES" icon="🔬" color="var(--text-muted)" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <button
+                  onClick={enviarNotifPrueba}
+                  disabled={notifPruebaSending}
+                  className="btn btn-ghost"
+                  style={{ fontSize: 12, padding: '10px 18px', whiteSpace: 'nowrap' }}
+                >
+                  {notifPruebaSending ? 'Enviando...' : '🔔 Enviar notificación de prueba'}
+                </button>
+                {notifPruebaResult && (
+                  <div className="mono" style={{
+                    fontSize: 11, marginTop: 8, padding: '8px 12px', borderRadius: 3,
+                    ...(notifPruebaResult.ok
+                      ? { color: 'var(--green)', background: '#0f2d1a', border: '1px solid #16a34a' }
+                      : { color: 'var(--red)', background: '#2d0a0a', border: '1px solid #7f1d1d' }),
+                  }}>
+                    {notifPruebaResult.ok ? '✓ ' : '✕ '}{notifPruebaResult.msg}
+                  </div>
+                )}
+              </div>
+              <div>
+                <button
+                  onClick={dispararCron}
+                  disabled={cronSending}
+                  className="btn btn-ghost"
+                  style={{ fontSize: 12, padding: '10px 18px', whiteSpace: 'nowrap' }}
+                >
+                  {cronSending ? 'Ejecutando...' : '▶ Disparar cron manualmente'}
+                </button>
+                {cronResult && (
+                  <div className="mono" style={{
+                    fontSize: 11, marginTop: 8, padding: '8px 12px', borderRadius: 3,
+                    ...(cronResult.ok
+                      ? { color: 'var(--green)', background: '#0f2d1a', border: '1px solid #16a34a' }
+                      : { color: 'var(--red)', background: '#2d0a0a', border: '1px solid #7f1d1d' }),
+                  }}>
+                    {cronResult.ok ? '✓ ' : '✕ '}{cronResult.msg}
+                  </div>
+                )}
+              </div>
+            </div>
+          </Card>
+
           {/* Cron info */}
           <Card padding="16px 24px">
             <SectionHeader title="CRON SCHEDULE" icon="⏱" color="var(--text-muted)" />
@@ -263,6 +458,8 @@ export function TabAjustes({ active }: Props) {
               Corre diariamente. Envía push + email de apertura e inscripciones. Verifica recordatorio (≤10h antes), cupos y promoción de invitados.
             </div>
           </Card>
+
+          </Group>
 
         </div>
       )}

@@ -7,6 +7,7 @@ import { internalFetch } from '@/lib/internalFetch'
 import { logActivity } from '@/lib/activityLog'
 import { sendAdminAlertEmail } from '@/lib/email'
 import { isRateLimited, getClientIp } from '@/lib/rateLimit'
+import { notifyAdmins } from '@/lib/notifyAdmins'
 
 export const dynamic = 'force-dynamic'
 
@@ -99,21 +100,9 @@ export async function POST(req: NextRequest) {
   const tieneUniforme = usarUniforme ? ((profile as { uniform?: boolean })?.uniform ?? false) : true
   const spotsLibres = totalConfirmados < partido.cupos_total
 
-  // Helper: push all admins+superadmin — awaited so Vercel doesn't kill before completion
+  // Admin alert → immediate, channel-gated (push on, email off by default).
   const pushAdmins = async (titulo: string, cuerpo: string) => {
-    try {
-      const { data: adminProfiles } = await admin
-        .from('profiles').select('id').in('role', ['admin', 'superadmin'])
-      const adminIds = (adminProfiles ?? []).map((a: { id: string }) => a.id)
-      if (!adminIds.length) return
-      const { data: subs } = await admin
-        .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', adminIds)
-      if (!subs?.length) return
-      const { sendPush } = await import('@/lib/push')
-      for (const sub of subs) {
-        await sendPush(sub, { title: titulo, body: cuerpo, url: '/admin' }).catch(() => {})
-      }
-    } catch { /* non-critical */ }
+    await notifyAdmins(admin, clubId, 'inscripcion', titulo, cuerpo)
   }
 
   const emailAdmins = (titulo: string, mensaje: string) => {
@@ -148,6 +137,38 @@ export async function POST(req: NextRequest) {
     // Uniform + spots free → confirmed
     const { error } = await admin.from('inscripciones').insert({ club_id: clubId, partido_id, player_id: user.id, estado: 'confirmado' })
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+
+    // ── Race reconciliation ──────────────────────────────────────────────────
+    // Two simultaneous signups can both pass the capacity check (TOCTOU) and
+    // both insert as confirmado. Recount now; if over capacity, demote the
+    // LAST confirmado (by created_at, id) — both racers compute the same loser,
+    // so exactly one row ends up in espera regardless of interleaving.
+    const [{ data: confirmadosNow }, { count: invNow }] = await Promise.all([
+      admin.from('inscripciones')
+        .select('id, player_id, created_at')
+        .eq('partido_id', partido_id)
+        .eq('estado', 'confirmado')
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true }),
+      admin.from('invitados').select('id', { count: 'exact', head: true })
+        .eq('partido_id', partido_id).eq('estado', 'confirmado'),
+    ])
+    const overBy = ((confirmadosNow?.length ?? 0) + (invNow ?? 0)) - partido.cupos_total
+    if (overBy > 0 && confirmadosNow && confirmadosNow.length > 0) {
+      const losers = confirmadosNow.slice(-overBy)
+      for (const loser of losers) {
+        const { error: rpcErr } = await admin.rpc('incrementar_posiciones_espera', { p_partido_id: partido_id })
+        if (rpcErr) console.error('[inscripciones] race-demote incrementar failed:', rpcErr.message)
+        await admin.from('inscripciones').update({ estado: 'espera', posicion_espera: 1 }).eq('id', loser.id).eq('estado', 'confirmado')
+      }
+      const yoDemovido = losers.some(l => l.player_id === user.id)
+      if (yoDemovido) {
+        await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'espera', razon: 'cupo_lleno_carrera' } })
+        await pushAdmins('⏳ Nueva inscripción (espera)', `${profile.username} en lista de espera — ${dia}`)
+        return NextResponse.json({ estado: 'espera', posicion_espera: 1 })
+      }
+    }
+
     await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'confirmado' } })
     await pushAdmins('✅ Nueva inscripción', `${profile.username} se inscribió (confirmado) — ${dia}`)
     emailAdmins('✅ Nueva inscripción', `${profile.username} se inscribió (confirmado) — ${dia}`)
@@ -221,9 +242,10 @@ export async function DELETE(req: NextRequest) {
 
   // Fetch info needed for admin notification before deletion
   const [{ data: playerProfile }, { data: partidoInfo }] = await Promise.all([
-    admin.from('profiles').select('username').eq('id', user.id).single(),
+    admin.from('profiles').select('username, club_id').eq('id', user.id).single(),
     admin.from('partidos').select('fecha, dia_semana').eq('id', partido_id as string).single(),
   ])
+  const bajaClubId = (playerProfile as { club_id?: string } | null)?.club_id
 
   await admin.from('inscripciones').delete().eq('id', inscripcion.id)
 
@@ -254,29 +276,12 @@ export async function DELETE(req: NextRequest) {
     detalles: { partido_id, estado_previo: inscripcion.estado, dia },
   })
 
-  // Admin push — awaited so Vercel doesn't kill before completion
-  try {
-    const { data: adminProfiles } = await admin
-      .from('profiles').select('id').in('role', ['admin', 'superadmin'])
-    const adminIds = (adminProfiles ?? []).map((a: { id: string }) => a.id)
-    if (adminIds.length) {
-      const { data: subs } = await admin
-        .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', adminIds)
-      if (subs?.length) {
-        const { sendPush } = await import('@/lib/push')
-        const promoBody = promovidosNames.length
-          ? ` → ${promovidosNames.join(', ')} promovido${promovidosNames.length > 1 ? 's' : ''}`
-          : ''
-        for (const sub of subs) {
-          await sendPush(sub, {
-            title: '⚠️ Baja en el partido',
-            body: `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}${promoBody}`,
-            url: '/admin',
-          }).catch(() => {})
-        }
-      }
-    }
-  } catch { /* non-critical */ }
+  // Admin alert → batched into the digest (one summary via cron, not per-baja)
+  const promoBody = promovidosNames.length
+    ? ` → ${promovidosNames.join(', ')} promovido${promovidosNames.length > 1 ? 's' : ''}`
+    : ''
+  const bajaMsg = `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}${promoBody}`
+  if (bajaClubId) await notifyAdmins(admin, bajaClubId, 'baja', '⚠️ Baja en el partido', bajaMsg)
 
   // Also email admins about baja (best-effort)
   try {

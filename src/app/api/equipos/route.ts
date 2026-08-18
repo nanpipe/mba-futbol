@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   const [{ data: jugadores }, { data: invitadosEnEquipo }] = await Promise.all([
     admin
       .from('equipo_jugadores')
-      .select('equipo_id, player_id, profiles(id, username, avatar_url, posicion)')
+      .select('equipo_id, player_id, profiles(id, username, avatar_url, posicion, posiciones, habilidad)')
       .in('equipo_id', equipos.map(e => e.id)),
     admin
       .from('invitados')
@@ -50,6 +50,7 @@ export async function GET(req: NextRequest) {
       .in('equipo_id', equipos.map(e => e.id)),
   ])
 
+  // Rating is the stateful 1–5 score on profiles.habilidad (v2).
   const byEquipo: Record<string, JugadorEquipo[]> = {}
   for (const row of (jugadores ?? [])) {
     const prof = (row as unknown as { profiles: JugadorEquipo }).profiles
@@ -101,10 +102,13 @@ export async function POST(req: NextRequest) {
     const { data: pTipo } = await admin.from('partidos').select('tipo').eq('id', partido_id as string).single()
     const esMinitorneo = (pTipo as { tipo?: string })?.tipo === 'minitorneo'
 
+    const { data: clubRow } = await admin.from('clubs').select('nombre').eq('id', clubId).single()
+    const clubNombre = (clubRow as { nombre?: string } | null)?.nombre ?? 'el club'
+
     const [insRes, invsRes, knowledgeRes, feedbackRes] = await Promise.all([
       admin
         .from('inscripciones')
-        .select('player_id, profiles!player_id(id, username, avatar_url, posicion, habilidad)')
+        .select('player_id, profiles!player_id(id, username, avatar_url, posicion, posiciones, habilidad)')
         .eq('partido_id', partido_id as string)
         .eq('estado', 'confirmado'),
       admin
@@ -135,7 +139,9 @@ export async function POST(req: NextRequest) {
       .map(i => (i as unknown as { profiles: JugadorEquipo }).profiles)
       .filter(Boolean)
 
-    // Add confirmed invitados as pseudo-players
+    // Rating is the stateful 1–5 score already selected as profiles.habilidad (v2).
+
+    // Add confirmed invitados as pseudo-players (neutral rating)
     for (const inv of invs ?? []) {
       jugadores.push({
         id: (inv as { id: string }).id,
@@ -161,7 +167,8 @@ export async function POST(req: NextRequest) {
         const playerLines = jugadores.map(j => {
           const k = km[j.username.replace(' *', '')]
           const skillLabel = k?.skill_override ?? 'unknown'
-          const roles = k?.roles?.length ? k.roles.join(', ') : j.posicion
+          const posList = j.posiciones?.length ? j.posiciones.join('/') : j.posicion
+          const roles = k?.roles?.length ? k.roles.join(', ') : posList
           const traits = k?.traits?.length ? ` | rasgos: ${k.traits.join(', ')}` : ''
           const notes = k?.notes ? ` | notas: "${k.notes}"` : ''
           const invTag = j.isInvitado ? ' [INVITADO]' : ''
@@ -178,7 +185,7 @@ export async function POST(req: NextRequest) {
 
         const perTeam = Math.ceil(jugadores.length / (esMinitorneo ? 3 : 2))
         const prompt = esMinitorneo
-          ? `Eres el organizador de equipos del MBA Fútbol Club. Divide los jugadores en tres equipos balanceados para un MINITORNEO (Blanco, Negro, Morado).
+          ? `Eres el organizador de equipos del ${clubNombre}. Divide los jugadores en tres equipos balanceados para un MINITORNEO (Blanco, Negro, Morado).
 
 === CONTEXTO APRENDIDO (feedback histórico del administrador) ===
 ${feedbackLines}
@@ -195,7 +202,7 @@ ${playerLines}
 
 Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
 {"equipoA":["username1","username2"],"equipoB":["username3"],"equipoC":["username4"],"razon":"Explicación clave en máx 200 caracteres"}`
-          : `Eres el organizador de equipos del MBA Fútbol Club. Divide los jugadores disponibles en dos equipos balanceados y competitivos.
+          : `Eres el organizador de equipos del ${clubNombre}. Divide los jugadores disponibles en dos equipos balanceados y competitivos.
 
 === CONTEXTO APRENDIDO (feedback histórico del administrador) ===
 ${feedbackLines}
@@ -339,7 +346,7 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
     const invSet = new Set((invitadosIds ?? []).map((i: { id: string }) => i.id))
 
     // Delete existing teams (FK on delete set null clears invitados.equipo_id automatically)
-    await admin.from('equipos').delete().eq('partido_id', partido_id as string)
+    await admin.from('equipos').delete().eq('partido_id', partido_id as string).eq('club_id', clubId)
 
     // Create teams — always set default colors so colorLabel() never falls through to null
     const { data: tA } = await admin.from('equipos').insert({ club_id: clubId, partido_id, nombre: 'A', color: 'blanco' }).select().single()
@@ -392,8 +399,8 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
     }
 
     // Mark confirmed
-    await admin.from('equipos').update({ confirmado: true }).eq('partido_id', partido_id as string)
-    await admin.from('partidos').update({ equipos_confirmados: true }).eq('id', partido_id as string)
+    await admin.from('equipos').update({ confirmado: true }).eq('partido_id', partido_id as string).eq('club_id', clubId)
+    await admin.from('partidos').update({ equipos_confirmados: true }).eq('id', partido_id as string).eq('club_id', clubId)
 
     // Get player lists for notifications (include email for fallback)
     const { data: jAll } = await admin
@@ -422,18 +429,23 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
       .select('endpoint, p256dh, auth, player_id')
       .in('player_id', playerIds)
 
-    const { sendPush } = await import('@/lib/push')
+    const { sendPush, isDeadPushError } = await import('@/lib/push')
     const subsPlayerIds = new Set((subs ?? []).map((s: { player_id: string }) => s.player_id))
 
     for (const sub of (subs ?? [])) {
       const equipo = (jAll as unknown as JugadorRow[])?.find(j => j.player_id === sub.player_id)
       const nombreEq = equipos.find(e => e.id === equipo?.equipo_id)?.nombre ?? '?'
       const colorEq = colorLabels[nombreEq] ?? nombreEq
-      await sendPush(sub, {
-        title: `⚽ Equipo ${colorEq} confirmado`,
-        body: `Juegas con el equipo ${colorEq}. Revisa la alineación en la app.`,
-        url: '/',
-      }).catch(() => {})
+      try {
+        await sendPush(sub, {
+          title: `⚽ Equipo ${colorEq} confirmado`,
+          body: `Juegas con el equipo ${colorEq}. Revisa la alineación en la app.`,
+          url: '/',
+        })
+      } catch (err) {
+        if (isDeadPushError(err)) await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+        else console.error('[equipos] sendPush failed:', err)
+      }
     }
 
     // Email fallback — players without push subscription
@@ -457,8 +469,8 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
   // ── resetear: delete teams for a match ────────────────────────────────────
   if (accion === 'resetear') {
     // FK on delete set null clears invitados.equipo_id automatically
-    await admin.from('equipos').delete().eq('partido_id', partido_id as string)
-    await admin.from('partidos').update({ equipos_confirmados: false }).eq('id', partido_id as string)
+    await admin.from('equipos').delete().eq('partido_id', partido_id as string).eq('club_id', clubId)
+    await admin.from('partidos').update({ equipos_confirmados: false }).eq('id', partido_id as string).eq('club_id', clubId)
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'resetear_equipos', detalles: { partido_id } })
     return NextResponse.json({ ok: true, mensaje: 'Equipos eliminados.' })
   }

@@ -31,3 +31,8 @@ Thumbs.db
 
 # Claude Code internals
 .claude/
+
+# Paused invite system — parked until the domain decision (see chat)
+src/app/api/invitaciones/
+src/lib/invitaciones.ts
+supabase/migrations/20260805_invitaciones.sql

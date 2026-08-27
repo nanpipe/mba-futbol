@@ -12,8 +12,10 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
-  const { data: prof } = await admin.from('profiles').select('role').eq('id', user.id).single()
+  const { data: prof } = await admin.from('profiles').select('role, club_id').eq('id', user.id).single()
   if (prof?.role !== 'admin' && prof?.role !== 'superadmin') return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  const clubId = (prof as { club_id?: string })?.club_id
+  if (!clubId) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
 
   let parsed: Record<string, unknown>
   try { parsed = await req.json() } catch { return NextResponse.json({ error: 'JSON inválido' }, { status: 400 }) }
@@ -27,9 +29,18 @@ export async function POST(req: NextRequest) {
 
   // Resolve group → player_ids
   let groupPlayerIds: string[] | null = null
+  // Every branch is scoped to the caller's club: the title and body are
+  // caller-supplied, so an unscoped target let one club push arbitrary text to
+  // another club's players.
+  const partidoDelClub = partido_id
+    ? !!(await admin.from('partidos').select('id').eq('id', partido_id).eq('club_id', clubId).maybeSingle()).data
+    : false
+
   if (group === 'admins') {
-    const { data } = await admin.from('profiles').select('id').eq('role', 'admin')
+    const { data } = await admin.from('profiles').select('id').eq('club_id', clubId).in('role', ['admin', 'superadmin'])
     groupPlayerIds = (data ?? []).map((p: { id: string }) => p.id)
+  } else if (group && partido_id && !partidoDelClub) {
+    return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
   } else if (group === 'confirmados' && partido_id) {
     const { data } = await admin.from('inscripciones').select('player_id').eq('partido_id', partido_id).eq('estado', 'confirmado')
     groupPlayerIds = (data ?? []).map((i: { player_id: string }) => i.player_id)
@@ -41,7 +52,9 @@ export async function POST(req: NextRequest) {
     groupPlayerIds = (data ?? []).map((i: { player_id: string }) => i.player_id)
   }
 
-  let query = admin.from('push_subscriptions').select('endpoint, p256dh, auth, player_id')
+  // Club filter as the backstop: whatever target was resolved above, a
+  // subscription outside the caller's club can never be reached from here.
+  let query = admin.from('push_subscriptions').select('endpoint, p256dh, auth, player_id').eq('club_id', clubId)
   if (groupPlayerIds !== null) {
     if (groupPlayerIds.length === 0) return NextResponse.json({ error: 'No hay jugadores en este grupo.' }, { status: 404 })
     query = (query as typeof query).in('player_id', groupPlayerIds)

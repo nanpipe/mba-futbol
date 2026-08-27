@@ -103,6 +103,8 @@ export async function POST(req: NextRequest) {
   if (!adminUser) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const clubId = adminUser.club_id
+  // Fail closed: without a club every scoped filter below would be a no-op.
+  if (!clubId) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
   let body: Record<string, unknown>
   try {
     body = await req.json()
@@ -322,7 +324,7 @@ export async function POST(req: NextRequest) {
       .eq('partido_id', partido_id as string)
       .eq('estado', 'confirmado')
 
-    const { data: partidoData } = await admin.from('partidos').select('cupos_total').eq('id', partido_id as string).single()
+    const { data: partidoData } = await admin.from('partidos').select('cupos_total').eq('id', partido_id as string).eq('club_id', clubId).maybeSingle()
     const cupos = (partidoData as { cupos_total: number } | null)?.cupos_total ?? 14
     const lleno = (confirmados ?? 0) >= cupos
 
@@ -364,7 +366,7 @@ export async function POST(req: NextRequest) {
     // Queue promotion notification (email + push)
     const [{ data: promotedProfile }, { data: promotedPartido }] = await Promise.all([
       admin.from('profiles').select('email, username').eq('id', (ins as { player_id: string }).player_id).single(),
-      admin.from('partidos').select('fecha').eq('id', partido_id as string).single(),
+      admin.from('partidos').select('fecha').eq('id', partido_id as string).eq('club_id', clubId).maybeSingle(),
     ])
     if (promotedProfile && promotedPartido) {
       await admin.from('notificaciones_pendientes').insert({
@@ -425,7 +427,7 @@ export async function POST(req: NextRequest) {
       // Check cupos if confirming
       const { count: confirmados } = await admin.from('inscripciones').select('id', { count: 'exact', head: true })
         .eq('partido_id', partido_id as string).eq('estado', 'confirmado')
-      const { data: partidoData } = await admin.from('partidos').select('cupos_total').eq('id', partido_id as string).single()
+      const { data: partidoData } = await admin.from('partidos').select('cupos_total').eq('id', partido_id as string).eq('club_id', clubId).maybeSingle()
       const cupos = (partidoData as { cupos_total: number } | null)?.cupos_total ?? 14
       if ((confirmados ?? 0) >= cupos) {
         return NextResponse.json({ error: 'No hay cupos disponibles. Agrégalo a espera o libera un cupo primero.' }, { status: 400 })
@@ -622,7 +624,7 @@ export async function POST(req: NextRequest) {
   if (accion === 'confirmar_partido') {
     const { partido_id } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
-    const { error } = await admin.from('partidos').update({ equipos_confirmados: true }).eq('id', partido_id as string)
+    const { error } = await admin.from('partidos').update({ equipos_confirmados: true }).eq('id', partido_id as string).eq('club_id', clubId)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'confirmar_partido', detalles: { partido_id }, ip })
     return NextResponse.json({ ok: true, mensaje: 'Partido confirmado.' })
@@ -634,7 +636,8 @@ export async function POST(req: NextRequest) {
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
 
     // Fetch partido type to know which result format to apply
-    const { data: pInfo } = await admin.from('partidos').select('tipo').eq('id', partido_id as string).single()
+    const { data: pInfo } = await admin.from('partidos').select('tipo').eq('id', partido_id as string).eq('club_id', clubId).maybeSingle()
+    if (!pInfo) return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
     const esMinitorneo = (pInfo as { tipo?: string })?.tipo === 'minitorneo'
 
     if (esMinitorneo) {
@@ -668,7 +671,7 @@ export async function POST(req: NextRequest) {
     const gB = typeof goles_b === 'number' ? goles_b : parseInt(String(goles_b))
     if (isNaN(gA) || isNaN(gB) || gA < 0 || gB < 0) return NextResponse.json({ error: 'Goles inválidos' }, { status: 400 })
     const resultado = `${gA}-${gB}`
-    const { error } = await admin.from('partidos').update({ resultado, goles_a: gA, goles_b: gB }).eq('id', partido_id as string)
+    const { error } = await admin.from('partidos').update({ resultado, goles_a: gA, goles_b: gB }).eq('id', partido_id as string).eq('club_id', clubId)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
     // Recompute rating deltas for this match (no-op if evaluaciones still open).
     // Secondary to recording the result — never let it break this action.
@@ -682,7 +685,8 @@ export async function POST(req: NextRequest) {
   if (accion === 'forzar_notif_apertura') {
     const { partido_id } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
-    const { data: partido } = await admin.from('partidos').select('dia_semana, fecha, hora, lugar').eq('id', partido_id as string).single()
+    const { data: partido } = await admin.from('partidos').select('dia_semana, fecha, hora, lugar').eq('id', partido_id as string).eq('club_id', clubId).maybeSingle()
+    if (!partido) return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
     const { data: clubProfiles } = await admin.from('profiles').select('id, email, username').eq('club_id', clubId).eq('aprobado', true).eq('baneado', false).neq('role', 'admin')
     const clubPlayerIds = (clubProfiles ?? []).map((p: { id: string }) => p.id)
     const { data: subs } = clubPlayerIds.length > 0
@@ -715,7 +719,7 @@ export async function POST(req: NextRequest) {
         await sendAperturaEmail({ email: p.email, username: p.username ?? '', diaSemana, fechaPartido, hora: matchHora, lugar: lugarPartido, clubNombre })
       } catch (err) { console.error('[admin] forzar_notif email failed:', err) }
     }
-    await admin.from('partidos').update({ notif_apertura_sent: true }).eq('id', partido_id as string)
+    await admin.from('partidos').update({ notif_apertura_sent: true }).eq('id', partido_id as string).eq('club_id', clubId)
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'forzar_notif_apertura', detalles: { partido_id, enviados }, ip })
     return NextResponse.json({ ok: true, mensaje: `Notificación apertura enviada a ${enviados} dispositivos.` })
   }
@@ -727,10 +731,10 @@ export async function POST(req: NextRequest) {
     // ya_abiertas stops the cron from auto-reopening these once they're closed.
     const { error } = await admin.from('partidos')
       .update({ evaluaciones_abiertas: true, evaluaciones_ya_abiertas: true })
-      .eq('id', partido_id as string)
+      .eq('id', partido_id as string).eq('club_id', clubId)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
 
-    const { data: partidoEval } = await admin.from('partidos').select('dia_semana').eq('id', partido_id as string).single()
+    const { data: partidoEval } = await admin.from('partidos').select('dia_semana').eq('id', partido_id as string).eq('club_id', clubId).maybeSingle()
     const diaSemanaEval = (partidoEval as { dia_semana?: string } | null)?.dia_semana ?? ''
 
     const { data: ins } = await admin
@@ -788,7 +792,7 @@ export async function POST(req: NextRequest) {
     if (!isString(foto_url, 1, 2048)) return NextResponse.json({ error: 'URL inválida' }, { status: 400 })
     try { new URL(foto_url as string) } catch { return NextResponse.json({ error: 'URL inválida' }, { status: 400 }) }
 
-    const { error } = await admin.from('partidos').update({ foto_url }).eq('id', partido_id as string)
+    const { error } = await admin.from('partidos').update({ foto_url }).eq('id', partido_id as string).eq('club_id', clubId)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
 
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'guardar_foto_partido', detalles: { partido_id }, ip })

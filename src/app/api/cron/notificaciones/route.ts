@@ -8,6 +8,8 @@ import { tallyAndAssign } from '@/app/api/evaluaciones/route'
 import { channelsFor } from '@/lib/notifications'
 import { applyMatchRatings } from '@/lib/rating'
 import { notificarInvitadoConfirmado } from '@/lib/invitados'
+import { generarBorradorAuto } from '@/lib/teamDraft'
+import { notifyAdmins } from '@/lib/notifyAdmins'
 
 // Every-minute cron metronome — pg_cron fires every minute, all timing logic lives here.
 // Handles 5 tasks in one pass:
@@ -115,6 +117,7 @@ export async function GET(req: NextRequest) {
     recordatorio: 0, recordatorio_email: 0,
     cupos: 0,
     invitados: 0,
+    borradores: 0,
   }
 
   const settingsCache = new Map<string, Settings>()
@@ -317,7 +320,7 @@ export async function GET(req: NextRequest) {
   // ── Load upcoming partidos for remaining checks (dia_antes, cupos, invitados) ─
   const { data: partidos } = await admin
     .from('partidos')
-    .select('id, club_id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_dia_antes_sent, notif_cupos_sent, cupos_total, evaluaciones_abiertas, equipos_confirmados, tipo, lugar')
+    .select('id, club_id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_dia_antes_sent, notif_cupos_sent, cupos_total, evaluaciones_abiertas, equipos_confirmados, equipos_autogenerados, tipo, lugar')
     .gte('fecha', hoyCol)
     .order('fecha', { ascending: true })
     .limit(20)
@@ -440,6 +443,53 @@ export async function GET(req: NextRequest) {
           try { await notificarInvitadoConfirmado(admin, inv.id) }
           catch (e) { console.error('[cron] notificarInvitadoConfirmado:', e) }
           results.invitados++
+        }
+      }
+
+      // ── Auto-draft the teams, once, after the guests are in ──────────────
+      // Runs only if nobody has built teams yet: never overwrite an admin's work.
+      const yaAutogenerado = (partido as { equipos_autogenerados?: boolean }).equipos_autogenerados
+      if (!yaAutogenerado && !partido.equipos_confirmados) {
+        const { count: yaHayEquipos } = await admin
+          .from('equipos').select('id', { count: 'exact', head: true }).eq('partido_id', partido.id)
+
+        if ((yaHayEquipos ?? 0) === 0) {
+          // Claim it first — the cron ticks every minute and the draft takes
+          // seconds (Gemini call), so a slow run would otherwise double-generate.
+          await admin.from('partidos').update({ equipos_autogenerados: true }).eq('id', partido.id)
+          try {
+            const res = await generarBorradorAuto(admin, partido.id, clubId)
+            if (res.ok) {
+              results.borradores++
+              await logActivity({
+                accion: 'auto_borrador_equipos',
+                detalles: { partido_id: partido.id, jugadores: res.jugadores, source: res.source },
+              })
+              await notifyAdmins(
+                admin, clubId, 'equipos',
+                '🧩 Borrador de equipos listo',
+                `Se armaron los equipos del ${partido.dia_semana} con ${res.jugadores} jugadores. Revísalos y confírmalos.`
+              )
+              // Players see the suggestion and can say whether it looks even.
+              const { data: confirmadosIns } = await admin
+                .from('inscripciones').select('player_id')
+                .eq('partido_id', partido.id).eq('estado', 'confirmado')
+              const ids = (confirmadosIns ?? []).map((i: { player_id: string }) => i.player_id)
+              if (ids.length) {
+                const { data: subs } = await admin
+                  .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', ids)
+                await sendToMany(admin, subs ?? [], {
+                  title: '🧩 Alineación sugerida',
+                  body: `Ya está la alineación del ${partido.dia_semana}. Míralo y dinos si te parece pareja.`,
+                  url: '/',
+                })
+              }
+            } else {
+              console.error('[cron] auto_borrador falló:', res.error)
+            }
+          } catch (e) {
+            console.error('[cron] generarBorradorAuto:', e)
+          }
         }
       }
     }

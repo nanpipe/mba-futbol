@@ -12,6 +12,7 @@ import { EvaluationCTA } from '@/components/EvaluationCTA'
 import { MatchResultCard } from '@/components/MatchResultCard'
 import { useInstallState, InstallInterstitial, InstallNagModal } from '@/components/InstallGate'
 import { MisInvitados } from '@/components/MisInvitados'
+import { AlineacionVoto } from '@/components/AlineacionVoto'
 
 interface Partido {
   id: string
@@ -202,8 +203,8 @@ export default function HomePage() {
     setInscripciones((ins as unknown as Inscripcion[]) ?? [])
     setMiInscripcion((ins as unknown as Inscripcion[])?.find(i => i.player_id === u.id) ?? null)
 
-    // Load teams if confirmed
-    if (partido.equipos_confirmados) {
+    // Load teams whenever they exist — a draft is shown as "sugerida".
+    {
       const teamsRes = await fetch(`/api/equipos?partido_id=${partido.id}`)
       const teamsData = await teamsRes.json()
       if (teamsData.equipos) {
@@ -213,8 +214,6 @@ export default function HomePage() {
       } else {
         setMisEquipos(null)
       }
-    } else {
-      setMisEquipos(null)
     }
 
     // Load player's own invitees + all invitees for public waiting list
@@ -733,6 +732,8 @@ export default function HomePage() {
             {/* Teams display when confirmed */}
             {misEquipos && (() => {
               const myUsername = profile?.username ?? ''
+              // Teams exist but the admin hasn't locked them in yet.
+              const esBorrador = !ventana?.partido?.equipos_confirmados
               const colorAccent = (eq: Equipo) => eq.nombre === 'A' ? 'var(--green)' : 'var(--amber)'
               const colorBorder = (eq: Equipo) => eq.nombre === 'A' ? '#16a34a' : '#92400e'
               const colorBg = (eq: Equipo) => eq.nombre === 'A' ? '#0a1f0a' : '#1a0e00'
@@ -762,9 +763,20 @@ export default function HomePage() {
 
               return (
                 <div style={{ marginTop: 40 }}>
-                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--green)', marginBottom: 20 }}>
-                    ⚽ EQUIPOS CONFIRMADOS
-                  </div>
+                  {esBorrador ? (
+                    <>
+                      <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--amber)', marginBottom: 6 }}>
+                        🧩 ALINEACIÓN SUGERIDA
+                      </div>
+                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 16, lineHeight: 1.6 }}>
+                        Todavía no es definitiva — el admin la revisa y confirma.
+                      </div>
+                    </>
+                  ) : (
+                    <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--green)', marginBottom: 20 }}>
+                      ⚽ EQUIPOS CONFIRMADOS
+                    </div>
+                  )}
 
                   {misEquipos.equipos.map(eq => {
                     const isMyTeam = eq.jugadores.some(j => j.id === user?.id)
@@ -866,6 +878,10 @@ export default function HomePage() {
 
                   {!misEquipos.miEquipo && (
                     <div className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>No estás asignado a ningún equipo.</div>
+                  )}
+
+                  {esBorrador && miInscripcion?.estado === 'confirmado' && ventana?.partido && (
+                    <AlineacionVoto partidoId={ventana.partido.id} />
                   )}
                 </div>
               )

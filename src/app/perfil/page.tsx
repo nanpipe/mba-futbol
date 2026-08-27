@@ -5,13 +5,13 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
 import { posicionEmoji } from '@/lib/teamBalancer'
-import { FifaCard } from '@/components/FifaCard'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { Card } from '@/components/Card'
 import { SectionHeader } from '@/components/SectionHeader'
 import { ErrorAlert } from '@/components/ErrorAlert'
 import { useClub } from '@/hooks/useClub'
+import { ratingTierStyle } from '@/lib/tier'
 import { InvitadosGuardados } from '@/components/InvitadosGuardados'
 
 import { POSICIONES, type Posicion } from '@/lib/posiciones'
@@ -315,29 +315,17 @@ export default function PerfilPage() {
             <div className="display" style={{ fontSize: 28, color: 'var(--green)' }}>{totalMatches}</div>
             <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>PARTIDOS</div>
           </div>
-          <div style={{ flex: 1, textAlign: 'center' }}>
+          <div style={{ flex: 1, textAlign: 'center', borderRight: '1px solid var(--border)' }}>
             <div className="display" style={{ fontSize: 28, color: 'var(--amber)' }}>{badges.length}</div>
             <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>RECONOCIMIENTOS</div>
           </div>
-        </Card>
-
-        {/* Player card */}
-        <div style={{ marginBottom: 28 }}>
-          <SectionHeader title="MI CARTA" />
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-            <FifaCard
-              size="md"
-              clubNombre={club?.nombre}
-              username={profile?.username ?? ''}
-              avatar_url={profile?.avatar_url}
-              rating={profile?.habilidad ?? 3.0}
-              tiers={club?.tiers}
-            />
-            <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', textAlign: 'center', lineHeight: 1.6, maxWidth: 260 }}>
-              Tu puntaje se gana en la cancha: sube si juegas y ganas, baja si faltas o pierdes.
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <div className="display" style={{ fontSize: 28 }}>★{(profile?.habilidad ?? 3).toFixed(1)}</div>
+            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
+              {ratingTierStyle(profile?.habilidad ?? 3, club?.tiers).label}
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* Badges */}
         {badges.length > 0 && (

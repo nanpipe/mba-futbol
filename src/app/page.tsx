@@ -10,7 +10,7 @@ import { colorLabel } from '@/lib/design'
 import { useClub } from '@/hooks/useClub'
 import { EvaluationCTA } from '@/components/EvaluationCTA'
 import { MatchResultCard } from '@/components/MatchResultCard'
-import { useInstallState, InstallInterstitial, InstallNagModal } from '@/components/InstallGate'
+import { useInstallState, InstallInterstitial, InstallNagModal, InstallBanner } from '@/components/InstallGate'
 import { MisInvitados } from '@/components/MisInvitados'
 import { AlineacionVoto } from '@/components/AlineacionVoto'
 
@@ -491,11 +491,6 @@ export default function HomePage() {
                 ADMIN ↗
               </Link>
             )}
-            {install.canPrompt && !install.isStandalone && (
-              <button onClick={install.promptInstall} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 11, color: 'var(--green)', borderColor: '#16a34a' }}>
-                📲 Instalar app
-              </button>
-            )}
             {pushPermission !== 'granted' && pushPermission !== null && 'PushManager' in window && (
               <button onClick={activarPush} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 11, color: 'var(--amber)', borderColor: '#92400e' }}>
                 🔔 Notificaciones
@@ -525,6 +520,9 @@ export default function HomePage() {
           </div>
         </div>
       </nav>
+
+      {/* Install CTA lives in its own band so the nav stays a single tight row. */}
+      <InstallBanner state={install} />
 
       {/* Install push — full-screen once per session, plus a nag before signing up. */}
       <InstallInterstitial state={install} />

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   DndContext,
   type DragEndEvent,
@@ -49,6 +49,8 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
   const [balancerRazon, setBalancerRazon] = useState('')
   const [balancerSource, setBalancerSource] = useState<'gemini' | 'fallback' | null>(null)
   const [feedbackText, setFeedbackText] = useState('')
+  // Player reactions to the suggested lineup, shown while reviewing the draft.
+  const [votos, setVotos] = useState<{ aFavor: number; enContra: number; total: number; comentarios: { username: string; comentario: string }[] } | null>(null)
   const [feedbackHistory, setFeedbackHistory] = useState<{ id: string; feedback: string; created_at: string }[]>([])
   const [savingFeedback, setSavingFeedback] = useState(false)
 
@@ -261,6 +263,20 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
     setRotacionB(prev => prev ? { ...prev, color: prev.color === 'blanco' ? 'negro' : 'blanco' } : prev)
   }
 
+  const cargarVotos = useCallback(async (partidoId: string) => {
+    try {
+      const res = await fetch(`/api/alineacion-votos?partido_id=${partidoId}`)
+      if (!res.ok) { setVotos(null); return }
+      const d = await res.json()
+      setVotos({ aFavor: d.aFavor ?? 0, enContra: d.enContra ?? 0, total: d.total ?? 0, comentarios: d.comentarios ?? [] })
+    } catch { setVotos(null) }
+  }, [])
+
+  useEffect(() => {
+    if (equiposPartido?.id) cargarVotos(equiposPartido.id)
+    else setVotos(null)
+  }, [equiposPartido?.id, cargarVotos])
+
   const guardarRotaciones = async () => {
     if (!equiposPartido || !rotacionA || !rotacionB) return
     setSavingRotacion(true)
@@ -422,6 +438,51 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
               <span className="mono" style={{ fontSize: 10, color: 'var(--amber)', letterSpacing: '0.1em' }}>● BORRADOR SIN GUARDAR</span>
             )}
           </div>
+
+          {/* Player reactions to the suggested lineup */}
+          {votos && (votos.aFavor + votos.enContra) > 0 && (
+            <Card padding="12px 16px" style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                <div className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--text-dim)' }}>
+                  OPINIÓN DE LOS JUGADORES
+                </div>
+                <div style={{ display: 'flex', gap: 10, marginLeft: 'auto' }}>
+                  <span className="mono" style={{ fontSize: 13, color: 'var(--green)' }}>👍 {votos.aFavor}</span>
+                  <span className="mono" style={{ fontSize: 13, color: 'var(--amber)' }}>✋ {votos.enContra}</span>
+                  <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                    ({votos.aFavor + votos.enContra}/{votos.total})
+                  </span>
+                </div>
+              </div>
+
+              {votos.comentarios.length > 0 && (
+                <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {votos.comentarios.filter(c => c.comentario).map((c, i) => (
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+                      padding: '8px 10px', background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border)', borderRadius: 4,
+                    }}>
+                      <span className="mono" style={{ fontSize: 11, color: 'var(--amber)', flexShrink: 0 }}>✋ {c.username}</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', flex: 1, minWidth: 120 }}>{c.comentario}</span>
+                      <button
+                        onClick={() => setFeedbackText(prev => prev ? `${prev}
+${c.comentario}` : c.comentario)}
+                        title="Copiar al feedback del balanceador"
+                        className="mono"
+                        style={{
+                          fontSize: 10, padding: '4px 8px', borderRadius: 3, cursor: 'pointer',
+                          background: 'none', border: '1px solid var(--border)', color: 'var(--text-dim)', flexShrink: 0,
+                        }}
+                      >
+                        ↓ Usar como feedback
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
 
           {/* Skill balance */}
           {(equipoA.length > 0 || equipoB.length > 0) && (() => {

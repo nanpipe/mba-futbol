@@ -198,6 +198,52 @@ function HowTo({ state, big }: { state: InstallState; big: boolean }) {
   )
 }
 
+// ── Subheader band under the nav ─────────────────────────────────────────────
+/**
+ * The persistent install call-to-action. Lives in its own band below the nav
+ * rather than as a nav item: the header is a single non-wrapping row and an
+ * extra button there pushed the page wider than a phone screen.
+ *
+ * Android gets a real install button. Everywhere else install can only be
+ * manual, so the band expands into the platform's steps instead.
+ */
+export function InstallBanner({ state }: { state: InstallState }) {
+  const [abierto, setAbierto] = useState(false)
+  if (state.isStandalone) return null
+
+  const puedeInstalarDirecto = state.canPrompt
+
+  return (
+    <div style={{ background: '#0f1f0f', borderBottom: '1px solid #1a3a1a' }}>
+      <style>{`@keyframes mbafcBounce { 0%,100% { transform: translateY(0) } 50% { transform: translateY(7px) } }`}</style>
+      <div className="container" style={{ padding: '12px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>📲</span>
+          <div style={{ flex: 1, minWidth: 140 }}>
+            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--green)' }}>Instala la app</div>
+            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>
+              Recibe los cupos al instante
+            </div>
+          </div>
+          <button
+            onClick={() => puedeInstalarDirecto ? state.promptInstall() : setAbierto(o => !o)}
+            className="btn btn-primary"
+            style={{ fontSize: 13, padding: '10px 20px', whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
+            {puedeInstalarDirecto ? 'Instalar' : abierto ? 'Ocultar' : 'Cómo'}
+          </button>
+        </div>
+
+        {!puedeInstalarDirecto && abierto && (
+          <div style={{ marginTop: 12 }}>
+            <HowTo state={state} big={false} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Full-screen interstitial, once per session ───────────────────────────────
 export function InstallInterstitial({ state }: { state: InstallState }) {
   const [dismissed, setDismissed] = useState(true) // stays hidden until we've checked the session

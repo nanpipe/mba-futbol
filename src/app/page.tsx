@@ -487,14 +487,6 @@ export default function HomePage() {
             minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>{club.nombre}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
-            <Link
-              href="/historial"
-              title="Historial"
-              aria-label="Historial"
-              style={{ fontSize: 17, lineHeight: 1, textDecoration: 'none' }}
-            >
-              🕐
-            </Link>
             {(profile?.role === 'admin' || profile?.role === 'superadmin') && (
               <Link href="/admin" className="mono" style={{ fontSize: 12, color: 'var(--amber)', letterSpacing: '0.08em', textDecoration: 'none' }}>
                 ADMIN ↗

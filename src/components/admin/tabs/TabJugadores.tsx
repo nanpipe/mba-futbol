@@ -8,6 +8,7 @@ import { ButtonGroup } from '@/components/ButtonGroup'
 import { Card } from '@/components/Card'
 import { ModalOverlay } from '@/components/ModalOverlay'
 import type { Player, AdminAction } from '@/types/admin'
+import { ratingTierStyle } from '@/lib/tier'
 
 interface Props {
   players: Player[]
@@ -38,6 +39,12 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
       if (ro !== 0) return ro
       return a.username.localeCompare(b.username)
     })
+
+  const toggleUniforme = async () => {
+    if (!editModal) return
+    const ok = await accionAdmin('toggle_uniform', { player_id: editModal.id })
+    if (ok) setEditModal(prev => prev ? { ...prev, uniform: !prev.uniform } : prev)
+  }
 
   const abrirEdit = (p: Player) => {
     setEditModal(p)
@@ -143,7 +150,16 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                   border: '1px solid var(--border)', borderRadius: 3, gap: 10,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                    <PlayerAvatar url={p.avatar_url} username={p.username} size={32} />
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                      <PlayerAvatar url={p.avatar_url} username={p.username} size={32} />
+                      <span
+                        className="mono"
+                        title={ratingTierStyle(p.habilidad ?? 3).label}
+                        style={{ fontSize: 9, color: 'var(--text-muted)', lineHeight: 1 }}
+                      >
+                        ★{(p.habilidad ?? 3).toFixed(1)}
+                      </span>
+                    </div>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 14, fontWeight: 500 }}>{p.username}</span>
@@ -164,21 +180,6 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                       <span title={hasPush ? 'Notificaciones activadas' : 'Sin notificaciones'} style={{ fontSize: 15, opacity: hasPush ? 1 : 0.3, cursor: 'default', lineHeight: 1 }}>
                         {hasPush ? '🔔' : '🔕'}
                       </span>
-                      {usarUniforme && (
-                        <button
-                          onClick={() => accionAdmin('toggle_uniform', { player_id: p.id })}
-                          title={p.uniform ? 'Tiene uniforme — clic para quitar' : 'Sin uniforme — clic para asignar'}
-                          style={{
-                            fontSize: 15, padding: '4px 6px', borderRadius: 3, cursor: 'pointer',
-                            background: p.uniform ? '#0f2d1a' : 'transparent',
-                            color: p.uniform ? 'var(--green)' : 'var(--text-dim)',
-                            border: `1px solid ${p.uniform ? '#16a34a' : 'var(--border)'}`,
-                            lineHeight: 1,
-                          }}
-                        >
-                          👕
-                        </button>
-                      )}
                       <button onClick={() => abrirEdit(p)} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>
                         Editar
                       </button>
@@ -202,6 +203,30 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                 <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>{editModal.email}</div>
               </div>
             </div>
+
+            {usarUniforme && !isPrivileged(editModal.role) && (
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                padding: '12px 14px', marginBottom: 20,
+                background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 4,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                  <span style={{ fontSize: 16, lineHeight: 1 }}>👕</span>
+                  {editModal.uniform ? (
+                    <span className="mono" style={{ fontSize: 9, color: 'var(--green)', letterSpacing: '0.1em', background: '#0f2d1a', padding: '2px 5px', borderRadius: 2 }}>UNIFORME</span>
+                  ) : (
+                    <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>Sin uniforme</span>
+                  )}
+                </div>
+                <button
+                  onClick={toggleUniforme}
+                  className="btn btn-ghost"
+                  style={{ fontSize: 11, padding: '6px 12px', whiteSpace: 'nowrap' }}
+                >
+                  {editModal.uniform ? 'Quitar' : 'Asignar'}
+                </button>
+              </div>
+            )}
 
             {isSuperAdmin && (
               <>

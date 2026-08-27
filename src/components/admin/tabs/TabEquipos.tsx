@@ -535,7 +535,7 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
                   </button>
                 </ButtonGroup>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="form-2col">
                 {rotacionA && <RotacionPanel equipo="A" rotacion={rotacionA} setRotacion={setRotacionA} accent="var(--green)" jugadores={equipoA.map(j => j.username)} />}
                 {rotacionB && <RotacionPanel equipo="B" rotacion={rotacionB} setRotacion={setRotacionB} accent="var(--amber)" jugadores={equipoB.map(j => j.username)} />}
               </div>

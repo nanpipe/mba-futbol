@@ -794,7 +794,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 <FormLabel label="Hora del Partido" />
                 <input type="time" value={nuevaHora} onChange={e => setNuevaHora(e.target.value)} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="form-2col">
                 <div style={{ minWidth: 0 }}>
                   <FormLabel label="Abrir Inscripciones" />
                   <input type="time" value={nuevaHoraApertura} onChange={e => setNuevaHoraApertura(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
@@ -849,7 +849,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 <FormLabel label="Hora del Partido" />
                 <input type="time" value={nuevaHora} onChange={e => setNuevaHora(e.target.value)} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="form-2col">
                 <div style={{ minWidth: 0 }}>
                   <FormLabel label="Hora Apertura" />
                   <input type="time" value={nuevaHoraApertura} onChange={e => setNuevaHoraApertura(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />

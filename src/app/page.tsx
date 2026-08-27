@@ -482,10 +482,18 @@ export default function HomePage() {
       {/* Nav */}
       <nav style={{ borderBottom: '1px solid var(--border)', padding: '16px 0', position: 'sticky', top: 0, zIndex: 30, background: 'var(--bg)' }}>
         <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span className="display" style={{ fontSize: 20, letterSpacing: '0.1em' }}>{club.nombre}</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <Link href="/historial" className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.08em', textDecoration: 'none' }}>
-              HISTORIAL
+          <span className="display" style={{
+            fontSize: 20, letterSpacing: '0.1em',
+            minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>{club.nombre}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
+            <Link
+              href="/historial"
+              title="Historial"
+              aria-label="Historial"
+              style={{ fontSize: 17, lineHeight: 1, textDecoration: 'none' }}
+            >
+              🕐
             </Link>
             {(profile?.role === 'admin' || profile?.role === 'superadmin') && (
               <Link href="/admin" className="mono" style={{ fontSize: 12, color: 'var(--amber)', letterSpacing: '0.08em', textDecoration: 'none' }}>
@@ -520,7 +528,7 @@ export default function HomePage() {
                   </span>
                 )}
               </div>
-              <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{profile?.username}</span>
+              <span className="mono nav-hide-sm" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{profile?.username}</span>
             </Link>
             <button onClick={cerrarSesion} className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 11 }}>Salir</button>
           </div>

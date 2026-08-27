@@ -161,3 +161,32 @@ hr { border: none; border-top: 1px solid var(--border); }
     grid-template-columns: 1fr;
   }
 }
+
+/* Two-column form rows. Collapse on phones: side-by-side fields with
+   different-height labels ended up misaligned and cramped. */
+.form-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.form-2col > * { min-width: 0; }
+
+@media (max-width: 600px) {
+  .form-2col { grid-template-columns: 1fr; }
+}
+
+/* Nav is a single non-wrapping row; on narrow screens the least important
+   labels go so the row can't push the page wider than the viewport. */
+@media (max-width: 560px) {
+  .nav-hide-sm { display: none; }
+}
+
+/* The base input rule targets text-like fields. Checkboxes and radios must not
+   stretch: a full-width, padded checkbox shoved its own label off-screen. */
+input[type="checkbox"], input[type="radio"] {
+  width: auto;
+  max-width: none;
+  padding: 0;
+  flex-shrink: 0;
+  accent-color: var(--green);
+}

@@ -900,8 +900,11 @@ export default function HomePage() {
             {/* Lista de jugadores */}
             {inscripciones.length > 0 && (
               <div style={{ marginTop: 40 }}>
-                <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 16 }}>
+                <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 8 }}>
                   JUGADORES — {totalConfirmados} CONFIRMADOS
+                </div>
+                <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 16, lineHeight: 1.6 }}>
+                  ⭐ Tu puntaje se gana en la cancha: sube si juegas y ganas, baja si faltas o pierdes.
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {confirmados.map((ins, idx) => (

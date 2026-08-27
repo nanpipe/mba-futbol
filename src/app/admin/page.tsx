@@ -44,12 +44,12 @@ export default function AdminPage() {
   const [usarUniforme, setUsarUniforme] = useState(true)
 
   const cargarDatos = useCallback(async () => {
-    const [{ data: ps }, { data: pushSubs }, { data: pts }, settingsRes] = await Promise.all([
+    const [{ data: ps }, pushRes, { data: pts }, settingsRes] = await Promise.all([
       supabase
         .from('profiles')
-        .select('id, username, email, role, baneado, aprobado, uniform, fecha_liberacion, razon_ban, ip_registro, created_at, avatar_url')
+        .select('id, username, email, role, baneado, aprobado, uniform, fecha_liberacion, razon_ban, ip_registro, created_at, avatar_url, habilidad')
         .order('created_at', { ascending: false }),
-      supabase.from('push_subscriptions').select('player_id'),
+      fetch('/api/admin?accion=push_subs'),
       supabase
         .from('partidos')
         .select('id, fecha, dia_semana, hora, cupos_total, hora_apertura, dias_antes_apertura, inscripciones(estado), invitados(estado), evaluaciones_abiertas, equipos_confirmados, resultado, goles_a, goles_b, notif_apertura_sent, tipo, puntos_blanco, puntos_negro, puntos_morado')
@@ -59,7 +59,10 @@ export default function AdminPage() {
       fetch('/api/admin?accion=settings'),
     ])
     setPlayers((ps ?? []) as Player[])
-    setPlayerIdsWithPush(new Set((pushSubs ?? []).map((s: { player_id: string }) => s.player_id)))
+    if (pushRes.ok) {
+      const pushJson = await pushRes.json()
+      setPlayerIdsWithPush(new Set<string>(pushJson.player_ids ?? []))
+    }
     setPartidos((pts ?? []) as Partido[])
     if (settingsRes.ok) {
       const json = await settingsRes.json()

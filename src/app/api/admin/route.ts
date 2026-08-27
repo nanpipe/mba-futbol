@@ -76,6 +76,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, pendientes: data ?? [] })
   }
 
+  if (accion === 'push_subs') {
+    // Which players have push enabled. Read with the service role because the
+    // RLS policy on push_subscriptions is own-row only.
+    const { data } = await admin
+      .from('push_subscriptions').select('player_id').eq('club_id', clubId)
+    const ids = [...new Set((data ?? []).map((s: { player_id: string }) => s.player_id))]
+    return NextResponse.json({ ok: true, player_ids: ids })
+  }
+
   if (accion === 'settings') {
     const { data } = await admin.from('app_settings').select('key, value, updated_at').eq('club_id', clubId)
     const settings: Record<string, unknown> = {}

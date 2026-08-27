@@ -13,6 +13,7 @@ export interface Player {
   ip_registro: string | null
   created_at: string
   avatar_url: string | null
+  habilidad: number | null
 }
 
 export interface ActivityLog {

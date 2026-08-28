@@ -13,6 +13,7 @@ import { MatchResultCard } from '@/components/MatchResultCard'
 import { useInstallState, InstallInterstitial, InstallNagModal, InstallBanner } from '@/components/InstallGate'
 import { MisInvitados } from '@/components/MisInvitados'
 import { AlineacionVoto } from '@/components/AlineacionVoto'
+import { esHoraDePartido } from '@/lib/promoHora'
 
 interface Partido {
   id: string
@@ -424,6 +425,11 @@ export default function HomePage() {
 
   const renderUltimoResultados = () => {
     if (!ultimoPartido || ultimoPartido.partido.evaluaciones_abiertas || (ultimoPartido.badges.length === 0 && !ultimoPartido.partido.foto_url)) {
+      return null
+    }
+    // From the promo hour on match day the screen is about today's match —
+    // last week's photo and badges only get in the way.
+    if (esHoraDePartido(ventana?.partido?.fecha, club.settings?.hora_promo_invitados)) {
       return null
     }
     const p = ultimoPartido.partido

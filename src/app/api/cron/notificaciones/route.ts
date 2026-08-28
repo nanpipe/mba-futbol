@@ -10,6 +10,7 @@ import { applyMatchRatings } from '@/lib/rating'
 import { notificarInvitadoConfirmado } from '@/lib/invitados'
 import { generarBorradorAuto } from '@/lib/teamDraft'
 import { notifyAdmins } from '@/lib/notifyAdmins'
+import { parsePromoHour, horaColombia } from '@/lib/promoHora'
 
 // Every-minute cron metronome — pg_cron fires every minute, all timing logic lives here.
 // Handles 5 tasks in one pass:
@@ -415,14 +416,8 @@ export async function GET(req: NextRequest) {
 
     // ── Invitee promotion: today's match, only from the club's promo hour ──
     // (default 2 PM Colombia; without this gate they promoted at midnight)
-    const promoRaw = String(settings['hora_promo_invitados'] ?? '2:00 PM')
-    const pm = promoRaw.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?/i)
-    let promoHour = 14
-    if (pm) {
-      promoHour = parseInt(pm[1], 10) % 12
-      if ((pm[3] ?? 'PM').toUpperCase() === 'PM') promoHour += 12
-    }
-    const colHour = new Date(now.getTime() - 5 * 3600 * 1000).getUTCHours()
+    const promoHour = parsePromoHour(settings['hora_promo_invitados'])
+    const colHour = horaColombia(now)
     if (promoverInvitados && partido.fecha === hoyCol && colHour >= promoHour) {
       // Confirmed guests occupy spots too — counting only inscripciones let the
       // promotion overfill the match.

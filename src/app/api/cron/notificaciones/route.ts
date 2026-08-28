@@ -318,12 +318,20 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Load upcoming partidos for remaining checks (dia_antes, cupos, invitados) ─
-  const { data: partidos } = await admin
+  const { data: partidos, error: partidosErr } = await admin
     .from('partidos')
     .select('id, club_id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_dia_antes_sent, notif_cupos_sent, cupos_total, evaluaciones_abiertas, equipos_confirmados, equipos_autogenerados, tipo, lugar')
     .gte('fecha', hoyCol)
     .order('fecha', { ascending: true })
     .limit(20)
+
+  // Everything below — día-antes, cupos, guest promotion, auto-draft — depends
+  // on this one query. It failed silently for months over a column that was
+  // referenced in code but never migrated, so make it impossible to miss.
+  if (partidosErr) {
+    console.error('[cron] partidos query FAILED — día-antes, cupos, invitados y borrador NO corrieron:', partidosErr.message)
+    await logActivity({ accion: 'cron_error', detalles: { paso: 'partidos_query', error: partidosErr.message } })
+  }
 
   for (const partido of partidos ?? []) {
     const clubId = (partido as { club_id: string }).club_id

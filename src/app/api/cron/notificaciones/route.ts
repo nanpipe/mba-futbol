@@ -10,7 +10,7 @@ import { applyMatchRatings } from '@/lib/rating'
 import { notificarInvitadoConfirmado } from '@/lib/invitados'
 import { generarBorradorAuto } from '@/lib/teamDraft'
 import { notifyAdmins } from '@/lib/notifyAdmins'
-import { parsePromoHour, horaColombia } from '@/lib/promoHora'
+import { parsePromoHour, horaColombia, fechaColombia } from '@/lib/promoHora'
 
 // Every-minute cron metronome — pg_cron fires every minute, all timing logic lives here.
 // Handles 5 tasks in one pass:
@@ -119,11 +119,38 @@ export async function GET(req: NextRequest) {
     cupos: 0,
     invitados: 0,
     borradores: 0,
+    liberados: 0,
   }
 
   const settingsCache = new Map<string, Settings>()
   const playerIdsCache = new Map<string, string[]>()
   const clubNombreCache = new Map<string, string>()
+
+  // ── Release expired bans ─────────────────────────────────────────────────
+  // fecha_liberacion was only ever stored and displayed — nothing acted on it,
+  // so a suspension outlived its own end date until an admin noticed by hand.
+  {
+    const hoyColStr = fechaColombia(now)
+    const { data: porLiberar } = await admin
+      .from('profiles')
+      .select('id, username, club_id, fecha_liberacion')
+      .eq('baneado', true)
+      .not('fecha_liberacion', 'is', null)
+      .lte('fecha_liberacion', hoyColStr)
+
+    for (const p of porLiberar ?? []) {
+      const { error } = await admin
+        .from('profiles')
+        .update({ baneado: false, fecha_ban: null, fecha_liberacion: null, razon_ban: null })
+        .eq('id', (p as { id: string }).id)
+      if (error) { console.error('[cron] liberar ban falló:', error.message); continue }
+      results.liberados++
+      await logActivity({
+        accion: 'auto_liberar_ban',
+        detalles: { player_id: (p as { id: string }).id, username: (p as { username?: string }).username, vencia: (p as { fecha_liberacion?: string }).fecha_liberacion },
+      })
+    }
+  }
 
   // ── Auto-open/close evaluaciones ─────────────────────────────────────────
   const ayer = new Date(now); ayer.setDate(now.getDate() - 1)

@@ -8,9 +8,9 @@ export interface ThumbTeammate {
   avatar_url: string | null
 }
 
-function thumbStyle(active: boolean, kind: 'up' | 'down'): React.CSSProperties {
-  const color = kind === 'up' ? 'var(--green)' : 'var(--red)'
-  const bg = kind === 'up' ? '#0f2d1a' : '#2d0a0a'
+function thumbStyle(active: boolean, kind: 'up' | 'neutral' | 'down'): React.CSSProperties {
+  const color = kind === 'up' ? 'var(--green)' : kind === 'down' ? 'var(--red)' : 'var(--text-muted)'
+  const bg = kind === 'up' ? '#0f2d1a' : kind === 'down' ? '#2d0a0a' : 'var(--bg-elevated)'
   return {
     fontSize: 18,
     lineHeight: 1,
@@ -25,8 +25,10 @@ function thumbStyle(active: boolean, kind: 'up' | 'down'): React.CSSProperties {
 }
 
 /**
- * Rate each teammate 👍 / 👎. Clicking the active value again clears it.
- * Controlled: parent holds `values` (playerId → 1 | -1).
+ * Rate each teammate 👍 / 😐 / 👎. Clicking the active value again clears it.
+ * Neutral is a real answer meaning "no opinion": it marks the teammate as rated
+ * but sends nothing, so it never counts for or against them.
+ * Controlled: parent holds `values` (playerId → 1 | 0 | -1).
  */
 export function ThumbsRater({
   teammates,
@@ -34,8 +36,8 @@ export function ThumbsRater({
   onSet,
 }: {
   teammates: ThumbTeammate[]
-  values: Record<string, 1 | -1>
-  onSet: (id: string, value: 1 | -1) => void
+  values: Record<string, 1 | 0 | -1>
+  onSet: (id: string, value: 1 | 0 | -1) => void
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -55,6 +57,7 @@ export function ThumbsRater({
               {t.username}
             </span>
             <button onClick={() => onSet(t.id, 1)} aria-label={`Pulgar arriba ${t.username}`} style={thumbStyle(v === 1, 'up')}>👍</button>
+            <button onClick={() => onSet(t.id, 0)} aria-label={`Neutral ${t.username}`} style={thumbStyle(v === 0, 'neutral')}>😐</button>
             <button onClick={() => onSet(t.id, -1)} aria-label={`Pulgar abajo ${t.username}`} style={thumbStyle(v === -1, 'down')}>👎</button>
           </div>
         )

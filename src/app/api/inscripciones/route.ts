@@ -6,6 +6,7 @@ import { safeError, isUUID } from '@/lib/validation'
 import { internalFetch } from '@/lib/internalFetch'
 import { logActivity } from '@/lib/activityLog'
 import { isRateLimited, getClientIp } from '@/lib/rateLimit'
+import { fechaColombia } from '@/lib/promoHora'
 import { notifyAdmins } from '@/lib/notifyAdmins'
 
 export const dynamic = 'force-dynamic'
@@ -38,9 +39,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Tu cuenta aún no ha sido aprobada por el administrador.' }, { status: 403 })
   }
 
-  if (profile?.baneado) {
+  // A ban past its release date is over, whether or not the cron has cleared the
+  // flag yet — otherwise a late cron run keeps someone locked out unfairly.
+  const banVencido = !!profile?.fecha_liberacion && profile.fecha_liberacion <= fechaColombia()
+  if (profile?.baneado && !banVencido) {
     const liberacion = profile.fecha_liberacion
-      ? new Date(profile.fecha_liberacion).toLocaleDateString('es-CO')
+      ? new Date(profile.fecha_liberacion + 'T12:00:00').toLocaleDateString('es-CO')
       : 'indefinido'
     return NextResponse.json(
       { error: `Estás suspendido hasta el ${liberacion}. Contacta al admin para más info.` },

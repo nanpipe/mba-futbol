@@ -39,17 +39,18 @@ export default function RecuperarPage() {
     // Resolve email
     let resolvedEmail = raw
     if (!isEmail) {
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('username', raw)
-        .single()
-      if (error || !profile) {
+      const res = await fetch('/api/auth/resolver', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'email_de', valor: raw }),
+      })
+      const data = res.ok ? await res.json() : null
+      if (!data?.email) {
         setErrorPwd('Usuario no encontrado.')
         setLoadingPwd(false)
         return
       }
-      resolvedEmail = profile.email
+      resolvedEmail = data.email
     }
 
     const redirectTo = `${window.location.origin}/api/auth/callback?next=/actualizar-password`

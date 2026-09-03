@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { calcularVentanaPartido } from '@/lib/partidos'
-import { isUUID, isString, isEmail, safeError } from '@/lib/validation'
+import { isUUID, isSingleLine, isEmail, safeError } from '@/lib/validation'
 import { sendPush, isDeadPushError } from '@/lib/push'
 import { logActivity } from '@/lib/activityLog'
 import { notificarInvitadoConfirmado } from '@/lib/invitados'
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   const { partido_id, nombre, email, guardar } = body
   if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
-  if (!isString(nombre, 2, 80)) return NextResponse.json({ error: 'Nombre debe tener entre 2 y 80 caracteres' }, { status: 400 })
+  if (!isSingleLine(nombre, 2, 80)) return NextResponse.json({ error: 'Nombre inválido (2 a 80 caracteres, sin saltos de línea)' }, { status: 400 })
   // Email is optional — it exists so the guest can be told directly when they
   // get a spot. Reject a malformed one instead of silently dropping it.
   const emailRaw = typeof email === 'string' ? email.trim().toLowerCase() : ''

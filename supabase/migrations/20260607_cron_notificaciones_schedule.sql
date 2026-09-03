@@ -1,3 +1,5 @@
+-- ⚠ El secreto va aquí SOLO al ejecutar en el SQL editor. Nunca commitear el valor real:
+--   quien tenga acceso al repo podría disparar el cron (notificaciones, borradores, ratings).
 -- ════════════════════════════════════════════════════════════════════════════
 -- Reschedule daily notificaciones cron → 14:55 UTC = 09:55 Colombia (UTC-5).
 -- Run once in Supabase SQL editor. Requires pg_cron + pg_net enabled.
@@ -22,7 +24,7 @@ SELECT cron.schedule(
   $job$
   SELECT net.http_get(
     url := 'https://mba-futbol.vercel.app/api/cron/notificaciones',
-    headers := '{"Authorization":"Bearer cronsecretkey234DSF3SD444Slsko-esj%%E6S"}'::jsonb
+    headers := '{"Authorization":"Bearer <REEMPLAZA_CON_TU_CRON_SECRET>"}'::jsonb
   );
   $job$
 );

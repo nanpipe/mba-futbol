@@ -29,16 +29,19 @@ export default function LoginPage() {
     setError('')
 
     const raw = identifier.trim().toLowerCase()
-    const isEmail = raw.includes('@')
 
-    // Resolve email + aprobado — by email or by username
-    const query = isEmail
-      ? supabase.from('profiles').select('email, aprobado').eq('email', raw).single()
-      : supabase.from('profiles').select('email, aprobado').eq('username', raw).single()
+    // Resolved server-side: reading profiles from the browser here happens
+    // before any session exists, which forced the table open to anon.
+    const resolverRes = await fetch('/api/auth/resolver', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion: 'email_de', valor: raw }),
+    })
+    const profile = resolverRes.ok
+      ? (await resolverRes.json()) as { email: string | null; aprobado?: boolean }
+      : null
 
-    const { data: profile, error: profileError } = await query
-
-    if (profileError || !profile) {
+    if (!profile?.email) {
       setError('Usuario o contraseña incorrectos.')
       setLoading(false)
       return

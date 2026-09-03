@@ -70,14 +70,16 @@ export default function RegistroPage() {
       // Si falla, continuar sin IP (el admin puede revisar)
     }
 
-    // Verificar username disponible
-    const { data: usernameExistente } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('username', usernameClean)
-      .single()
+    // Verificar username disponible (server-side: profiles is not readable
+    // from the browser before login)
+    const dispRes = await fetch('/api/auth/resolver', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion: 'username_disponible', valor: usernameClean }),
+    })
+    const disp = dispRes.ok ? await dispRes.json() : { disponible: true }
 
-    if (usernameExistente) {
+    if (!disp.disponible) {
       setError('Ese nombre de usuario ya está en uso. Elige otro.')
       setLoading(false)
       return

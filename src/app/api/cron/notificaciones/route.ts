@@ -141,6 +141,7 @@ export async function GET(req: NextRequest) {
       if (error) { console.error('[cron] liberar ban falló:', error.message); continue }
       results.liberados++
       await logActivity({
+        club_id: (p as { club_id?: string }).club_id,
         accion: 'auto_liberar_ban',
         detalles: { player_id: (p as { id: string }).id, username: (p as { username?: string }).username, vencia: (p as { fecha_liberacion?: string }).fecha_liberacion },
       })
@@ -153,7 +154,7 @@ export async function GET(req: NextRequest) {
 
   const { data: pasados } = await admin
     .from('partidos')
-    .select('id, fecha, evaluaciones_abiertas, evaluaciones_ya_abiertas, equipos_confirmados')
+    .select('id, club_id, fecha, evaluaciones_abiertas, evaluaciones_ya_abiertas, equipos_confirmados')
     .in('fecha', [ayerStr, dosDiasAtrasStr])
 
   for (const p of pasados ?? []) {
@@ -168,7 +169,7 @@ export async function GET(req: NextRequest) {
         .eq('estado', 'confirmado')
       if ((insCount ?? 0) >= 4) {
         await admin.from('partidos').update({ evaluaciones_abiertas: true, evaluaciones_ya_abiertas: true }).eq('id', p.id)
-        await logActivity({ accion: 'auto_abrir_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha, confirmados: insCount } })
+        await logActivity({ club_id: (p as { club_id?: string }).club_id, accion: 'auto_abrir_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha, confirmados: insCount } })
       }
     }
     if (p.fecha === dosDiasAtrasStr && (p.evaluaciones_abiertas as boolean)) {
@@ -176,7 +177,7 @@ export async function GET(req: NextRequest) {
       const { badges_asignados } = await tallyAndAssign(admin, p.id)
       // Recognitions are final — apply rating deltas (no-op without a result).
       try { await applyMatchRatings(admin, p.id) } catch (e) { console.error('[rating] cron auto_cerrar:', e) }
-      await logActivity({ accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha, badges_asignados } })
+      await logActivity({ club_id: (p as { club_id?: string }).club_id, accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha, badges_asignados } })
     }
   }
 
@@ -261,7 +262,7 @@ export async function GET(req: NextRequest) {
       const { badges_asignados } = await tallyAndAssign(admin, ep.id)
       // Recognitions are final — apply rating deltas (no-op without a result).
       try { await applyMatchRatings(admin, ep.id) } catch (e) { console.error('[rating] cron auto_cerrar nueva_apertura:', e) }
-      await logActivity({ accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: ep.id, fecha: ep.fecha, razon: 'nueva_apertura', badges_asignados } })
+      await logActivity({ club_id: clubId, accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: ep.id, fecha: ep.fecha, razon: 'nueva_apertura', badges_asignados } })
     }
   }
 
@@ -351,7 +352,13 @@ export async function GET(req: NextRequest) {
   // referenced in code but never migrated, so make it impossible to miss.
   if (partidosErr) {
     console.error('[cron] partidos query FAILED — día-antes, cupos, invitados y borrador NO corrieron:', partidosErr.message)
-    await logActivity({ accion: 'cron_error', detalles: { paso: 'partidos_query', error: partidosErr.message } })
+    // activity_log.club_id is NOT NULL, and this failure affects every club, so
+    // record it against each one — otherwise the row is dropped and the outage
+    // stays invisible in the panel, which is exactly how the last one hid.
+    const { data: clubes } = await admin.from('clubs').select('id')
+    for (const c of (clubes ?? []) as { id: string }[]) {
+      await logActivity({ club_id: c.id, accion: 'cron_error', detalles: { paso: 'partidos_query', error: partidosErr.message } })
+    }
   }
 
   for (const partido of partidos ?? []) {
@@ -488,6 +495,7 @@ export async function GET(req: NextRequest) {
             if (res.ok) {
               results.borradores++
               await logActivity({
+                club_id: clubId,
                 accion: 'auto_borrador_equipos',
                 detalles: { partido_id: partido.id, jugadores: res.jugadores, source: res.source },
               })
@@ -557,12 +565,8 @@ export async function GET(req: NextRequest) {
 
   const totalPush = results.apertura + results.dia_antes + results.recordatorio + results.cupos
   const totalEmail = results.apertura_email + results.recordatorio_email
-  if (totalPush > 0 || totalEmail > 0 || results.invitados > 0 || promovidos_enviados > 0) {
-    await logActivity({
-      accion: 'cron_notificaciones',
-      detalles: { ...results, total_push: totalPush, total_email: totalEmail, promovidos_enviados, timestamp: now.toISOString() },
-    })
-  }
-  console.log('[cron/notificaciones]', now.toISOString(), { ...results, promovidos_enviados })
+  // Deliberately console-only: this summary spans every club, and activity_log
+  // requires a club_id. Per-club events above are the ones that get recorded.
+  console.log('[cron/notificaciones]', now.toISOString(), { ...results, promovidos_enviados, totalPush, totalEmail })
   return NextResponse.json({ ok: true, ...results, promovidos_enviados })
 }

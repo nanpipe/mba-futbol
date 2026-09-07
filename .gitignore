@@ -9,10 +9,9 @@ out/
 build/
 dist/
 
-# Env — NUNCA subir a git
-.env
-.env.local
-.env.*.local
+# Env — NUNCA subir a git. Todo .env* fuera, salvo la plantilla.
+.env*
+!.env.example
 
 # Debug
 npm-debug.log*

@@ -1,0 +1,3 @@
+#!/bin/sh
+# Versioned hook. Activated by `npm run prepare` (or npm install).
+node scripts/check-secrets.mjs || exit 1

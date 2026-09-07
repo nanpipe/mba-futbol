@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "prepare": "git config core.hooksPath githooks",
+    "check:secrets": "node scripts/check-secrets.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

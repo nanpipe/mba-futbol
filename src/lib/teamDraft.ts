@@ -36,6 +36,12 @@ export async function cargarContexto(
   clubId: string
 ): Promise<Contexto> {
   const { data: pTipo } = await admin.from('partidos').select('tipo').eq('id', partido_id).eq('club_id', clubId).maybeSingle()
+  // No match under this club: return an empty context rather than falling
+  // through to roster queries filtered only by partido_id, which would hand
+  // back another club's players and their ratings.
+  if (!pTipo) {
+    return { jugadores: [], esMinitorneo: false, clubNombre: 'el club', knowledge: [], feedback: [] }
+  }
   const esMinitorneo = (pTipo as { tipo?: string } | null)?.tipo === 'minitorneo'
 
   const { data: clubRow } = await admin.from('clubs').select('nombre').eq('id', clubId).single()
@@ -87,6 +93,10 @@ export async function cargarContexto(
   }
 }
 
+/** Flatten to one line so a value can never open a new prompt section. */
+// eslint-disable-next-line no-control-regex
+const unaLinea = (s: string) => s.replace(new RegExp('[\u0000-\u001f\u007f]+', 'g'), ' ').trim()
+
 function construirPrompt(ctx: Contexto): string {
   const { jugadores, esMinitorneo, clubNombre, knowledge, feedback } = ctx
 
@@ -99,9 +109,9 @@ function construirPrompt(ctx: Contexto): string {
     const posList = j.posiciones?.length ? j.posiciones.join('/') : j.posicion
     const roles = k?.roles?.length ? k.roles.join(', ') : posList
     const traits = k?.traits?.length ? ` | rasgos: ${k.traits.join(', ')}` : ''
-    const notes = k?.notes ? ` | notas: "${k.notes}"` : ''
+    const notes = k?.notes ? ` | notas: ${JSON.stringify(unaLinea(k.notes))}` : ''
     const invTag = j.isInvitado ? ' [INVITADO]' : ''
-    return `• ${j.username}${invTag} — habilidad: ${j.habilidad.toFixed(1)}, skill: ${skillLabel}, roles: ${roles}${traits}${notes}`
+    return `• ${unaLinea(j.username)}${invTag} — habilidad: ${j.habilidad.toFixed(1)}, skill: ${unaLinea(skillLabel)}, roles: ${unaLinea(roles)}${traits}${notes}`
   }).join('\n')
 
   const feedbackLines = feedback.length > 0
@@ -224,7 +234,7 @@ export async function calcularEquipos(ctx: Contexto): Promise<DraftResult> {
       if (!assigned.has(j.id)) allTeams.sort((a, b) => a.length - b.length)[0].push(j)
     }
 
-    const razon = (parsed.razon as string) ?? ''
+    const razon = typeof parsed.razon === 'string' ? parsed.razon.slice(0, 300) : ''
 
     if (ctx.esMinitorneo) {
       const rebalance = () => {

@@ -34,6 +34,19 @@ export function isString(val: unknown, min = 1, max = 255): val is string {
   return typeof val === 'string' && val.trim().length >= min && val.trim().length <= max
 }
 
+/** Line breaks and control characters — never legitimate in a name or label. */
+// eslint-disable-next-line no-control-regex
+const CONTROL_RE = new RegExp('[\u0000-\u001f\u007f]')
+
+/**
+ * A single-line string. Use for anything that ends up inside a prompt, an email
+ * subject, or any other line-delimited format, where an embedded newline lets
+ * the value escape its field.
+ */
+export function isSingleLine(val: unknown, min = 1, max = 255): val is string {
+  return isString(val, min, max) && !CONTROL_RE.test(val)
+}
+
 // ─── Email validation ─────────────────────────────────────────────────────────
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 

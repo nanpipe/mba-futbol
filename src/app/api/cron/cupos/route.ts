@@ -65,6 +65,7 @@ export async function GET(req: NextRequest) {
     const subsQuery = admin
       .from('push_subscriptions')
       .select('endpoint, p256dh, auth, player_id')
+      .eq('club_id', clubId)
 
     const { data: subs } = ch.push
       ? (inscritosIds.length > 0

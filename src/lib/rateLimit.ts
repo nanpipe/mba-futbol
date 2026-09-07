@@ -45,7 +45,15 @@ export function isRateLimited(key: string, limit: number, windowMs: number): boo
  * Prefers x-forwarded-for (set by Vercel/proxies).
  */
 export function getClientIp(req: Request): string {
+  // x-real-ip first, then the LAST x-forwarded-for entry — that one is appended
+  // by our own proxy. The first entry is whatever the caller sent, so reading it
+  // let anyone reset their own rate limit by rotating a header.
+  const real = req.headers.get('x-real-ip')
+  if (real) return real.trim()
   const xff = req.headers.get('x-forwarded-for')
-  if (xff) return xff.split(',')[0].trim()
-  return req.headers.get('x-real-ip') ?? 'unknown'
+  if (xff) {
+    const parts = xff.split(',').map(p => p.trim()).filter(Boolean)
+    if (parts.length) return parts[parts.length - 1]
+  }
+  return 'unknown'
 }

@@ -10,6 +10,7 @@ import { applyMatchRatings } from '@/lib/rating'
 import { notificarInvitadoConfirmado } from '@/lib/invitados'
 import { generarBorradorAuto } from '@/lib/teamDraft'
 import { notifyAdmins } from '@/lib/notifyAdmins'
+import { parsePromoHour, horaColombia, fechaColombia } from '@/lib/promoHora'
 
 // Every-minute cron metronome — pg_cron fires every minute, all timing logic lives here.
 // Handles 5 tasks in one pass:
@@ -100,16 +101,12 @@ export async function GET(req: NextRequest) {
 
   const admin = createAdminClient()
   const now = new Date()
-  const hoy = now.toISOString().split('T')[0]
-  // Colombia (UTC-5) calendar date. `hoy` is UTC, which after 19:00 Colombia
-  // has already rolled to tomorrow — the guest promotion compared a Colombia
-  // hour against a UTC date, so its window died at 7 PM on match day.
-  const hoyCol = new Date(now.getTime() - 5 * 3600 * 1000).toISOString().split('T')[0]
-
-  // mañana in Colombia time
-  const manana = new Date(now)
-  manana.setDate(now.getDate() + 1)
-  const mananaStr = manana.toISOString().split('T')[0]
+  // partidos.fecha is a Colombia calendar date, so every date compared against
+  // it is computed in Colombia too. Using UTC here meant that from 19:00
+  // Colombia onwards the date had already rolled over, and "mañana" pointed at
+  // the day after tomorrow — the día-antes push went out a day early.
+  const hoyCol = fechaColombia(now)
+  const mananaCol = fechaColombia(new Date(now.getTime() + 86400000))
 
   const results = {
     apertura: 0, apertura_email: 0,
@@ -118,17 +115,41 @@ export async function GET(req: NextRequest) {
     cupos: 0,
     invitados: 0,
     borradores: 0,
+    liberados: 0,
   }
 
   const settingsCache = new Map<string, Settings>()
   const playerIdsCache = new Map<string, string[]>()
   const clubNombreCache = new Map<string, string>()
 
+  // ── Release expired bans ─────────────────────────────────────────────────
+  // fecha_liberacion was only ever stored and displayed — nothing acted on it,
+  // so a suspension outlived its own end date until an admin noticed by hand.
+  {
+    const { data: porLiberar } = await admin
+      .from('profiles')
+      .select('id, username, club_id, fecha_liberacion')
+      .eq('baneado', true)
+      .not('fecha_liberacion', 'is', null)
+      .lte('fecha_liberacion', hoyCol)
+
+    for (const p of porLiberar ?? []) {
+      const { error } = await admin
+        .from('profiles')
+        .update({ baneado: false, fecha_ban: null, fecha_liberacion: null, razon_ban: null })
+        .eq('id', (p as { id: string }).id)
+      if (error) { console.error('[cron] liberar ban falló:', error.message); continue }
+      results.liberados++
+      await logActivity({
+        accion: 'auto_liberar_ban',
+        detalles: { player_id: (p as { id: string }).id, username: (p as { username?: string }).username, vencia: (p as { fecha_liberacion?: string }).fecha_liberacion },
+      })
+    }
+  }
+
   // ── Auto-open/close evaluaciones ─────────────────────────────────────────
-  const ayer = new Date(now); ayer.setDate(now.getDate() - 1)
-  const ayerStr = ayer.toISOString().split('T')[0]
-  const dosDiasAtras = new Date(now); dosDiasAtras.setDate(now.getDate() - 2)
-  const dosDiasAtrasStr = dosDiasAtras.toISOString().split('T')[0]
+  const ayerStr = fechaColombia(new Date(now.getTime() - 86400000))
+  const dosDiasAtrasStr = fechaColombia(new Date(now.getTime() - 2 * 86400000))
 
   const { data: pasados } = await admin
     .from('partidos')
@@ -166,7 +187,7 @@ export async function GET(req: NextRequest) {
   const { data: aperturaCandidates } = await admin
     .from('partidos')
     .select('id, club_id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_apertura_at, tipo, lugar')
-    .gte('fecha', hoy)
+    .gte('fecha', hoyCol)
     .eq('notif_apertura_sent', false)
     .order('fecha', { ascending: true })
     .limit(20)
@@ -234,7 +255,7 @@ export async function GET(req: NextRequest) {
       .select('id, fecha')
       .eq('club_id', clubId)
       .eq('evaluaciones_abiertas', true)
-      .lt('fecha', hoy)
+      .lt('fecha', hoyCol)
     for (const ep of evalAbiertas ?? []) {
       await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', ep.id)
       const { badges_asignados } = await tallyAndAssign(admin, ep.id)
@@ -251,7 +272,7 @@ export async function GET(req: NextRequest) {
   const { data: recordatorioCandidates } = await admin
     .from('partidos')
     .select('id, club_id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_recordatorio_at, tipo, lugar')
-    .gte('fecha', hoy)
+    .gte('fecha', hoyCol)
     .eq('notif_recordatorio_sent', false)
     .order('fecha', { ascending: true })
     .limit(20)
@@ -318,12 +339,20 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Load upcoming partidos for remaining checks (dia_antes, cupos, invitados) ─
-  const { data: partidos } = await admin
+  const { data: partidos, error: partidosErr } = await admin
     .from('partidos')
     .select('id, club_id, fecha, dia_semana, hora, hora_apertura, dias_antes_apertura, notif_dia_antes_sent, notif_cupos_sent, cupos_total, evaluaciones_abiertas, equipos_confirmados, equipos_autogenerados, tipo, lugar')
     .gte('fecha', hoyCol)
     .order('fecha', { ascending: true })
     .limit(20)
+
+  // Everything below — día-antes, cupos, guest promotion, auto-draft — depends
+  // on this one query. It failed silently for months over a column that was
+  // referenced in code but never migrated, so make it impossible to miss.
+  if (partidosErr) {
+    console.error('[cron] partidos query FAILED — día-antes, cupos, invitados y borrador NO corrieron:', partidosErr.message)
+    await logActivity({ accion: 'cron_error', detalles: { paso: 'partidos_query', error: partidosErr.message } })
+  }
 
   for (const partido of partidos ?? []) {
     const clubId = (partido as { club_id: string }).club_id
@@ -341,7 +370,10 @@ export async function GET(req: NextRequest) {
     const promoverInvitados = settings['usar_invitados'] !== false
 
     // ── Día antes: tomorrow's match, not yet notified ──────────────────────
-    if (sendDiaAntes && !(partido as { notif_dia_antes_sent?: boolean }).notif_dia_antes_sent && partido.fecha === mananaStr) {
+    // With dias_antes_apertura = 1 the window opens the day before the match,
+    // which is the same day this would fire. One announcement is enough.
+    const aperturaMismoDia = ((partido as { dias_antes_apertura?: number }).dias_antes_apertura ?? 2) <= 1
+    if (sendDiaAntes && !(partido as { notif_dia_antes_sent?: boolean }).notif_dia_antes_sent && partido.fecha === mananaCol && !aperturaMismoDia) {
       const { data: inscripciones } = await admin
         .from('inscripciones')
         .select('player_id')
@@ -370,7 +402,7 @@ export async function GET(req: NextRequest) {
     // Guarded by notif_cupos_sent: cron runs every minute, without the flag this
     // push repeated per-minute while the window was open.
     const cuposSent = (partido as { notif_cupos_sent?: boolean }).notif_cupos_sent
-    if (sendCupos && abierta && !cuposSent && partido.fecha === hoy) {
+    if (sendCupos && abierta && !cuposSent && partido.fecha === hoyCol) {
       const { count: confirmados } = await admin
         .from('inscripciones')
         .select('id', { count: 'exact', head: true })
@@ -407,14 +439,8 @@ export async function GET(req: NextRequest) {
 
     // ── Invitee promotion: today's match, only from the club's promo hour ──
     // (default 2 PM Colombia; without this gate they promoted at midnight)
-    const promoRaw = String(settings['hora_promo_invitados'] ?? '2:00 PM')
-    const pm = promoRaw.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?/i)
-    let promoHour = 14
-    if (pm) {
-      promoHour = parseInt(pm[1], 10) % 12
-      if ((pm[3] ?? 'PM').toUpperCase() === 'PM') promoHour += 12
-    }
-    const colHour = new Date(now.getTime() - 5 * 3600 * 1000).getUTCHours()
+    const promoHour = parsePromoHour(settings['hora_promo_invitados'])
+    const colHour = horaColombia(now)
     if (promoverInvitados && partido.fecha === hoyCol && colHour >= promoHour) {
       // Confirmed guests occupy spots too — counting only inscripciones let the
       // promotion overfill the match.

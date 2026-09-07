@@ -4,7 +4,10 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function GET(req: NextRequest) {
   const { searchParams, origin } = new URL(req.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/'
+  // Must be a site-relative path. Anything else (including "//host" and
+  // "@host", which make the origin a userinfo prefix) redirects off-site.
+  const nextRaw = searchParams.get('next') ?? '/'
+  const next = nextRaw.startsWith('/') && !nextRaw.startsWith('//') ? nextRaw : '/'
 
   if (code) {
     const supabase = await createClient()

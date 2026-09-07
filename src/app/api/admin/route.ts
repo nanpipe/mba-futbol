@@ -146,7 +146,10 @@ export async function POST(req: NextRequest) {
     const { player_id } = body
     if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
 
-    const { data: info } = await admin.from('profiles').select('username, role').eq('club_id', clubId).eq('id', player_id as string).single()
+    const { data: info } = await admin.from('profiles').select('username, role').eq('club_id', clubId).eq('id', player_id as string).maybeSingle()
+    // A miss means the id isn't in this admin's club. deleteUser below is NOT
+    // club-scoped, so falling through would delete another club's account.
+    if (!info) return NextResponse.json({ error: 'Jugador no encontrado' }, { status: 404 })
     if (isPrivileged((info as { role?: string })?.role)) return ERR_PRIVILEGED
     const { error } = await admin.auth.admin.deleteUser(player_id as string)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
@@ -160,8 +163,9 @@ export async function POST(req: NextRequest) {
     const { player_id } = body
     if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
 
-    const { data: info } = await admin.from('profiles').select('username, email, role').eq('club_id', clubId).eq('id', player_id as string).single()
+    const { data: info } = await admin.from('profiles').select('username, email, role').eq('club_id', clubId).eq('id', player_id as string).maybeSingle()
     const infoTyped = info as { username?: string; email?: string; role?: string } | null
+    if (!infoTyped) return NextResponse.json({ error: 'Jugador no encontrado' }, { status: 404 })
     if (isPrivileged(infoTyped?.role)) return ERR_PRIVILEGED
 
     // Remove from future matches
@@ -169,6 +173,7 @@ export async function POST(req: NextRequest) {
     const { data: ins } = await admin
       .from('inscripciones')
       .select('id, partido_id, estado, partidos(fecha)')
+      .eq('club_id', clubId)
       .eq('player_id', player_id as string)
 
     for (const i of (ins ?? [])) {
@@ -259,9 +264,10 @@ export async function POST(req: NextRequest) {
     const { data: ins } = await admin
       .from('inscripciones')
       .select('id, estado, profiles!player_id(username), partidos(fecha)')
+      .eq('club_id', clubId)
       .eq('player_id', player_id)
       .eq('partido_id', partido_id)
-      .single()
+      .maybeSingle()
 
     if (!ins) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
@@ -288,9 +294,10 @@ export async function POST(req: NextRequest) {
     const { data: ins } = await admin
       .from('inscripciones')
       .select('id, estado, profiles!player_id(username)')
+      .eq('club_id', clubId)
       .eq('player_id', player_id)
       .eq('partido_id', partido_id)
-      .single()
+      .maybeSingle()
 
     if (!ins) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
     if (ins.estado !== 'confirmado') {
@@ -319,8 +326,9 @@ export async function POST(req: NextRequest) {
     const { data: ins } = await admin
       .from('inscripciones')
       .select('id, estado, player_id, profiles!player_id(username)')
+      .eq('club_id', clubId)
       .eq('id', inscripcion_id as string)
-      .single()
+      .maybeSingle()
 
     if (!ins) return NextResponse.json({ error: 'Inscripción no encontrada' }, { status: 404 })
     if ((ins as { estado: string }).estado !== 'espera') {
@@ -418,6 +426,9 @@ export async function POST(req: NextRequest) {
     if (!isUUID(player_id) || !isUUID(partido_id)) {
       return NextResponse.json({ error: 'IDs inválidos' }, { status: 400 })
     }
+    const { data: pOwn } = await admin
+      .from('partidos').select('id').eq('id', partido_id as string).eq('club_id', clubId).maybeSingle()
+    if (!pOwn) return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
     const estado = estadoRaw === 'espera' ? 'espera' : 'confirmado'
 
     // Not already inscribed
@@ -569,7 +580,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 })
     }
 
-    const { data: targetProf } = await admin.from('profiles').select('role').eq('club_id', clubId).eq('id', player_id as string).single()
+    const { data: targetProf } = await admin.from('profiles').select('role').eq('club_id', clubId).eq('id', player_id as string).maybeSingle()
+    // updateUserById is not club-scoped — without this, any club's admin could
+    // set any user's password and log in as them.
+    if (!targetProf) return NextResponse.json({ error: 'Jugador no encontrado' }, { status: 404 })
     if (isPrivileged((targetProf as { role?: string })?.role)) return ERR_PRIVILEGED
 
     const { error } = await admin.from('profiles').update(updates).eq('club_id', clubId).eq('id', player_id as string)
@@ -586,7 +600,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Contraseña debe tener entre 6 y 128 caracteres' }, { status: 400 })
     }
 
-    const { data: targetProf } = await admin.from('profiles').select('role').eq('club_id', clubId).eq('id', player_id as string).single()
+    const { data: targetProf } = await admin.from('profiles').select('role').eq('club_id', clubId).eq('id', player_id as string).maybeSingle()
+    // updateUserById is not club-scoped — without this, any club's admin could
+    // set any user's password and log in as them.
+    if (!targetProf) return NextResponse.json({ error: 'Jugador no encontrado' }, { status: 404 })
     if (isPrivileged((targetProf as { role?: string })?.role)) return ERR_PRIVILEGED
 
     const { error } = await admin.auth.admin.updateUserById(player_id as string, { password: (password as string) })
@@ -737,6 +754,13 @@ export async function POST(req: NextRequest) {
   if (accion === 'abrir_evaluaciones') {
     const { partido_id } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
+    {
+      const { data: pOwn } = await admin
+        .from('partidos').select('id').eq('id', partido_id as string).eq('club_id', clubId).maybeSingle()
+      // The update below is scoped, but the notification fan-out that follows
+      // is not — without this it would push/email another club's players.
+      if (!pOwn) return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
+    }
     // ya_abiertas stops the cron from auto-reopening these once they're closed.
     const { error } = await admin.from('partidos')
       .update({ evaluaciones_abiertas: true, evaluaciones_ya_abiertas: true })

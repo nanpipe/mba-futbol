@@ -139,9 +139,11 @@ export async function POST(req: NextRequest) {
     const { data: equipos } = await admin
       .from('equipos')
       .select('id, nombre')
+      .eq('club_id', clubId)
       .eq('partido_id', partido_id as string)
 
-    const { data: pTipoConf } = await admin.from('partidos').select('tipo').eq('id', partido_id as string).single()
+    const { data: pTipoConf } = await admin.from('partidos').select('tipo').eq('id', partido_id as string).eq('club_id', clubId).maybeSingle()
+    if (!pTipoConf) return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
     const esMinitorneoConf = (pTipoConf as { tipo?: string })?.tipo === 'minitorneo'
     const minEquipos = esMinitorneoConf ? 3 : 2
 
@@ -248,7 +250,7 @@ export async function POST(req: NextRequest) {
         portero_fijo_id: r.portero_fijo_id ?? null,
         rotacion_banca: r.rotacion_banca,
         rotacion_portero: r.rotacion_portero,
-      }).eq('id', r.equipo_id)
+      }).eq('id', r.equipo_id).eq('club_id', clubId).eq('partido_id', partido_id as string)
     ))
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'guardar_rotacion', detalles: { partido_id } })
     return NextResponse.json({ ok: true, mensaje: 'Rotaciones guardadas.' })

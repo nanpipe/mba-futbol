@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { isUUID, isString, isEmail, safeError } from '@/lib/validation'
+import { isUUID, isSingleLine, isEmail, safeError } from '@/lib/validation'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +20,7 @@ async function getCaller() {
 
 /** Shared name/email validation for create + update. */
 function parseBody(body: { nombre?: unknown; email?: unknown }) {
-  if (!isString(body.nombre, 2, 80)) return { error: 'El nombre debe tener entre 2 y 80 caracteres' as const }
+  if (!isSingleLine(body.nombre, 2, 80)) return { error: 'Nombre inválido (2 a 80 caracteres, sin saltos de línea)' as const }
   const emailRaw = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
   if (emailRaw && !isEmail(emailRaw)) return { error: 'Email inválido' as const }
   return { nombre: (body.nombre as string).trim(), email: emailRaw || null }

@@ -85,7 +85,10 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
   const [compañeros, setCompañeros] = useState<Compañero[]>([])
   const [badges, setBadges] = useState<Badge[]>(DEFAULT_BADGES)
   const [votos, setVotos] = useState<Record<string, string>>({})  // categoriaId → playerId
-  const [thumbs, setThumbs] = useState<Record<string, 1 | -1>>({})  // playerId → ±1
+  const [thumbs, setThumbs] = useState<Record<string, 1 | 0 | -1>>({})  // playerId → ±1, 0 = neutral
+  // Sentinel for "nobody deserves this one". Deliberately not a UUID, so even if
+  // it ever reached the API the votado_id validation would reject it.
+  const NO_APLICA = '__no_aplica__'
   const [partido, setPartido] = useState<{ fecha: string; dia_semana: string } | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [mensaje, setMensaje] = useState('')
@@ -132,7 +135,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
   const votosCount = Object.keys(votos).length
   const thumbsCount = Object.keys(thumbs).length
 
-  const setThumb = (id: string, value: 1 | -1) => {
+  const setThumb = (id: string, value: 1 | 0 | -1) => {
     setThumbs(prev => {
       if (prev[id] === value) {
         const next = { ...prev }
@@ -145,8 +148,14 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
 
   const enviar = async () => {
     setEnviando(true)
-    const votosArr = Object.entries(votos).map(([categoria, votado_id]) => ({ categoria, votado_id }))
-    const thumbsArr = Object.entries(thumbs).map(([votado_id, value]) => ({ votado_id, value }))
+    // "No aplica" and neutral are answers, not votes — they're recorded as the
+    // player having decided, and nothing is sent for them.
+    const votosArr = Object.entries(votos)
+      .filter(([, votado_id]) => votado_id !== NO_APLICA)
+      .map(([categoria, votado_id]) => ({ categoria, votado_id }))
+    const thumbsArr = Object.entries(thumbs)
+      .filter(([, value]) => value !== 0)
+      .map(([votado_id, value]) => ({ votado_id, value }))
     const res = await fetch('/api/evaluaciones', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -154,7 +163,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
     })
     const data = await res.json()
     if (res.ok) {
-      setVotosFinales(votosCount)
+      setVotosFinales(votosArr.length)
       // If auto-closed (all voted), re-fetch to get resultados
       if (data.auto_cerrado) {
         const r2 = await fetch(`/api/evaluaciones?partido_id=${partido_id}`)
@@ -298,7 +307,8 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
         {/* Category cards */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {badges.map(cat => {
-            const winner = votos[cat.id]
+            const noAplica = votos[cat.id] === NO_APLICA
+            const winner = votos[cat.id] && !noAplica
               ? compañeros.find(c => c.id === votos[cat.id])
               : null
 
@@ -307,7 +317,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
                 key={cat.id}
                 padding="16px 20px"
                 style={{
-                  border: winner ? '1px solid #16a34a' : '1px solid var(--border)',
+                  border: winner ? '1px solid #16a34a' : noAplica ? '1px solid var(--border-light)' : '1px solid var(--border)',
                   transition: 'border-color 0.15s',
                 }}
               >
@@ -323,6 +333,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
                     )}
                   </div>
                   {winner && <span style={{ color: 'var(--green)', fontSize: 18 }}>✓</span>}
+                  {noAplica && <span className="mono" style={{ color: 'var(--text-dim)', fontSize: 10, letterSpacing: '0.08em' }}>SIN VOTO</span>}
                 </div>
 
                 {/* Player chips */}
@@ -335,6 +346,19 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
                       onSelect={() => toggleVoto(cat.id, c.id)}
                     />
                   ))}
+                  {/* Real abstention: marks the category as answered and sends no vote. */}
+                  <button
+                    onClick={() => toggleVoto(cat.id, NO_APLICA)}
+                    className="mono"
+                    style={{
+                      fontSize: 11, padding: '8px 14px', borderRadius: 999, cursor: 'pointer',
+                      background: noAplica ? 'var(--bg-elevated)' : 'none',
+                      border: `1px solid ${noAplica ? 'var(--text-dim)' : 'var(--border)'}`,
+                      color: noAplica ? 'var(--text-muted)' : 'var(--text-dim)',
+                    }}
+                  >
+                    No aplica
+                  </button>
                 </div>
               </Card>
             )

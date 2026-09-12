@@ -70,6 +70,14 @@ export async function applyMatchRatings(
   if (!partido?.club_id) return { applied: 0, skipped: 'sin_partido' }
   if (partido.evaluaciones_abiertas) return { applied: 0, skipped: 'evaluaciones_abiertas' }
 
+  // A match the admins marked as not played moves nobody's rating. Read on its
+  // own so a missing column degrades to "apply" instead of silently skipping
+  // every match the way a failed combined select would.
+  {
+    const { data: estado } = await admin.from('partidos').select('jugado').eq('id', partido_id).maybeSingle()
+    if ((estado as { jugado?: boolean | null } | null)?.jugado === false) return { applied: 0, skipped: 'no_jugado' }
+  }
+
   const esMini = partido.tipo === 'minitorneo'
   const gA = partido.goles_a, gB = partido.goles_b
   const pB = partido.puntos_blanco, pN = partido.puntos_negro, pM = partido.puntos_morado

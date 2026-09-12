@@ -7,6 +7,8 @@ import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { Card } from '@/components/Card'
 import { SectionHeader } from '@/components/SectionHeader'
 import { ButtonGroup } from '@/components/ButtonGroup'
+import { calcularVentanaPartido } from '@/lib/partidos'
+import { fechaColombia } from '@/lib/promoHora'
 
 interface Props {
   active: boolean
@@ -75,14 +77,17 @@ export function TabHistorial({ active }: Props) {
 
   const cargar = useCallback(async () => {
     setLoading(true)
-    const hoy = new Date().toISOString().split('T')[0]
+    // Colombia date, and today's match counts once it's over (kickoff + 1h) —
+    // it used to wait until tomorrow to show up here.
+    const hoy = fechaColombia()
     const { data } = await supabase
       .from('partidos')
-      .select('id, fecha, dia_semana, resultado, goles_a, goles_b, puntos_blanco, puntos_negro, puntos_morado, equipos_confirmados, evaluaciones_abiertas, foto_url, cupos_total, tipo, inscripciones(estado), player_badges(badge_emoji, badge_nombre, profiles!player_badges_player_id_fkey(username))')
-      .lt('fecha', hoy)
+      .select('id, fecha, dia_semana, hora, jugado, resultado, goles_a, goles_b, puntos_blanco, puntos_negro, puntos_morado, equipos_confirmados, evaluaciones_abiertas, foto_url, cupos_total, tipo, inscripciones(estado), player_badges(badge_emoji, badge_nombre, profiles!player_badges_player_id_fkey(username))')
+      .lte('fecha', hoy)
       .order('fecha', { ascending: false })
       .limit(30)
-    setHistorial((data as unknown as HistorialPartido[]) ?? [])
+    const ahora = new Date()
+    setHistorial(((data as unknown as HistorialPartido[]) ?? []).filter(p => ahora >= calcularVentanaPartido(p).termina))
     setLoading(false)
   }, [supabase])
 
@@ -132,10 +137,11 @@ export function TabHistorial({ active }: Props) {
 
   const handleConfirmar = async (partido_id: string) => {
     setSavingConfirmar(true)
-    const r = await adminAction('confirmar_partido', { partido_id })
+    // Same action as the "¿Se jugó?" card: marks it played and opens the votes.
+    const r = await adminAction('cerrar_partido', { partido_id, jugado: true })
     if (r.ok) {
-      setHistorial(prev => prev.map(p => p.id === partido_id ? { ...p, equipos_confirmados: true } : p))
-      showFlash('Partido confirmado ✓')
+      await cargar()
+      showFlash(r.mensaje ?? 'Partido jugado ✓')
     } else {
       showFlash(`Error: ${r.error}`)
     }
@@ -319,8 +325,11 @@ export function TabHistorial({ active }: Props) {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-                    {p.equipos_confirmados && (
+                    {p.jugado === true && (
                       <span className="mono" style={{ fontSize: 10, color: 'var(--green)', border: '1px solid #16a34a', padding: '2px 8px', borderRadius: 2 }}>JUGADO</span>
+                    )}
+                    {p.jugado === false && (
+                      <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', border: '1px solid var(--border)', padding: '2px 8px', borderRadius: 2 }}>NO JUGADO</span>
                     )}
                     {p.evaluaciones_abiertas && (
                       <span className="mono" style={{ fontSize: 10, color: '#a78bfa', border: '1px solid #7c3aed', padding: '2px 8px', borderRadius: 2 }}>EVAL ✓</span>
@@ -434,7 +443,7 @@ export function TabHistorial({ active }: Props) {
                     </div>
 
                     {/* ── Confirm match happened ── */}
-                    {!p.equipos_confirmados && (
+                    {p.jugado !== true && (
                       <div>
                         <SectionHeader title="CONFIRMAR PARTIDO" color="var(--text-muted)" />
                         <button
@@ -446,7 +455,7 @@ export function TabHistorial({ active }: Props) {
                           {savingConfirmar ? '...' : '✓ Marcar como jugado'}
                         </button>
                         <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6, lineHeight: 1.5 }}>
-                          Necesario para que el cron abra evaluaciones automáticamente.
+                          Abre las votaciones y avisa a los confirmados.
                         </div>
                       </div>
                     )}

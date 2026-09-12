@@ -4,12 +4,15 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { safeError, isUUID, isString, isEmail, isDate, isIntInRange } from '@/lib/validation'
 import { internalFetch } from '@/lib/internalFetch'
 import { logActivity } from '@/lib/activityLog'
-import { sendTestEmail, sendEvaluacionesEmail, sendAperturaEmail } from '@/lib/email'
+import { sendTestEmail, sendAperturaEmail } from '@/lib/email'
+import { abrirEvaluaciones, guardarResultado, traeResultado, contarConfirmados } from '@/lib/partidoCierre'
+import { calcularVentanaPartido, MIN_CONFIRMADOS_AUTO_JUGADO } from '@/lib/partidos'
+import { fechaColombia } from '@/lib/promoHora'
 import { getClubNombre } from '@/lib/club'
 import { isPosicion } from '@/lib/posiciones'
 import { GAME_CONFIG_KEYS } from '@/lib/gameConfig'
 import { NOTIF_CHANNEL_KEYS } from '@/lib/notifications'
-import { applyMatchRatings, revertMatchRatings } from '@/lib/rating'
+import { revertMatchRatings } from '@/lib/rating'
 import { sanitizeBadges, parseBadges, BADGES_SETTING_KEY } from '@/lib/categorias'
 import { sanitizeTiers, parseTiers, TIERS_SETTING_KEY } from '@/lib/tier'
 
@@ -83,6 +86,32 @@ export async function GET(req: NextRequest) {
       .from('push_subscriptions').select('player_id').eq('club_id', clubId)
     const ids = [...new Set((data ?? []).map((s: { player_id: string }) => s.player_id))]
     return NextResponse.json({ ok: true, player_ids: ids })
+  }
+
+  // The match the admins still owe a close-out for: over (kickoff + 1h), from
+  // the last few days, and either unanswered or played without a score.
+  if (accion === 'cierre_pendiente') {
+    if (!clubId) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
+    const now = new Date()
+    const { data, error } = await admin
+      .from('partidos')
+      .select('id, fecha, dia_semana, hora, tipo, jugado, resultado, foto_url, evaluaciones_abiertas')
+      .eq('club_id', clubId)
+      .gte('fecha', fechaColombia(new Date(now.getTime() - 3 * 86400000)))
+      .lte('fecha', fechaColombia(now))
+      .order('fecha', { ascending: false })
+    if (error) {
+      console.error('[admin] cierre_pendiente:', error.message)
+      return NextResponse.json({ ok: true, partido: null })
+    }
+    type Row = { id: string; fecha: string; hora: string | null; jugado: boolean | null; resultado: string | null }
+    const partido = ((data ?? []) as Row[]).find(p =>
+      now >= calcularVentanaPartido(p, now).termina &&
+      (p.jugado === null || (p.jugado === true && !p.resultado))
+    )
+    if (!partido) return NextResponse.json({ ok: true, partido: null })
+    const confirmados = await contarConfirmados(admin, partido.id)
+    return NextResponse.json({ ok: true, partido, confirmados, auto_jugado_min: MIN_CONFIRMADOS_AUTO_JUGADO })
   }
 
   if (accion === 'settings') {
@@ -646,65 +675,66 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, mensaje: `Posición actualizada a ${posArr.join(' / ')}.` })
   }
 
-  // ── Confirmar que el partido se jugó ─────────────────────────────────────
-  if (accion === 'confirmar_partido') {
-    const { partido_id } = body
+  // ── ¿Se jugó el partido? — answer, score and evaluaciones in one step ─────
+  // Posted by the card that appears an hour after kickoff (and by Historial).
+  // "Sí" opens evaluaciones right away — they used to wait for a next-day cron —
+  // and stores the score when one is sent. "No" closes everything and undoes
+  // any rating already applied for the match.
+  if (accion === 'cerrar_partido') {
+    const { partido_id, jugado } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
-    const { error } = await admin.from('partidos').update({ equipos_confirmados: true }).eq('id', partido_id as string).eq('club_id', clubId)
+    if (typeof jugado !== 'boolean') return NextResponse.json({ error: 'jugado inválido' }, { status: 400 })
+
+    const { data: pOwn } = await admin.from('partidos').select('id').eq('id', partido_id as string).eq('club_id', clubId).maybeSingle()
+    if (!pOwn) return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
+
+    if (!jugado) {
+      const { error } = await admin.from('partidos')
+        .update({ jugado: false, cierre_procesado: true, evaluaciones_abiertas: false })
+        .eq('id', partido_id as string).eq('club_id', clubId)
+      if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+      try { await revertMatchRatings(admin, partido_id as string) } catch (e) { console.error('[rating] partido_no_jugado:', e) }
+      await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'partido_no_jugado', detalles: { partido_id }, ip })
+      return NextResponse.json({ ok: true, mensaje: 'Marcado como no jugado. No se abren votaciones.' })
+    }
+
+    const { error } = await admin.from('partidos')
+      .update({ jugado: true, cierre_procesado: true })
+      .eq('id', partido_id as string).eq('club_id', clubId)
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
-    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'confirmar_partido', detalles: { partido_id }, ip })
-    return NextResponse.json({ ok: true, mensaje: 'Partido confirmado.' })
+
+    // Open before saving the score: with votes open the rating step waits for
+    // them to close, instead of applying now and missing the recognitions.
+    let evals: Awaited<ReturnType<typeof abrirEvaluaciones>>
+    try { evals = await abrirEvaluaciones(admin, partido_id as string, clubId, { soloPrimeraVez: true }) }
+    catch (e) { return NextResponse.json({ error: safeError(e as Error) }, { status: 500 }) }
+
+    let resultado: string | null = null
+    if (traeResultado(body)) {
+      const res = await guardarResultado(admin, partido_id as string, clubId, body)
+      if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status })
+      resultado = res.resultado
+    }
+
+    await logActivity({
+      user_id: adminUser.id, username: adminUser.username, accion: 'partido_jugado',
+      detalles: { partido_id, resultado, evaluaciones_abiertas: evals.abiertas, push_enviados: evals.push_enviados },
+      ip,
+    })
+    const partes = ['Partido jugado ✓']
+    if (resultado) partes.push(`resultado ${resultado}`)
+    if (evals.abiertas) partes.push(`votaciones abiertas (${evals.push_enviados} notificados)`)
+    return NextResponse.json({ ok: true, mensaje: partes.join(' · '), resultado, evaluaciones_abiertas: evals.abiertas })
   }
 
   // ── Registrar resultado del partido ───────────────────────────────────────
   if (accion === 'registrar_resultado') {
-    const { partido_id, goles_a, goles_b, puntos_blanco, puntos_negro, puntos_morado } = body
+    const { partido_id } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
-
-    // Fetch partido type to know which result format to apply
-    const { data: pInfo } = await admin.from('partidos').select('tipo').eq('id', partido_id as string).eq('club_id', clubId).maybeSingle()
-    if (!pInfo) return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
-    const esMinitorneo = (pInfo as { tipo?: string })?.tipo === 'minitorneo'
-
-    if (esMinitorneo) {
-      const pB = typeof puntos_blanco === 'number' ? puntos_blanco : parseInt(String(puntos_blanco))
-      const pN = typeof puntos_negro  === 'number' ? puntos_negro  : parseInt(String(puntos_negro))
-      const pM = typeof puntos_morado === 'number' ? puntos_morado : parseInt(String(puntos_morado))
-      if ([pB, pN, pM].some(p => isNaN(p) || p < 0)) return NextResponse.json({ error: 'Puntos inválidos' }, { status: 400 })
-
-      const maxPts = Math.max(pB, pN, pM)
-      const ganador = pB === maxPts && pN === maxPts && pM === maxPts ? 'empate'
-        : pB === maxPts && pB > pN && pB > pM ? 'blanco'
-        : pN === maxPts && pN > pB && pN > pM ? 'negro'
-        : pM === maxPts && pM > pB && pM > pN ? 'morado'
-        : 'empate'
-
-      const resultado = `B${pB}-N${pN}-M${pM}`
-      const { error } = await admin.from('partidos').update({
-        resultado, puntos_blanco: pB, puntos_negro: pN, puntos_morado: pM,
-      }).eq('id', partido_id as string)
-      if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
-      // Recompute rating deltas for this match (no-op if evaluaciones still open).
-      // Secondary to recording the result — never let it break this action.
-      try { await revertMatchRatings(admin, partido_id as string); await applyMatchRatings(admin, partido_id as string) }
-      catch (e) { console.error('[rating] registrar_resultado minitorneo:', e) }
-      await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'registrar_resultado', detalles: { partido_id, resultado, ganador, tipo: 'minitorneo' }, ip })
-      return NextResponse.json({ ok: true, mensaje: `Resultado minitorneo: ${resultado} — Ganó ${ganador}` })
-    }
-
-    // Normal partido: goles
-    const gA = typeof goles_a === 'number' ? goles_a : parseInt(String(goles_a))
-    const gB = typeof goles_b === 'number' ? goles_b : parseInt(String(goles_b))
-    if (isNaN(gA) || isNaN(gB) || gA < 0 || gB < 0) return NextResponse.json({ error: 'Goles inválidos' }, { status: 400 })
-    const resultado = `${gA}-${gB}`
-    const { error } = await admin.from('partidos').update({ resultado, goles_a: gA, goles_b: gB }).eq('id', partido_id as string).eq('club_id', clubId)
-    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
-    // Recompute rating deltas for this match (no-op if evaluaciones still open).
-    // Secondary to recording the result — never let it break this action.
-    try { await revertMatchRatings(admin, partido_id as string); await applyMatchRatings(admin, partido_id as string) }
-    catch (e) { console.error('[rating] registrar_resultado:', e) }
-    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'registrar_resultado', detalles: { partido_id, resultado, goles_a: gA, goles_b: gB }, ip })
-    return NextResponse.json({ ok: true, mensaje: `Resultado registrado: ${resultado}` })
+    const res = await guardarResultado(admin, partido_id as string, clubId, body)
+    if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'registrar_resultado', detalles: { partido_id, ...res.detalles }, ip })
+    return NextResponse.json({ ok: true, mensaje: res.mensaje })
   }
 
   // ── Forzar notif apertura (debug) ────────────────────────────────────────
@@ -754,67 +784,14 @@ export async function POST(req: NextRequest) {
   if (accion === 'abrir_evaluaciones') {
     const { partido_id } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
-    {
-      const { data: pOwn } = await admin
-        .from('partidos').select('id').eq('id', partido_id as string).eq('club_id', clubId).maybeSingle()
-      // The update below is scoped, but the notification fan-out that follows
-      // is not — without this it would push/email another club's players.
-      if (!pOwn) return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
-    }
-    // ya_abiertas stops the cron from auto-reopening these once they're closed.
-    const { error } = await admin.from('partidos')
-      .update({ evaluaciones_abiertas: true, evaluaciones_ya_abiertas: true })
-      .eq('id', partido_id as string).eq('club_id', clubId)
-    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    // The update inside is club-scoped and returns the row it touched; no row
+    // means the partido isn't ours, and nobody gets notified.
+    let r: Awaited<ReturnType<typeof abrirEvaluaciones>>
+    try { r = await abrirEvaluaciones(admin, partido_id as string, clubId) }
+    catch (e) { return NextResponse.json({ error: safeError(e as Error) }, { status: 500 }) }
+    if (!r.abiertas) return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
 
-    const { data: partidoEval } = await admin.from('partidos').select('dia_semana').eq('id', partido_id as string).eq('club_id', clubId).maybeSingle()
-    const diaSemanaEval = (partidoEval as { dia_semana?: string } | null)?.dia_semana ?? ''
-
-    const { data: ins } = await admin
-      .from('inscripciones').select('player_id')
-      .eq('partido_id', partido_id as string).eq('estado', 'confirmado')
-
-    const playerIds = (ins ?? []).map(i => i.player_id)
-    let pushEnviados = 0
-    if (playerIds.length > 0) {
-      const { data: subs } = await admin
-        .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', playerIds)
-      const { sendPush, isDeadPushError } = await import('@/lib/push')
-      for (const sub of (subs ?? [])) {
-        try {
-          await sendPush(sub, {
-            title: '📊 ¿Cómo jugaron?',
-            body: 'Las evaluaciones del partido están abiertas. Evalúa a tus compañeros.',
-            url: `/evaluar/${partido_id}`,
-          })
-          pushEnviados++
-        } catch (err) {
-          if (isDeadPushError(err)) {
-            await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
-          } else {
-            console.error('[admin] sendPush failed:', err)
-          }
-        }
-      }
-
-      // Email confirmed players (best-effort)
-      const { data: evalProfiles } = await admin
-        .from('profiles').select('email, username').in('id', playerIds)
-      for (const profile of evalProfiles ?? []) {
-        try {
-          await sendEvaluacionesEmail({
-            email: (profile as { email: string }).email,
-            username: (profile as { username: string }).username,
-            diaSemana: diaSemanaEval,
-            partidoId: partido_id as string,
-          })
-        } catch (emailErr) {
-          console.error('[admin] sendEvaluacionesEmail failed:', emailErr)
-        }
-      }
-    }
-
-    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'abrir_evaluaciones', detalles: { partido_id, push_enviados: pushEnviados, jugadores_confirmados: playerIds.length }, ip })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'abrir_evaluaciones', detalles: { partido_id, push_enviados: r.push_enviados, jugadores_confirmados: r.jugadores }, ip })
     return NextResponse.json({ ok: true, mensaje: 'Evaluaciones abiertas y jugadores notificados.' })
   }
 

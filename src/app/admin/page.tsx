@@ -13,6 +13,7 @@ import { TabLog } from '@/components/admin/tabs/TabLog'
 import { TabHistorial } from '@/components/admin/tabs/TabHistorial'
 import { TabNotifs } from '@/components/admin/tabs/TabNotifs'
 import { TabAjustes } from '@/components/admin/tabs/TabAjustes'
+import { CierrePartidoCard } from '@/components/admin/CierrePartidoCard'
 import type { Player, Partido, AdminAction } from '@/types/admin'
 
 type Tab = 'partidos' | 'equipos' | 'jugadores' | 'log' | 'historial' | 'notifs' | 'ajustes'
@@ -195,6 +196,9 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {/* Match close-out — "¿Se jugó?", score, photo. Always visible, never behind a tab. */}
+        <CierrePartidoCard onDone={cargarDatos} />
 
         {/* Icon tabs (utility) */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4, marginBottom: 8 }}>

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPush, isDeadPushError } from '@/lib/push'
-import { calcularVentanaPartido } from '@/lib/partidos'
+import { calcularVentanaPartido, MIN_CONFIRMADOS_AUTO_JUGADO } from '@/lib/partidos'
+import { abrirEvaluaciones, contarConfirmados } from '@/lib/partidoCierre'
 import { logActivity } from '@/lib/activityLog'
 import { sendAperturaEmail, sendRecordatorioEmail } from '@/lib/email'
 import { tallyAndAssign } from '@/app/api/evaluaciones/route'
@@ -116,6 +117,7 @@ export async function GET(req: NextRequest) {
     invitados: 0,
     borradores: 0,
     liberados: 0,
+    cierres: 0,
   }
 
   const settingsCache = new Map<string, Settings>()
@@ -152,24 +154,79 @@ export async function GET(req: NextRequest) {
   const ayerStr = fechaColombia(new Date(now.getTime() - 86400000))
   const dosDiasAtrasStr = fechaColombia(new Date(now.getTime() - 2 * 86400000))
 
+  // ── Match close-out: one hour after kickoff ──────────────────────────────
+  // The match leaves the home screen and needs an answer to "¿se jugó?". A full
+  // match (more than MIN_CONFIRMADOS_AUTO_JUGADO, guests included) is taken as
+  // played: votes open straight away and admins are only asked for score and
+  // photo. Anything smaller is the admins' call, so they get the question.
+  {
+    const { data: porCerrar, error: cierreErr } = await admin
+      .from('partidos')
+      .select('id, club_id, fecha, hora, dia_semana, jugado')
+      .in('fecha', [ayerStr, hoyCol])
+      .eq('cierre_procesado', false)
+    if (cierreErr) console.error('[cron] cierre query FAILED:', cierreErr.message)
+
+    type PorCerrar = { id: string; club_id: string; fecha: string; hora: string | null; dia_semana: string; jugado: boolean | null }
+    for (const p of (porCerrar ?? []) as PorCerrar[]) {
+      if (now < calcularVentanaPartido(p, now).termina) continue
+
+      // Claim before anything slow — the cron ticks every minute.
+      const { data: claim } = await admin.from('partidos')
+        .update({ cierre_procesado: true })
+        .eq('id', p.id).eq('cierre_procesado', false)
+        .select('id')
+      if (!claim?.length) continue
+      results.cierres++
+
+      // An admin already answered before the hour was up.
+      if (p.jugado !== null) continue
+
+      const confirmados = await contarConfirmados(admin, p.id)
+      if (confirmados > MIN_CONFIRMADOS_AUTO_JUGADO) {
+        await admin.from('partidos').update({ jugado: true }).eq('id', p.id).is('jugado', null)
+        let pushEnviados = 0
+        try { pushEnviados = (await abrirEvaluaciones(admin, p.id, p.club_id, { soloPrimeraVez: true })).push_enviados }
+        catch (e) { console.error('[cron] abrirEvaluaciones (auto jugado):', e) }
+        await logActivity({ club_id: p.club_id, accion: 'auto_partido_jugado', detalles: { partido_id: p.id, fecha: p.fecha, confirmados, push_enviados: pushEnviados } })
+        await notifyAdmins(
+          admin, p.club_id, 'cierre',
+          `✅ Partido del ${p.dia_semana} jugado`,
+          `Hubo ${confirmados} confirmados, así que lo marcamos como jugado y abrimos las votaciones. Falta el marcador y la foto.`
+        )
+      } else {
+        await logActivity({ club_id: p.club_id, accion: 'cierre_pendiente', detalles: { partido_id: p.id, fecha: p.fecha, confirmados } })
+        await notifyAdmins(
+          admin, p.club_id, 'cierre',
+          `⚽ ¿Se jugó el partido del ${p.dia_semana}?`,
+          `Hubo ${confirmados} confirmados. Confírmalo y sube el marcador y la foto.`
+        )
+      }
+    }
+  }
+
   const { data: pasados } = await admin
     .from('partidos')
-    .select('id, club_id, fecha, evaluaciones_abiertas, evaluaciones_ya_abiertas, equipos_confirmados')
+    .select('id, club_id, fecha, jugado, evaluaciones_abiertas, evaluaciones_ya_abiertas')
     .in('fecha', [ayerStr, dosDiasAtrasStr])
 
   for (const p of pasados ?? []) {
-    // Auto-open only once, ever. `evaluaciones_ya_abiertas` is what makes an
-    // admin's close final — without it this ran every minute and reopened them.
-    if (p.fecha === ayerStr && !(p.evaluaciones_abiertas as boolean) && !(p.evaluaciones_ya_abiertas as boolean)) {
-      // Auto-open if at least 4 confirmed players (real match happened)
-      const { count: insCount } = await admin
-        .from('inscripciones')
-        .select('id', { count: 'exact', head: true })
-        .eq('partido_id', p.id)
-        .eq('estado', 'confirmado')
-      if ((insCount ?? 0) >= 4) {
-        await admin.from('partidos').update({ evaluaciones_abiertas: true, evaluaciones_ya_abiertas: true }).eq('id', p.id)
-        await logActivity({ club_id: (p as { club_id?: string }).club_id, accion: 'auto_abrir_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha, confirmados: insCount } })
+    // Safety net only. Evaluaciones open the moment a match is marked played
+    // (by an admin, or by the close-out above); this catches a played match
+    // whose opening failed midway. It never opens an unanswered match, and
+    // `evaluaciones_ya_abiertas` keeps an admin's close final.
+    if (
+      p.fecha === ayerStr &&
+      (p as { jugado?: boolean | null }).jugado === true &&
+      !(p.evaluaciones_abiertas as boolean) &&
+      !(p.evaluaciones_ya_abiertas as boolean)
+    ) {
+      const clubIdP = (p as { club_id: string }).club_id
+      try {
+        const r = await abrirEvaluaciones(admin, p.id, clubIdP, { soloPrimeraVez: true })
+        if (r.abiertas) await logActivity({ club_id: clubIdP, accion: 'auto_abrir_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha, confirmados: r.jugadores } })
+      } catch (e) {
+        console.error('[cron] abrirEvaluaciones (red de seguridad):', e)
       }
     }
     if (p.fecha === dosDiasAtrasStr && (p.evaluaciones_abiertas as boolean)) {

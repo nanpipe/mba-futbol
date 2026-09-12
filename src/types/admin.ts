@@ -83,6 +83,8 @@ export interface HistorialPartido {
   id: string
   fecha: string
   dia_semana: string
+  hora?: string | null
+  jugado?: boolean | null
   resultado: string | null
   goles_a: number | null
   goles_b: number | null

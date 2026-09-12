@@ -13,7 +13,8 @@ import { MatchResultCard } from '@/components/MatchResultCard'
 import { useInstallState, InstallInterstitial, InstallNagModal, InstallBanner } from '@/components/InstallGate'
 import { MisInvitados } from '@/components/MisInvitados'
 import { AlineacionVoto } from '@/components/AlineacionVoto'
-import { esHoraDePartido } from '@/lib/promoHora'
+import { esHoraDePartido, fechaColombia } from '@/lib/promoHora'
+import { CierrePartidoCard } from '@/components/admin/CierrePartidoCard'
 
 interface Partido {
   id: string
@@ -239,17 +240,22 @@ export default function HomePage() {
     const { data: prof } = await supabase.from('profiles').select('username, role, baneado, avatar_url').eq('id', u.id).single()
     setProfile(prof)
 
-    const hoy = new Date().toISOString().split('T')[0]
+    // partidos.fecha is a Colombia date. The UTC date rolls over at 7 PM
+    // Colombia — exactly kickoff — which is what made tonight's match vanish
+    // from the screen the moment it started.
+    const hoy = fechaColombia()
 
     // Always load last match (for eval CTA + results) in parallel with upcoming match
     const cargarUltimo = async () => {
-      const { data: ultimo } = await supabase
+      const { data: recientes } = await supabase
         .from('partidos')
         .select('id, fecha, dia_semana, hora, evaluaciones_abiertas, foto_url, goles_a, goles_b, resultado, tipo, puntos_blanco, puntos_negro, puntos_morado')
-        .lt('fecha', hoy)
+        .lte('fecha', hoy)
         .order('fecha', { ascending: false })
-        .limit(1)
-        .single()
+        .limit(3)
+      // Today's match becomes "the last one" once it's over (kickoff + 1h).
+      const ahora = new Date()
+      const ultimo = (recientes ?? []).find(p => ahora >= calcularVentanaPartido(p).termina)
       if (ultimo) {
         const [{ data: ins }, { data: bdgs }] = await Promise.all([
           supabase
@@ -280,8 +286,13 @@ export default function HomePage() {
       .limit(5)
 
     const now = new Date()
-    const candidatos = (proximos ?? []).filter(p => now < calcularVentanaPartido(p).cierra)
-    const abiertos = candidatos.filter(p => calcularVentanaPartido(p).abierta)
+    // A match stays on screen — list and lineups — until an hour after kickoff.
+    // Inscriptions themselves still close at kickoff (enforced server-side).
+    const candidatos = (proximos ?? []).filter(p => now < calcularVentanaPartido(p).termina)
+    const abiertos = candidatos.filter(p => {
+      const v = calcularVentanaPartido(p)
+      return now >= v.abreEn && now < v.termina
+    })
 
     if (abiertos.length === 0) {
       setPartidosAbiertos([])
@@ -345,6 +356,20 @@ export default function HomePage() {
     }, 1000)
     return () => clearInterval(interval)
   }, [ventana, user, cargarDatos])
+
+  // Reload at kickoff (sign-up buttons go away) and an hour later (the match
+  // leaves the screen) without waiting for the app to be reopened.
+  useEffect(() => {
+    if (!user || !ventana?.partido) return
+    const { cierra, termina } = calcularVentanaPartido(ventana.partido)
+    const ahora = Date.now()
+    const siguiente = [cierra.getTime(), termina.getTime()].find(t => t > ahora)
+    if (!siguiente) return
+    const ms = siguiente - ahora + 1000
+    if (ms > 2 ** 31 - 1) return // beyond setTimeout's range; visibility refresh covers it
+    const t = setTimeout(() => cargarDatos(user), ms)
+    return () => clearTimeout(t)
+  }, [user, ventana, cargarDatos])
 
   // Refresh data when the app returns to the foreground — cupos may have
   // changed while backgrounded (someone else signed up or canceled).
@@ -459,6 +484,9 @@ export default function HomePage() {
     ? enEspera.findIndex(i => i.id === miInscripcion.id) + 1
     : null
   const cuposLibres = cuposTotal - totalConfirmados
+  // Between kickoff and kickoff + 1h: the list and lineups stay up, but there
+  // is nothing left to sign up for, cancel, or invite.
+  const enJuego = !!ventana?.partido && Date.now() >= calcularVentanaPartido(ventana.partido).cierra.getTime()
 
   if (loading) {
     return (
@@ -545,6 +573,11 @@ export default function HomePage() {
 
         <div style={{ height: 48 }} />
 
+        {/* Admins land here — ask "¿Se jugó?" where they'll actually see it. */}
+        {(profile?.role === 'admin' || profile?.role === 'superadmin') && (
+          <CierrePartidoCard onDone={() => user && cargarDatos(user)} />
+        )}
+
         {/* Estado ventana */}
         {!ventana?.abierta ? (
           <>
@@ -629,8 +662,8 @@ export default function HomePage() {
                 </>
               ) : (
                 <>
-                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 8 }}>
-                    PRÓXIMO PARTIDO
+                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: enJuego ? 'var(--green)' : 'var(--text-muted)', marginBottom: 8 }}>
+                    {enJuego ? '🟢 EN JUEGO' : 'PRÓXIMO PARTIDO'}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
                     <h2 className="display" style={{ fontSize: 52, lineHeight: 1 }}>
@@ -711,18 +744,20 @@ export default function HomePage() {
                       : 'Te notificamos por email si entra un cupo.'}
                   </p>
                 </div>
-                <button onClick={cancelar} className="btn btn-danger" style={{ flexShrink: 0 }}>
-                  Cancelar
-                </button>
+                {!enJuego && (
+                  <button onClick={cancelar} className="btn btn-danger" style={{ flexShrink: 0 }}>
+                    Cancelar
+                  </button>
+                )}
               </div>
-            ) : (
+            ) : enJuego ? null : (
               <button onClick={inscribirse} disabled={inscribiendose} className="btn btn-primary" style={{ width: '100%', padding: '16px', fontSize: 14 }}>
                 {inscribiendose ? 'Inscribiendo...' : cuposLibres > 0 ? 'Inscribirse al partido' : 'Entrar a lista de espera'}
               </button>
             )}
 
             {/* Mis invitados */}
-            {miInscripcion && ventana?.partido && (
+            {!enJuego && miInscripcion && ventana?.partido && (
               <MisInvitados
                 partidoId={ventana.partido.id}
                 misInvitados={misInvitados}

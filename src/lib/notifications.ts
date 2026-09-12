@@ -23,6 +23,7 @@ export const NOTIF_EVENTS: NotifEvent[] = [
   { key: 'signup',       label: 'Nuevo registro',          desc: 'Un jugador solicita acceso al club',          audience: 'admin',  emailKey: 'signup_email',       pushKey: 'signup_push',       emailDefault: false, pushDefault: true },
   { key: 'inscripcion',  label: 'Inscripción a partido',   desc: 'Un jugador se anota a un partido',             audience: 'admin',  emailKey: 'inscripcion_email',  pushKey: 'inscripcion_push',  emailDefault: false, pushDefault: true },
   { key: 'baja',         label: 'Baja de partido',         desc: 'Un jugador se retira de un partido',           audience: 'admin',  emailKey: 'baja_email',         pushKey: 'baja_push',         emailDefault: false, pushDefault: true },
+  { key: 'cierre',       label: '¿Se jugó el partido?',    desc: 'Una hora después del partido: marcador y foto', audience: 'admin',  emailKey: 'cierre_email',       pushKey: 'cierre_push',       emailDefault: false, pushDefault: true },
   // ── Player events ──
   { key: 'apertura',     label: 'Inscripciones abiertas',  desc: 'Se abre la ventana de inscripción',           audience: 'player', emailKey: 'email_apertura',     pushKey: 'notif_apertura',     emailDefault: true,  pushDefault: true },
   { key: 'recordatorio', label: 'Recordatorio de partido', desc: 'A confirmados antes del partido',             audience: 'player', emailKey: 'email_recordatorio', pushKey: 'notif_recordatorio', emailDefault: true,  pushDefault: true },

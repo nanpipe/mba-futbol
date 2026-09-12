@@ -8,6 +8,7 @@ import { sendTestEmail, sendAperturaEmail } from '@/lib/email'
 import { abrirEvaluaciones, guardarResultado, traeResultado, contarConfirmados } from '@/lib/partidoCierre'
 import { calcularVentanaPartido, MIN_CONFIRMADOS_AUTO_JUGADO } from '@/lib/partidos'
 import { fechaColombia } from '@/lib/promoHora'
+import { getClientIp } from '@/lib/rateLimit'
 import { getClubNombre } from '@/lib/club'
 import { isPosicion } from '@/lib/posiciones'
 import { GAME_CONFIG_KEYS } from '@/lib/gameConfig'
@@ -37,12 +38,11 @@ const PRIVILEGED_ROLES = new Set(['admin', 'superadmin'])
 const isPrivileged = (role: string | undefined | null) => PRIVILEGED_ROLES.has(role ?? '')
 const ERR_PRIVILEGED = NextResponse.json({ error: 'No se puede aplicar esta acción a un administrador o superadmin' }, { status: 403 })
 
+// Audit-log IP. Proxy-set value only — the first x-forwarded-for entry is
+// whatever the caller chose to send.
 function getIP(req: NextRequest) {
-  return (
-    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
-    req.headers.get('x-real-ip') ??
-    null
-  )
+  const ip = getClientIp(req)
+  return ip === 'unknown' ? null : ip
 }
 
 // ── GET /api/admin?accion=logs|pendientes ─────────────────────────────────────
@@ -54,6 +54,8 @@ export async function GET(req: NextRequest) {
   if (!adminUser) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const clubId = adminUser.club_id
+  // Fail closed, same as POST: `.eq('club_id', undefined)` is not a filter to rely on.
+  if (!clubId) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
   const accion = req.nextUrl.searchParams.get('accion')
 
   if (accion === 'logs') {

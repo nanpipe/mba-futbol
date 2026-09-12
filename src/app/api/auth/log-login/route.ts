@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logActivity } from '@/lib/activityLog'
+import { getClientIp } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,10 +21,10 @@ export async function POST(req: NextRequest) {
     .eq('id', user.id)
     .single()
 
-  const ip =
-    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
-    req.headers.get('x-real-ip') ??
-    null
+  // Proxy-set IP, not the caller-controlled first x-forwarded-for entry — that
+  // one let a player dodge (or frame someone with) the shared-IP check below.
+  const clientIp = getClientIp(req)
+  const ip = clientIp === 'unknown' ? null : clientIp
 
   let body: { device_id?: string } = {}
   try { body = await req.json() } catch { /* no body */ }

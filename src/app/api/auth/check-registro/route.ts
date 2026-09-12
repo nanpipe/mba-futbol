@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getClientIp } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,10 +13,9 @@ export const dynamic = 'force-dynamic'
  * Called by the registro page before creating the Supabase auth user.
  */
 export async function POST(req: NextRequest) {
-  const forwarded = req.headers.get('x-forwarded-for')
-  const ip = forwarded
-    ? forwarded.split(',')[0].trim()
-    : (req.headers.get('x-real-ip') ?? 'unknown')
+  // Proxy-set IP. The first x-forwarded-for entry is caller-controlled, which
+  // made this "one account per IP" check trivially skippable.
+  const ip = getClientIp(req)
 
   if (ip === 'unknown') {
     return NextResponse.json({ ip, blocked: false })

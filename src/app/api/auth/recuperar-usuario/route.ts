@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     clubNombre: getClubNombre(req),
   })
 
-  await logActivity({ accion: 'recuperar_usuario', detalles: { email: (email as string).trim().toLowerCase() }, ip: req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? req.headers.get('x-real-ip') ?? undefined })
+  await logActivity({ accion: 'recuperar_usuario', detalles: { email: (email as string).trim().toLowerCase() }, ip: getClientIp(req) })
 
   return NextResponse.json({ ok: true })
 }

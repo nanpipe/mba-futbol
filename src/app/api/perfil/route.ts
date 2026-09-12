@@ -4,16 +4,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { safeError, isString } from '@/lib/validation'
 import { logActivity } from '@/lib/activityLog'
 import { isPosicion } from '@/lib/posiciones'
+import { getClientIp } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
-
-function getIP(req: NextRequest) {
-  return (
-    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
-    req.headers.get('x-real-ip') ??
-    null
-  )
-}
 
 // PATCH /api/perfil — player updates their own profile (username, avatar_url)
 export async function PATCH(req: NextRequest) {
@@ -26,7 +19,7 @@ export async function PATCH(req: NextRequest) {
   // Guard: player must be approved
   const { data: currentProfile } = await admin
     .from('profiles')
-    .select('username, aprobado, role')
+    .select('username, aprobado, role, club_id')
     .eq('id', user.id)
     .single()
 
@@ -42,14 +35,17 @@ export async function PATCH(req: NextRequest) {
   }
 
   const { avatar_url, posicion, posiciones, username } = body
-  const ip = getIP(req)
+  const clientIp = getClientIp(req)
+  const ip = clientIp === 'unknown' ? null : clientIp
   const updates: Record<string, unknown> = {}
 
   // ── Username ──────────────────────────────────────────────────────────────
   if (username !== undefined) {
-    // Check setting
+    // Check setting — this club's, not whichever club's row comes back first.
+    const clubId = (currentProfile as { club_id?: string | null })?.club_id
+    if (!clubId) return NextResponse.json({ error: 'Club no encontrado' }, { status: 403 })
     const { data: unSetting } = await admin
-      .from('app_settings').select('value').eq('key', 'usuarios_pueden_cambiar_username').maybeSingle()
+      .from('app_settings').select('value').eq('club_id', clubId).eq('key', 'usuarios_pueden_cambiar_username').maybeSingle()
     const canChange = unSetting !== null && (unSetting as { value: unknown })?.value === true
     if (!canChange) {
       return NextResponse.json({ error: 'El club no permite cambiar el nombre de usuario.' }, { status: 403 })

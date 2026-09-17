@@ -26,7 +26,7 @@ export default function HistorialPage() {
       const hoy = new Date().toISOString().split('T')[0]
       const { data } = await supabase
         .from('partidos')
-        .select('id, fecha, dia_semana, hora, resultado, goles_a, goles_b, tipo, lugar, puntos_blanco, puntos_negro, puntos_morado, foto_url, player_badges(badge_id, badge_emoji, badge_nombre, profiles!player_badges_player_id_fkey(username))')
+        .select('id, fecha, dia_semana, hora, resultado, goles_a, goles_b, tipo, lugar, puntos_blanco, puntos_negro, puntos_morado, foto_url, player_badges(badge_id, badge_emoji, badge_nombre, votos, profiles!player_badges_player_id_fkey(username))')
         .lt('fecha', hoy)
         .order('fecha', { ascending: false })
         .limit(20)

@@ -4,6 +4,8 @@ export interface MatchBadge {
   badge_id: string
   badge_emoji: string
   badge_nombre: string
+  /** Votos con los que se ganó. null en reconocimientos anteriores al conteo guardado. */
+  votos?: number | null
   profiles: { username: string } | null
 }
 
@@ -110,7 +112,14 @@ export function MatchResultCard({ titulo, partido, badges }: {
               }}>
                 <span style={{ fontSize: 22, flexShrink: 0 }}>{b.badge_emoji}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 1 }}>{b.badge_nombre}</div>
+                  <div className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 1 }}>
+                    {b.badge_nombre}
+                    {typeof b.votos === 'number' && (
+                      <span style={{ color: 'var(--text-dim)' }}>
+                        {' '}· {b.votos} voto{b.votos !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
                   <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.profiles?.username ?? '?'}</div>
                 </div>
               </div>

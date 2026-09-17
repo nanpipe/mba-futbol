@@ -83,7 +83,7 @@ export function TabHistorial({ active }: Props) {
     const hoy = fechaColombia()
     const { data } = await supabase
       .from('partidos')
-      .select('id, fecha, dia_semana, hora, jugado, resultado, goles_a, goles_b, puntos_blanco, puntos_negro, puntos_morado, equipos_confirmados, evaluaciones_abiertas, foto_url, cupos_total, tipo, inscripciones(estado), player_badges(badge_id, player_id, badge_emoji, badge_nombre, profiles!player_badges_player_id_fkey(username))')
+      .select('id, fecha, dia_semana, hora, jugado, resultado, goles_a, goles_b, puntos_blanco, puntos_negro, puntos_morado, equipos_confirmados, evaluaciones_abiertas, foto_url, cupos_total, tipo, inscripciones(estado), player_badges(badge_id, player_id, badge_emoji, badge_nombre, votos, profiles!player_badges_player_id_fkey(username))')
       .lte('fecha', hoy)
       .order('fecha', { ascending: false })
       .limit(30)
@@ -376,6 +376,11 @@ export function TabHistorial({ active }: Props) {
                             <span>
                               {b.badge_emoji} {b.badge_nombre}
                               {b.profiles && <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>· {b.profiles.username}</span>}
+                              {/* Con cuántos votos ganó: es el dato para decidir si la
+                                  votación fue en serio antes de quitarlo. */}
+                              {typeof b.votos === 'number' && (
+                                <span style={{ color: 'var(--text-dim)', marginLeft: 4 }}>· {b.votos}v</span>
+                              )}
                             </span>
                             <button
                               onClick={e => { e.stopPropagation(); handleQuitarBadge(p.id, b.player_id, b.badge_id, etiqueta) }}

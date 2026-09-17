@@ -107,6 +107,9 @@ export async function tallyAndAssign(
         badge_emoji: cat.emoji,
         badge_nombre: cat.nombre,
         partido_id,
+        // Guardado aquí para que la tarjeta de resultados lo muestre sin que el
+        // cliente tenga que leer los votos, que traen votante_id.
+        votos: decision.votos,
       }, { onConflict: 'player_id,badge_id,partido_id' })
       if (upsertErr) {
         console.error('[tallyAndAssign] upsert error for cat', cat.id, ':', upsertErr.message, upsertErr.code)

@@ -265,7 +265,7 @@ export default function HomePage() {
             .eq('estado', 'confirmado'),
           supabase
             .from('player_badges')
-            .select('badge_id, badge_emoji, badge_nombre, profiles!player_badges_player_id_fkey(username)')
+            .select('badge_id, badge_emoji, badge_nombre, votos, profiles!player_badges_player_id_fkey(username)')
             .eq('partido_id', ultimo.id),
         ])
         setUltimoPartido({

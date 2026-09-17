@@ -102,6 +102,7 @@ export interface HistorialPartido {
     player_id: string
     badge_emoji: string
     badge_nombre: string
+    votos: number | null
     profiles: { username: string } | null
   }[]
 }

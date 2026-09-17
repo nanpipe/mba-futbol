@@ -12,6 +12,7 @@ import {
   MeasuringStrategy,
 } from '@dnd-kit/core'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
+import { formatRating } from '@/lib/tier'
 import { DraggablePlayerCard } from '@/components/admin/DraggablePlayerCard'
 import { DroppableZone } from '@/components/admin/DroppableZone'
 import { colorLabel } from '@/lib/design'
@@ -493,18 +494,18 @@ ${c.comentario}` : c.comentario)}
               <Card padding="12px 16px" style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 16 }}>
                 <div style={{ flex: 1, textAlign: 'center' }}>
                   <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4 }}>EQUIPO A</div>
-                  <div className="display" style={{ fontSize: 22, color: 'var(--green)' }}>★{avgA.toFixed(1)}</div>
+                  <div className="display" style={{ fontSize: 22, color: 'var(--green)' }}>★{formatRating(avgA)}</div>
                   <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>{equipoA.length} jugadores</div>
                 </div>
                 <div style={{ textAlign: 'center' }}>
                   <div className="mono" style={{ fontSize: 9, letterSpacing: '0.1em', color: diff <= 0.3 ? 'var(--green)' : diff <= 0.6 ? 'var(--amber)' : 'var(--red)' }}>
                     {diff <= 0.3 ? 'EQUILIBRADO' : diff <= 0.6 ? 'LEVE DIF.' : 'DESBAL.'}
                   </div>
-                  <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>Δ {diff.toFixed(1)}</div>
+                  <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>Δ {formatRating(diff)}</div>
                 </div>
                 <div style={{ flex: 1, textAlign: 'center' }}>
                   <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4 }}>EQUIPO B</div>
-                  <div className="display" style={{ fontSize: 22, color: 'var(--amber)' }}>★{avgB.toFixed(1)}</div>
+                  <div className="display" style={{ fontSize: 22, color: 'var(--amber)' }}>★{formatRating(avgB)}</div>
                   <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>{equipoB.length} jugadores</div>
                 </div>
               </Card>

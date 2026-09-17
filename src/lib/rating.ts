@@ -22,10 +22,22 @@ import { getThumbsPaso, escalonesPorPulgares } from '@/lib/reconocimientos'
 // Net per match is clamped to ±CAP so a great game is at most +CAP and a bad one
 // at most −CAP. Applied once per match via the rating_events ledger (idempotent
 // and reversible).
+//
+// Los pasos se mantienen chicos a propósito: subir cuesta y bajar cuesta. Por
+// eso el número se muestra con dos decimales (formatRating en lib/tier) — con
+// uno, un partidazo no movía nada visible y el sistema parecía muerto.
 
 const STEP = 0.02
-const CAP_NORMAL = 0.05
-const CAP_MINI = 0.10
+// El tope decide cuántas señales de un mismo partido alcanzan a contar, porque
+// el neto se recorta a ±CAP. Con 0.05 eran 2.5 escalones y jugar + ganar ya se
+// comía 2: al MVP del equipo ganador el reconocimiento le sumaba medio escalón
+// y el segundo, nada. Con 0.075 (3.75) caben jugar + ganar + un reconocimiento
+// + un escalón de pulgares, que es un partidazo, y sigue sin haber forma de
+// saltar medio punto en una fecha.
+const CAP_NORMAL = 0.075
+// El minitorneo reparte más señales (tres equipos, más reconocimientos), así
+// que su tope va al doble.
+const CAP_MINI = 0.15
 const MIN_RATING = 1.0
 const MAX_RATING = 5.0
 const BASE_RATING = 3.0

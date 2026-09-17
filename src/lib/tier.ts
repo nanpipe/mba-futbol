@@ -95,6 +95,20 @@ export function sanitizeTiers(value: unknown): TierConfig[] | null {
   return sorted
 }
 
+// Dos decimales, en todas partes.
+//
+// El rating se mueve de a 0.02 por partido a propósito: cuesta subir y cuesta
+// bajar. Con un decimal esa es justo la cifra que no se ve — un jugador podía
+// ganar, sacar MVP y seguir marcando 3.0 tres fechas seguidas, así que el
+// sistema parecía roto aunque estuviera funcionando. Con dos, un buen partido
+// se nota (3.00 → 3.04) sin tener que agrandar los pasos.
+//
+// No aplica a los límites de los rangos: esos los escribe el admin en cifras
+// redondas (3.0, 3.5) y ahí el decimal de más es ruido.
+export function formatRating(rating: number | null | undefined): string {
+  return (typeof rating === 'number' ? rating : 3).toFixed(2)
+}
+
 /** Resolve the tier for a rating, given a club's config (or defaults). */
 export function ratingTier(rating: number, tiers: TierConfig[] = DEFAULT_TIERS): RatingTier {
   const list = tiers.length ? tiers : DEFAULT_TIERS

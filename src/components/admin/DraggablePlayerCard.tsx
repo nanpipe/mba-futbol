@@ -4,6 +4,7 @@ import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { posicionEmoji } from '@/lib/teamBalancer'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
+import { formatRating } from '@/lib/tier'
 import type { JugadorEquipo } from '@/types/admin'
 
 interface Props {
@@ -46,7 +47,7 @@ export function DraggablePlayerCard({ jugador, equipo, confirmado }: Props) {
           {jugador.username}
         </div>
         <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>
-          {posicionEmoji(jugador.posicion)} ★{jugador.habilidad.toFixed(1)}
+          {posicionEmoji(jugador.posicion)} ★{formatRating(jugador.habilidad)}
         </div>
       </div>
       {!confirmado && <span style={{ color: 'var(--text-dim)', fontSize: 14, flexShrink: 0 }}>⠿</span>}

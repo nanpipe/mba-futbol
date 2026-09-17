@@ -11,7 +11,7 @@ import { Card } from '@/components/Card'
 import { SectionHeader } from '@/components/SectionHeader'
 import { ErrorAlert } from '@/components/ErrorAlert'
 import { useClub } from '@/hooks/useClub'
-import { ratingTierStyle } from '@/lib/tier'
+import { ratingTierStyle, formatRating } from '@/lib/tier'
 import { InvitadosGuardados } from '@/components/InvitadosGuardados'
 
 import { POSICIONES, type Posicion } from '@/lib/posiciones'
@@ -320,7 +320,7 @@ export default function PerfilPage() {
             <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>RECONOCIMIENTOS</div>
           </div>
           <div style={{ flex: 1, textAlign: 'center' }}>
-            <div className="display" style={{ fontSize: 28 }}>★{(profile?.habilidad ?? 3).toFixed(1)}</div>
+            <div className="display" style={{ fontSize: 28 }}>★{formatRating(profile?.habilidad)}</div>
             <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
               {ratingTierStyle(profile?.habilidad ?? 3, club?.tiers).label}
             </div>

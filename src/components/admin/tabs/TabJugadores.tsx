@@ -8,7 +8,7 @@ import { ButtonGroup } from '@/components/ButtonGroup'
 import { Card } from '@/components/Card'
 import { ModalOverlay } from '@/components/ModalOverlay'
 import type { Player, AdminAction } from '@/types/admin'
-import { ratingTierStyle } from '@/lib/tier'
+import { ratingTierStyle, formatRating } from '@/lib/tier'
 
 interface Props {
   players: Player[]
@@ -157,7 +157,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                         title={ratingTierStyle(p.habilidad ?? 3).label}
                         style={{ fontSize: 9, color: 'var(--text-muted)', lineHeight: 1 }}
                       >
-                        ★{(p.habilidad ?? 3).toFixed(1)}
+                        ★{formatRating(p.habilidad)}
                       </span>
                     </div>
                     <div style={{ minWidth: 0 }}>

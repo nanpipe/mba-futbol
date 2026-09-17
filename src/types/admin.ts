@@ -97,7 +97,13 @@ export interface HistorialPartido {
   cupos_total: number
   tipo?: 'normal' | 'minitorneo'
   inscripciones: { estado: string }[]
-  player_badges: { badge_emoji: string; badge_nombre: string; profiles: { username: string } | null }[]
+  player_badges: {
+    badge_id: string
+    player_id: string
+    badge_emoji: string
+    badge_nombre: string
+    profiles: { username: string } | null
+  }[]
 }
 
 export interface RotacionEquipo {

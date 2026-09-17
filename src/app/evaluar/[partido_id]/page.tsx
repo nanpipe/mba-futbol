@@ -18,10 +18,37 @@ interface Compañero {
   posicion: string
 }
 
-function ResultadosPanel({ resultados }: { resultados: { categoria: string; emoji: string; nombre: string; ganador: string; votos: number }[] }) {
+interface Ganador {
+  username: string
+  asignado: boolean
+  revocado: boolean
+}
+
+interface Resultado {
+  categoria: string
+  emoji: string
+  nombre: string
+  ganador: string
+  ganadores: Ganador[]
+  votos: number
+  asignado: boolean
+  empate: boolean
+  motivo: string | null
+}
+
+function ResultadosPanel({ resultados, votantes }: { resultados: Resultado[]; votantes: number }) {
+  const asignados = resultados.filter(r => r.asignado)
+  const sinDueño = resultados.filter(r => !r.asignado)
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {resultados.map(r => (
+      {votantes > 0 && (
+        <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 4 }}>
+          {votantes} jugador{votantes !== 1 ? 'es' : ''} votó{votantes !== 1 ? 'aron' : ''} este partido
+        </div>
+      )}
+
+      {asignados.map(r => (
         <div key={r.categoria} style={{
           display: 'flex', alignItems: 'center', gap: 16,
           padding: '14px 18px', background: 'var(--bg-card)',
@@ -29,14 +56,48 @@ function ResultadosPanel({ resultados }: { resultados: { categoria: string; emoj
         }}>
           <span style={{ fontSize: 28, flexShrink: 0 }}>{r.emoji}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 2 }}>{r.nombre}</div>
+            <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 2 }}>
+              {r.nombre}{r.empate && ' · EMPATE'}
+            </div>
             <div style={{ fontSize: 16, fontWeight: 600 }}>{r.ganador}</div>
           </div>
-          <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', flexShrink: 0 }}>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', flexShrink: 0, textAlign: 'right' }}>
             {r.votos} voto{r.votos !== 1 ? 's' : ''}
+            {r.empate && <div style={{ fontSize: 10 }}>c/u</div>}
           </div>
         </div>
       ))}
+
+      {/* Categorías que se quedaron sin dueño: mostrarlas con el motivo evita
+          que parezca que la votación se perdió. */}
+      {sinDueño.length > 0 && (
+        <>
+          <div className="mono" style={{
+            fontSize: 10, letterSpacing: '0.1em', color: 'var(--text-dim)',
+            marginTop: 12, marginBottom: 2,
+          }}>
+            SIN ASIGNAR
+          </div>
+          {sinDueño.map(r => (
+            <div key={r.categoria} style={{
+              display: 'flex', alignItems: 'center', gap: 16,
+              padding: '12px 18px', background: 'transparent',
+              border: '1px dashed var(--border)', borderRadius: 6, opacity: 0.75,
+            }}>
+              <span style={{ fontSize: 22, flexShrink: 0, filter: 'grayscale(1)' }}>{r.emoji}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 2 }}>{r.nombre}</div>
+                <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                  {r.ganadores.some(g => g.revocado)
+                    ? 'Quitado por un admin'
+                    : r.motivo}
+                </div>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
       <Link href="/" className="btn btn-ghost" style={{ display: 'block', textAlign: 'center', marginTop: 8 }}>← Volver al inicio</Link>
     </div>
   )
@@ -79,8 +140,6 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
   const { partido_id } = use(params)
   const supabase = createClient()
 
-  interface Resultado { categoria: string; emoji: string; nombre: string; ganador: string; votos: number }
-
   const [estado, setEstado] = useState<'loading' | 'closed' | 'not-participant' | 'already' | 'open' | 'done'>('loading')
   const [compañeros, setCompañeros] = useState<Compañero[]>([])
   const [badges, setBadges] = useState<Badge[]>(DEFAULT_BADGES)
@@ -94,6 +153,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
   const [mensaje, setMensaje] = useState('')
   const [votosFinales, setVotosFinales] = useState(0)
   const [resultados, setResultados] = useState<Resultado[] | null>(null)
+  const [votantes, setVotantes] = useState(0)
   const [progreso, setProgreso] = useState<{ votaron: number; total: number } | null>(null)
 
   useEffect(() => {
@@ -111,6 +171,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
       setPartido(data.partido)
       if (Array.isArray(data.badges) && data.badges.length) setBadges(data.badges)
       if (data.resultados) setResultados(data.resultados)
+      if (typeof data.votantes === 'number') setVotantes(data.votantes)
       if (data.progreso) setProgreso(data.progreso)
 
       if (!data.abierto) { setEstado(data.resultados ? 'already' : 'closed'); return }
@@ -169,6 +230,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
         const r2 = await fetch(`/api/evaluaciones?partido_id=${partido_id}`)
         const d2 = await r2.json()
         if (d2.resultados) setResultados(d2.resultados)
+        if (typeof d2.votantes === 'number') setVotantes(d2.votantes)
       }
       setEstado('done')
     } else {
@@ -232,7 +294,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
             </div>
           )}
         </div>
-        {resultados && <ResultadosPanel resultados={resultados} />}
+        {resultados && <ResultadosPanel resultados={resultados} votantes={votantes} />}
       </div>
     </div>
   )
@@ -257,7 +319,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
               : ' Los badges se revelarán cuando todos voten o el admin cierre la votación.'}
           </div>
         </div>
-        {resultados && <ResultadosPanel resultados={resultados} />}
+        {resultados && <ResultadosPanel resultados={resultados} votantes={votantes} />}
         {!resultados && <Link href="/" className="btn btn-ghost" style={{ display: 'block', textAlign: 'center', marginTop: 16 }}>← Volver al inicio</Link>}
       </div>
     </div>

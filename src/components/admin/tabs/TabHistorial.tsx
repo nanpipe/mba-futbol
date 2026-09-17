@@ -67,6 +67,7 @@ export function TabHistorial({ active }: Props) {
   const [savingConfirmar, setSavingConfirmar] = useState(false)
   const [savingEval, setSavingEval] = useState(false)
   const [savingCerrar, setSavingCerrar] = useState(false)
+  const [quitandoBadge, setQuitandoBadge] = useState<string | null>(null)
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [uploadingFoto, setUploadingFoto] = useState(false)
 
@@ -82,7 +83,7 @@ export function TabHistorial({ active }: Props) {
     const hoy = fechaColombia()
     const { data } = await supabase
       .from('partidos')
-      .select('id, fecha, dia_semana, hora, jugado, resultado, goles_a, goles_b, puntos_blanco, puntos_negro, puntos_morado, equipos_confirmados, evaluaciones_abiertas, foto_url, cupos_total, tipo, inscripciones(estado), player_badges(badge_emoji, badge_nombre, profiles!player_badges_player_id_fkey(username))')
+      .select('id, fecha, dia_semana, hora, jugado, resultado, goles_a, goles_b, puntos_blanco, puntos_negro, puntos_morado, equipos_confirmados, evaluaciones_abiertas, foto_url, cupos_total, tipo, inscripciones(estado), player_badges(badge_id, player_id, badge_emoji, badge_nombre, profiles!player_badges_player_id_fkey(username))')
       .lte('fecha', hoy)
       .order('fecha', { ascending: false })
       .limit(30)
@@ -191,6 +192,30 @@ export function TabHistorial({ active }: Props) {
       showFlash(`Error: ${r.error}`)
     }
     setSavingCerrar(false)
+  }
+
+  // Quitar un reconocimiento que la votación dio por chiste. Deja un veto, así
+  // que no vuelve en el siguiente conteo, y recalcula el rating del partido.
+  const handleQuitarBadge = async (
+    partido_id: string,
+    player_id: string,
+    badge_id: string,
+    etiqueta: string,
+  ) => {
+    const motivo = window.prompt(
+      `Quitar "${etiqueta}".\n\nMotivo (opcional, queda en el log):`,
+      ''
+    )
+    if (motivo === null) return // canceló
+    setQuitandoBadge(`${partido_id}:${player_id}:${badge_id}`)
+    const r = await adminAction('quitar_badge', { partido_id, player_id, badge_id, motivo })
+    if (r.ok) {
+      await cargar()
+      showFlash(r.mensaje ?? 'Reconocimiento quitado ✓')
+    } else {
+      showFlash(`Error: ${r.error}`)
+    }
+    setQuitandoBadge(null)
   }
 
   const handleAbrirEval = async (partido_id: string) => {
@@ -342,12 +367,31 @@ export function TabHistorial({ active }: Props) {
                 {badges.length > 0 && (
                   <div style={{ paddingLeft: 20, paddingRight: 20, paddingBottom: isExpanded ? 0 : 12, maxWidth: '100%', overflowX: 'auto' }}>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {badges.map((b, i) => (
-                        <div key={i} className="mono" style={{ fontSize: 11, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 2, padding: '3px 8px', flexShrink: 0 }}>
-                          {b.badge_emoji} {b.badge_nombre}
-                          {b.profiles && <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>· {b.profiles.username}</span>}
-                        </div>
-                      ))}
+                      {badges.map((b, i) => {
+                        const key = `${p.id}:${b.player_id}:${b.badge_id}`
+                        const quitando = quitandoBadge === key
+                        const etiqueta = `${b.badge_nombre}${b.profiles ? ` · ${b.profiles.username}` : ''}`
+                        return (
+                          <div key={i} className="mono" style={{ fontSize: 11, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 2, padding: '3px 4px 3px 8px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, opacity: quitando ? 0.5 : 1 }}>
+                            <span>
+                              {b.badge_emoji} {b.badge_nombre}
+                              {b.profiles && <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>· {b.profiles.username}</span>}
+                            </span>
+                            <button
+                              onClick={e => { e.stopPropagation(); handleQuitarBadge(p.id, b.player_id, b.badge_id, etiqueta) }}
+                              disabled={quitando}
+                              title={`Quitar "${etiqueta}"`}
+                              aria-label={`Quitar reconocimiento ${etiqueta}`}
+                              style={{
+                                background: 'none', border: 'none', cursor: quitando ? 'default' : 'pointer',
+                                color: 'var(--text-dim)', fontSize: 13, lineHeight: 1, padding: '0 4px',
+                              }}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )}

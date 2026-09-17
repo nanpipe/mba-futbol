@@ -13,7 +13,9 @@ import { getClubNombre } from '@/lib/club'
 import { isPosicion } from '@/lib/posiciones'
 import { GAME_CONFIG_KEYS } from '@/lib/gameConfig'
 import { NOTIF_CHANNEL_KEYS } from '@/lib/notifications'
-import { revertMatchRatings } from '@/lib/rating'
+import { revertMatchRatings, applyMatchRatings } from '@/lib/rating'
+import { tallyAndAssign } from '@/app/api/evaluaciones/route'
+import { RECO_CONFIG_KEYS, quorumDeSettings } from '@/lib/reconocimientos'
 import { sanitizeBadges, parseBadges, BADGES_SETTING_KEY } from '@/lib/categorias'
 import { sanitizeTiers, parseTiers, TIERS_SETTING_KEY } from '@/lib/tier'
 
@@ -128,6 +130,7 @@ export async function GET(req: NextRequest) {
       settings,
       badges: parseBadges(settings[BADGES_SETTING_KEY]),
       tiers: parseTiers(settings[TIERS_SETTING_KEY]),
+      quorum: quorumDeSettings(settings),
     })
   }
 
@@ -797,6 +800,109 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, mensaje: 'Evaluaciones abiertas y jugadores notificados.' })
   }
 
+  // ── Quitar un reconocimiento ───────────────────────────────────────────────
+  // Para la votación de chiste: 3 amigos votan "Aizaga" al mismo y queda con el
+  // badge. Quitarlo borra el player_badges Y deja un veto, porque el conteo se
+  // rehace entero desde el cron y desde el cierre, y sin el veto reaparece.
+  if (accion === 'quitar_badge') {
+    const { partido_id, player_id, badge_id, motivo } = body
+    if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
+    if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
+    if (!isString(badge_id, 1, 40)) return NextResponse.json({ error: 'badge_id inválido' }, { status: 400 })
+    if (motivo !== undefined && motivo !== null && !isString(motivo, 0, 200)) {
+      return NextResponse.json({ error: 'Motivo demasiado largo (máx 200 caracteres)' }, { status: 400 })
+    }
+
+    // El partido tiene que ser de este club: sin esto un admin podría borrarle
+    // reconocimientos a otro club pasando un id ajeno.
+    const { data: pOwn } = await admin
+      .from('partidos').select('id').eq('id', partido_id as string).eq('club_id', clubId).maybeSingle()
+    if (!pOwn) return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
+
+    const { data: badgeRow } = await admin
+      .from('player_badges')
+      .select('id, badge_nombre')
+      .eq('club_id', clubId)
+      .eq('partido_id', partido_id as string)
+      .eq('player_id', player_id as string)
+      .eq('badge_id', badge_id as string)
+      .maybeSingle()
+    if (!badgeRow) return NextResponse.json({ error: 'Ese jugador no tiene ese reconocimiento en este partido' }, { status: 404 })
+
+    const { error: vetoErr } = await admin.from('badges_revocados').upsert({
+      club_id: clubId,
+      partido_id,
+      player_id,
+      badge_id,
+      motivo: typeof motivo === 'string' && motivo.trim() ? motivo.trim().slice(0, 200) : null,
+      revocado_por: adminUser.id,
+    }, { onConflict: 'partido_id,player_id,badge_id' })
+    if (vetoErr) return NextResponse.json({ error: safeError(vetoErr) }, { status: 500 })
+
+    const { error: delErr } = await admin.from('player_badges').delete().eq('id', (badgeRow as { id: string }).id)
+    if (delErr) return NextResponse.json({ error: safeError(delErr) }, { status: 500 })
+
+    // El badge mueve el rating (±STEP según el signo), así que el delta del
+    // partido queda mal hasta recalcularlo. Revertir y reaplicar es la misma
+    // secuencia que usa guardarResultado.
+    try {
+      await revertMatchRatings(admin, partido_id as string)
+      await applyMatchRatings(admin, partido_id as string)
+    } catch (e) { console.error('[rating] quitar_badge:', e) }
+
+    await logActivity({
+      user_id: adminUser.id, username: adminUser.username, accion: 'quitar_badge',
+      detalles: { partido_id, player_id, badge_id, motivo: motivo ?? null }, ip,
+    })
+    return NextResponse.json({
+      ok: true,
+      mensaje: `Reconocimiento "${(badgeRow as { badge_nombre: string }).badge_nombre}" quitado.`,
+    })
+  }
+
+  // ── Restaurar un reconocimiento quitado ────────────────────────────────────
+  // Sin esto, deshacer un clic equivocado obliga a reabrir la votación entera,
+  // que borra los badges de todo el partido.
+  if (accion === 'restaurar_badge') {
+    const { partido_id, player_id, badge_id } = body
+    if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
+    if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
+    if (!isString(badge_id, 1, 40)) return NextResponse.json({ error: 'badge_id inválido' }, { status: 400 })
+
+    const { data: pOwn } = await admin
+      .from('partidos').select('id, evaluaciones_abiertas').eq('id', partido_id as string).eq('club_id', clubId).maybeSingle()
+    if (!pOwn) return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
+
+    const { error: delErr } = await admin.from('badges_revocados').delete()
+      .eq('club_id', clubId)
+      .eq('partido_id', partido_id as string)
+      .eq('player_id', player_id as string)
+      .eq('badge_id', badge_id as string)
+    if (delErr) return NextResponse.json({ error: safeError(delErr) }, { status: 500 })
+
+    // Volver a contar re-asigna el badge si los votos siguen alcanzando. Con la
+    // votación abierta no se cuenta nada todavía, así que solo se levanta el veto.
+    if ((pOwn as { evaluaciones_abiertas?: boolean }).evaluaciones_abiertas) {
+      await logActivity({
+        user_id: adminUser.id, username: adminUser.username, accion: 'restaurar_badge',
+        detalles: { partido_id, player_id, badge_id, recontado: false }, ip,
+      })
+      return NextResponse.json({ ok: true, mensaje: 'Veto levantado. Se asignará cuando cierre la votación.' })
+    }
+
+    const { badges_asignados } = await tallyAndAssign(admin, partido_id as string)
+    try {
+      await revertMatchRatings(admin, partido_id as string)
+      await applyMatchRatings(admin, partido_id as string)
+    } catch (e) { console.error('[rating] restaurar_badge:', e) }
+
+    await logActivity({
+      user_id: adminUser.id, username: adminUser.username, accion: 'restaurar_badge',
+      detalles: { partido_id, player_id, badge_id, recontado: true, badges_asignados }, ip,
+    })
+    return NextResponse.json({ ok: true, mensaje: 'Reconocimiento restaurado.' })
+  }
+
   // ── Guardar foto del partido ───────────────────────────────────────────────
   if (accion === 'guardar_foto_partido') {
     const { partido_id, foto_url } = body
@@ -820,6 +926,7 @@ export async function POST(req: NextRequest) {
       'hora_promo_invitados', 'ubicaciones',
       ...GAME_CONFIG_KEYS,
       ...NOTIF_CHANNEL_KEYS,
+      ...RECO_CONFIG_KEYS,
     ]
     if (typeof key !== 'string' || !ALLOWED_KEYS.includes(key)) {
       return NextResponse.json({ error: 'Clave inválida' }, { status: 400 })

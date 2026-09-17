@@ -4,16 +4,40 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { isUUID } from '@/lib/validation'
 import { logActivity } from '@/lib/activityLog'
 import { getClubBadges } from '@/lib/categorias'
+import { getQuorum, decidirCategoria, explicarSinAsignar } from '@/lib/reconocimientos'
 import { isRateLimited, getClientIp } from '@/lib/rateLimit'
 import { applyMatchRatings, revertMatchRatings } from '@/lib/rating'
 
 export const dynamic = 'force-dynamic'
 
+export interface GanadorAPI {
+  username: string
+  /** Tiene el badge en player_badges. False si el quórum no alcanzó o se lo quitaron. */
+  asignado: boolean
+  /** Un admin se lo quitó a mano. */
+  revocado: boolean
+}
+
+export interface ResultadoAPI {
+  categoria: string
+  emoji: string
+  nombre: string
+  /** Nombres del tope, unidos — se mantiene para las vistas que solo pintan texto. */
+  ganador: string
+  ganadores: GanadorAPI[]
+  /** Votos que recibió cada uno de los del tope. */
+  votos: number
+  asignado: boolean
+  empate: boolean
+  /** Por qué la categoría quedó sin dueño. null si se asignó. */
+  motivo: string | null
+}
+
 // ── Shared: tally votes → assign player_badges ────────────────────────────────
 export async function tallyAndAssign(
   admin: ReturnType<typeof createAdminClient>,
   partido_id: string
-): Promise<{ badges_asignados: number }> {
+): Promise<{ badges_asignados: number; sin_quorum: number }> {
   // Fetch club_id from partidos (required for player_badges NOT NULL constraint)
   const { data: partidoInfo } = await admin
     .from('partidos')
@@ -21,52 +45,73 @@ export async function tallyAndAssign(
     .eq('id', partido_id)
     .single()
 
-  if (!partidoInfo?.club_id) return { badges_asignados: 0 }
+  if (!partidoInfo?.club_id) return { badges_asignados: 0, sin_quorum: 0 }
   const club_id = partidoInfo.club_id
 
   const { data: votos } = await admin
     .from('votos_reconocimiento')
-    .select('votado_id, categoria')
+    .select('votante_id, votado_id, categoria')
     .eq('partido_id', partido_id)
 
-  if (!votos || votos.length === 0) return { badges_asignados: 0 }
+  if (!votos || votos.length === 0) return { badges_asignados: 0, sin_quorum: 0 }
 
   // Clear this match's badges first so a re-tally fully recomputes — otherwise a
   // category whose winner changed keeps BOTH winners (upsert only dedups per
   // player, not per category).
   await admin.from('player_badges').delete().eq('partido_id', partido_id)
 
+  const [quorum, { data: revocados }] = await Promise.all([
+    getQuorum(admin, club_id),
+    admin.from('badges_revocados').select('player_id, badge_id').eq('partido_id', partido_id),
+  ])
+
+  // Un badge que un admin quitó no vuelve en el re-conteo.
+  const vetados = new Set(
+    ((revocados ?? []) as { player_id: string; badge_id: string }[])
+      .map(r => `${r.badge_id}:${r.player_id}`)
+  )
+
   const tally: Record<string, Record<string, number>> = {}
+  const votantes = new Set<string>()
   for (const v of votos) {
+    votantes.add(v.votante_id)
     if (!tally[v.categoria]) tally[v.categoria] = {}
     tally[v.categoria][v.votado_id] = (tally[v.categoria][v.votado_id] ?? 0) + 1
   }
 
   let badges_asignados = 0
+  let sin_quorum = 0
   for (const cat of await getClubBadges(admin, club_id)) {
     const catVotes = tally[cat.id]
     if (!catVotes) continue
-    const [winnerId] = Object.entries(catVotes).reduce(
-      (best, curr) => curr[1] > best[1] ? curr : best,
-      ['', 0]
-    )
-    if (!winnerId) continue
-    const { error: upsertErr } = await admin.from('player_badges').upsert({
-      club_id,
-      player_id: winnerId,
-      badge_id: cat.id,
-      badge_emoji: cat.emoji,
-      badge_nombre: cat.nombre,
-      partido_id,
-    }, { onConflict: 'player_id,badge_id,partido_id' })
-    if (upsertErr) {
-      console.error('[tallyAndAssign] upsert error for cat', cat.id, ':', upsertErr.message, upsertErr.code)
-    } else {
-      badges_asignados++
+
+    const decision = decidirCategoria(catVotes, votantes.size, quorum)
+    if (!decision.asignado) {
+      sin_quorum++
+      continue
+    }
+
+    // Un empate en el tope se lleva el reconocimiento entero cada uno: elegir
+    // "el primero" sería una moneda al aire, justo lo que este cambio evita.
+    for (const winnerId of decision.ids) {
+      if (vetados.has(`${cat.id}:${winnerId}`)) continue
+      const { error: upsertErr } = await admin.from('player_badges').upsert({
+        club_id,
+        player_id: winnerId,
+        badge_id: cat.id,
+        badge_emoji: cat.emoji,
+        badge_nombre: cat.nombre,
+        partido_id,
+      }, { onConflict: 'player_id,badge_id,partido_id' })
+      if (upsertErr) {
+        console.error('[tallyAndAssign] upsert error for cat', cat.id, ':', upsertErr.message, upsertErr.code)
+      } else {
+        badges_asignados++
+      }
     }
   }
 
-  return { badges_asignados }
+  return { badges_asignados, sin_quorum }
 }
 
 // ── GET /api/evaluaciones?partido_id=xxx ─────────────────────────────────────
@@ -121,42 +166,74 @@ export async function GET(req: NextRequest) {
     .eq('estado', 'confirmado')
     .neq('player_id', user.id) : { data: null }
 
-  // Results: badge winners + vote counts (when closed or just voted)
-  let resultados: { categoria: string; emoji: string; nombre: string; ganador: string; votos: number }[] | null = null
+  const clubBadges = await getClubBadges(admin, clubId)
+
+  // Results: winners, vote counts, and why a category ended up empty (when
+  // closed or just voted). Se arma desde los votos y no desde player_badges:
+  // así una categoría sin quórum también aparece, con su explicación.
+  let resultados: ResultadoAPI[] | null = null
+  let votantesTotal = 0
+  let quorumInfo: { minVotos: number; minVotantes: number; minGanador: number } | null = null
+
   if (!partido.evaluaciones_abiertas || yaVoto) {
-    const { data: badges } = await admin
-      .from('player_badges')
-      .select('badge_id, badge_emoji, badge_nombre, profiles!player_badges_player_id_fkey(username)')
-      .eq('partido_id', partido_id)
+    const [{ data: votosData }, { data: asignados }, { data: revocados }, quorum] = await Promise.all([
+      admin.from('votos_reconocimiento').select('votante_id, votado_id, categoria').eq('partido_id', partido_id),
+      admin.from('player_badges').select('badge_id, player_id').eq('partido_id', partido_id),
+      admin.from('badges_revocados').select('badge_id, player_id').eq('partido_id', partido_id),
+      getQuorum(admin, clubId),
+    ])
 
-    if (badges && badges.length > 0) {
-      // Count votes per category for display
-      const { data: votosData } = await admin
-        .from('votos_reconocimiento')
-        .select('votado_id, categoria')
-        .eq('partido_id', partido_id)
+    const tally: Record<string, Record<string, number>> = {}
+    const votantes = new Set<string>()
+    for (const v of (votosData ?? []) as { votante_id: string; votado_id: string; categoria: string }[]) {
+      votantes.add(v.votante_id)
+      if (!tally[v.categoria]) tally[v.categoria] = {}
+      tally[v.categoria][v.votado_id] = (tally[v.categoria][v.votado_id] ?? 0) + 1
+    }
+    votantesTotal = votantes.size
+    quorumInfo = quorum
 
-      const tally: Record<string, Record<string, number>> = {}
-      for (const v of (votosData ?? [])) {
-        if (!tally[v.categoria]) tally[v.categoria] = {}
-        tally[v.categoria][v.votado_id] = (tally[v.categoria][v.votado_id] ?? 0) + 1
+    if (votosData && votosData.length > 0) {
+      // Usernames for everyone who topped a category.
+      const topIds = new Set<string>()
+      for (const cat of clubBadges) {
+        for (const id of decidirCategoria(tally[cat.id] ?? {}, votantes.size, quorum).ids) topIds.add(id)
       }
+      const { data: profs } = topIds.size
+        ? await admin.from('profiles').select('id, username').in('id', [...topIds])
+        : { data: [] as { id: string; username: string }[] }
+      const nombrePorId = new Map(
+        ((profs ?? []) as { id: string; username: string }[]).map(p => [p.id, p.username])
+      )
 
-      resultados = badges.map(b => {
-        const catVotes = tally[b.badge_id] ?? {}
-        const profile = (b as unknown as { profiles: { username: string } | null }).profiles
-        const ganadorId = Object.entries(catVotes).reduce(
-          (best, curr) => curr[1] > best[1] ? curr : best, ['', 0]
-        )[0]
-        const voteCount = catVotes[ganadorId] ?? 0
-        return {
-          categoria: b.badge_id,
-          emoji: b.badge_emoji,
-          nombre: b.badge_nombre,
-          ganador: profile?.username ?? '?',
-          votos: voteCount,
-        }
-      })
+      const asignadoSet = new Set(
+        ((asignados ?? []) as { badge_id: string; player_id: string }[]).map(b => `${b.badge_id}:${b.player_id}`)
+      )
+      const revocadoSet = new Set(
+        ((revocados ?? []) as { badge_id: string; player_id: string }[]).map(r => `${r.badge_id}:${r.player_id}`)
+      )
+
+      resultados = clubBadges
+        .filter(cat => tally[cat.id])
+        .map(cat => {
+          const d = decidirCategoria(tally[cat.id], votantes.size, quorum)
+          const ganadores = d.ids.map(id => ({
+            username: nombrePorId.get(id) ?? '?',
+            asignado: asignadoSet.has(`${cat.id}:${id}`),
+            revocado: revocadoSet.has(`${cat.id}:${id}`),
+          }))
+          return {
+            categoria: cat.id,
+            emoji: cat.emoji,
+            nombre: cat.nombre,
+            ganador: ganadores.map(g => g.username).join(' y ') || '—',
+            ganadores,
+            votos: d.votos,
+            asignado: d.asignado && ganadores.some(g => g.asignado),
+            empate: d.empate,
+            motivo: d.asignado ? null : explicarSinAsignar(d, votantes.size, quorum),
+          }
+        })
     }
   }
 
@@ -182,9 +259,11 @@ export async function GET(req: NextRequest) {
     yaVoto,
     partido: { fecha: partido.fecha, dia_semana: partido.dia_semana },
     compañeros: (compañeros ?? []).map(c => (c as unknown as { profiles: object }).profiles),
-    badges: await getClubBadges(admin, clubId),
+    badges: clubBadges,
     resultados,
     progreso,
+    votantes: votantesTotal,
+    quorum: quorumInfo,
   })
 }
 
@@ -358,7 +437,7 @@ export async function PUT(req: NextRequest) {
   if (!pOwn) return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
 
   await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', partido_id as string).eq('club_id', clubId)
-  const { badges_asignados } = await tallyAndAssign(admin, partido_id as string)
+  const { badges_asignados, sin_quorum } = await tallyAndAssign(admin, partido_id as string)
   // Recognitions are final — apply rating deltas (no-op if result not yet entered).
   try { await applyMatchRatings(admin, partido_id as string) } catch (e) { console.error('[rating] cerrar_votacion:', e) }
 
@@ -366,13 +445,16 @@ export async function PUT(req: NextRequest) {
     user_id: user.id,
     username: (prof as { username?: string })?.username,
     accion: 'cerrar_votacion',
-    detalles: { partido_id, badges_asignados },
+    detalles: { partido_id, badges_asignados, sin_quorum },
   })
 
   return NextResponse.json({
     ok: true,
-    mensaje: `Votación cerrada. ${badges_asignados} reconocimientos asignados.`,
+    mensaje: sin_quorum > 0
+      ? `Votación cerrada. ${badges_asignados} reconocimientos asignados, ${sin_quorum} sin quórum.`
+      : `Votación cerrada. ${badges_asignados} reconocimientos asignados.`,
     badges_asignados,
+    sin_quorum,
   })
 }
 
@@ -408,6 +490,9 @@ export async function PATCH(req: NextRequest) {
     .update({ evaluaciones_abiertas: true, evaluaciones_ya_abiertas: true })
     .eq('id', partido_id as string).eq('club_id', clubId)
   await admin.from('player_badges').delete().eq('partido_id', partido_id as string).eq('club_id', clubId)
+  // Reabrir es empezar de cero: los vetos de admin también se van, si no
+  // quedarían bloqueando a gente en una votación que aún no ha ocurrido.
+  await admin.from('badges_revocados').delete().eq('partido_id', partido_id as string).eq('club_id', clubId)
   // Undo this match's rating deltas — they'll recompute when it's re-closed.
   try { await revertMatchRatings(admin, partido_id as string) } catch (e) { console.error('[rating] reabrir_votacion:', e) }
 

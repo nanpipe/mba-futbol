@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { isUUID } from '@/lib/validation'
 import { logActivity } from '@/lib/activityLog'
 import { getClubBadges } from '@/lib/categorias'
-import { getQuorum, decidirCategoria, explicarSinAsignar } from '@/lib/reconocimientos'
+import { getQuorum, getThumbsPaso, decidirCategoria, explicarSinAsignar } from '@/lib/reconocimientos'
 import { isRateLimited, getClientIp } from '@/lib/rateLimit'
 import { applyMatchRatings, revertMatchRatings } from '@/lib/rating'
 
@@ -27,6 +27,8 @@ export interface ResultadoAPI {
   ganadores: GanadorAPI[]
   /** Votos que recibió cada uno de los del tope. */
   votos: number
+  /** Cuántos respondieron "No aplica" en esta categoría. */
+  abstenciones: number
   asignado: boolean
   empate: boolean
   /** Por qué la categoría quedó sin dueño. null si se asignó. */
@@ -74,7 +76,10 @@ export async function tallyAndAssign(
   const tally: Record<string, Record<string, number>> = {}
   const votantes = new Set<string>()
   for (const v of votos) {
+    // Una abstención ("No aplica") cuenta como votante del partido y no le
+    // suma a nadie: el jugador respondió, solo que no señaló a nadie.
     votantes.add(v.votante_id)
+    if (!v.votado_id) continue
     if (!tally[v.categoria]) tally[v.categoria] = {}
     tally[v.categoria][v.votado_id] = (tally[v.categoria][v.votado_id] ?? 0) + 1
   }
@@ -185,8 +190,13 @@ export async function GET(req: NextRequest) {
 
     const tally: Record<string, Record<string, number>> = {}
     const votantes = new Set<string>()
-    for (const v of (votosData ?? []) as { votante_id: string; votado_id: string; categoria: string }[]) {
+    const abstenciones: Record<string, number> = {}
+    for (const v of (votosData ?? []) as { votante_id: string; votado_id: string | null; categoria: string }[]) {
       votantes.add(v.votante_id)
+      if (!v.votado_id) {
+        abstenciones[v.categoria] = (abstenciones[v.categoria] ?? 0) + 1
+        continue
+      }
       if (!tally[v.categoria]) tally[v.categoria] = {}
       tally[v.categoria][v.votado_id] = (tally[v.categoria][v.votado_id] ?? 0) + 1
     }
@@ -214,9 +224,9 @@ export async function GET(req: NextRequest) {
       )
 
       resultados = clubBadges
-        .filter(cat => tally[cat.id])
+        .filter(cat => tally[cat.id] || abstenciones[cat.id])
         .map(cat => {
-          const d = decidirCategoria(tally[cat.id], votantes.size, quorum)
+          const d = decidirCategoria(tally[cat.id] ?? {}, votantes.size, quorum)
           const ganadores = d.ids.map(id => ({
             username: nombrePorId.get(id) ?? '?',
             asignado: asignadoSet.has(`${cat.id}:${id}`),
@@ -229,6 +239,7 @@ export async function GET(req: NextRequest) {
             ganador: ganadores.map(g => g.username).join(' y ') || '—',
             ganadores,
             votos: d.votos,
+            abstenciones: abstenciones[cat.id] ?? 0,
             asignado: d.asignado && ganadores.some(g => g.asignado),
             empate: d.empate,
             motivo: d.asignado ? null : explicarSinAsignar(d, votantes.size, quorum),
@@ -264,6 +275,7 @@ export async function GET(req: NextRequest) {
     progreso,
     votantes: votantesTotal,
     quorum: quorumInfo,
+    thumbs_paso: await getThumbsPaso(admin, clubId),
   })
 }
 
@@ -334,13 +346,22 @@ export async function POST(req: NextRequest) {
   const rows: object[] = []
   const seen = new Set<string>()
 
+  let abstenciones = 0
   for (const v of (votos as Array<Record<string, unknown>>) ?? []) {
     const { categoria, votado_id } = v
     if (typeof categoria !== 'string' || !validCategorias.has(categoria)) continue
+    if (seen.has(categoria)) continue
+    // "No aplica" es una respuesta: se guarda con votado_id NULL para poder
+    // distinguir "todos dijeron que nadie" de "nadie miró la categoría".
+    if (votado_id === null) {
+      seen.add(categoria)
+      abstenciones++
+      rows.push({ club_id: clubId, partido_id, votante_id: user.id, votado_id: null, categoria })
+      continue
+    }
     if (!isUUID(votado_id)) continue
     if (votado_id === user.id) continue
     if (!validTargets.has(votado_id as string)) continue
-    if (seen.has(categoria)) continue
     seen.add(categoria)
     rows.push({ club_id: clubId, partido_id, votante_id: user.id, votado_id, categoria })
   }
@@ -381,7 +402,12 @@ export async function POST(req: NextRequest) {
   await logActivity({
     user_id: user.id,
     accion: 'enviar_votos',
-    detalles: { partido_id, categorias: rows.length, thumbs: thumbRows.length },
+    detalles: {
+      partido_id,
+      categorias: rows.length - abstenciones,
+      abstenciones,
+      thumbs: thumbRows.length,
+    },
   })
 
   // ── Auto-close if all confirmed players have now voted ────────────────────

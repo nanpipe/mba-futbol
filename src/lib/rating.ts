@@ -1,5 +1,6 @@
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { getClubBadges } from '@/lib/categorias'
+import { getThumbsPaso, escalonesPorPulgares } from '@/lib/reconocimientos'
 
 // ── Player rating (v2) ───────────────────────────────────────────────────────
 // Stateful 1–5 rating stored on profiles.habilidad. Everyone starts at 3.0 and
@@ -10,8 +11,13 @@ import { getClubBadges } from '@/lib/categorias'
 //   Ganó                     +STEP   ·  Perdió  −STEP  ·  Empató 0
 //   Reconocimiento positivo  +STEP each  (MVP, goleador, defensa, portero, técnico)
 //   Reconocimiento negativo  −STEP each  (desaparecido, aizaga, discutidor)
+//   Pulgares                 +STEP por cada N 👍  ·  −STEP por cada N 👎
 //   No se inscribió (pudo)   −STEP
 //   En espera / lesionado    exento (no baja)
+//
+// N es configurable por club (reco_thumbs_paso, default 3): un pulgar suelto no
+// mueve a nadie. Los dos lados cuentan por separado — 4 👍 y 3 👎 son un escalón
+// arriba y uno abajo, no "uno neto".
 //
 // Net per match is clamped to ±CAP so a great game is at most +CAP and a bad one
 // at most −CAP. Applied once per match via the rating_events ledger (idempotent
@@ -103,13 +109,15 @@ export async function applyMatchRatings(
 
   const { pos: POSITIVE_BADGES, neg: NEGATIVE_BADGES } = await badgeSigns(admin, clubId)
 
-  const [insRes, ejRes, badgesRes, profsRes] = await Promise.all([
+  const [insRes, ejRes, badgesRes, profsRes, thumbsRes, thumbsPaso] = await Promise.all([
     admin.from('inscripciones').select('player_id, estado').eq('partido_id', partido_id).in('estado', ['confirmado', 'espera']),
     equipoIds.length
       ? admin.from('equipo_jugadores').select('player_id, equipo_id').in('equipo_id', equipoIds)
       : Promise.resolve({ data: [] as { player_id: string; equipo_id: string }[] }),
     admin.from('player_badges').select('player_id, badge_id').eq('partido_id', partido_id),
     admin.from('profiles').select('id, habilidad, aprobado, baneado').eq('club_id', clubId),
+    admin.from('player_thumbs').select('votado_id, value').eq('partido_id', partido_id),
+    getThumbsPaso(admin, clubId),
   ])
 
   const confirmados = new Set<string>()
@@ -130,6 +138,13 @@ export async function applyMatchRatings(
   for (const b of (badgesRes.data ?? []) as { player_id: string; badge_id: string }[]) {
     if (POSITIVE_BADGES.has(b.badge_id)) badgePos.set(b.player_id, (badgePos.get(b.player_id) ?? 0) + 1)
     else if (NEGATIVE_BADGES.has(b.badge_id)) badgeNeg.set(b.player_id, (badgeNeg.get(b.player_id) ?? 0) + 1)
+  }
+
+  const likes = new Map<string, number>()
+  const dislikes = new Map<string, number>()
+  for (const t of (thumbsRes.data ?? []) as { votado_id: string; value: number }[]) {
+    const m = t.value === 1 ? likes : dislikes
+    m.set(t.votado_id, (m.get(t.votado_id) ?? 0) + 1)
   }
 
   const ratingById = new Map<string, number>()
@@ -182,6 +197,12 @@ export async function applyMatchRatings(
       const neg = badgeNeg.get(id) ?? 0
       if (pos) { raw += STEP * pos; motivos.push(`reconocimiento+ ×${pos}`) }
       if (neg) { raw -= STEP * neg; motivos.push(`reconocimiento- ×${neg}`) }
+
+      const up = likes.get(id) ?? 0
+      const down = dislikes.get(id) ?? 0
+      const pasos = escalonesPorPulgares(up, down, thumbsPaso)
+      if (pasos.arriba) { raw += STEP * pasos.arriba; motivos.push(`👍 ${up} (×${pasos.arriba})`) }
+      if (pasos.abajo)  { raw -= STEP * pasos.abajo;  motivos.push(`👎 ${down} (×${pasos.abajo})`) }
     } else {
       raw -= STEP
       motivos.push('inactivo')

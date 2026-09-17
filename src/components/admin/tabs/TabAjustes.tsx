@@ -7,7 +7,7 @@ import { Card } from '@/components/Card'
 import { SectionHeader } from '@/components/SectionHeader'
 import { ButtonGroup } from '@/components/ButtonGroup'
 import { GAME_CONFIG } from '@/lib/gameConfig'
-import { RECO_CONFIG } from '@/lib/reconocimientos'
+import { RECO_CONFIG, THUMBS_CONFIG } from '@/lib/reconocimientos'
 import { NOTIF_EVENTS } from '@/lib/notifications'
 import { BadgesEditor, TiersEditor } from '@/components/admin/RatingConfigEditor'
 import { DEFAULT_BADGES, type Badge } from '@/lib/categorias'
@@ -366,6 +366,36 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
             <div className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 12, lineHeight: 1.6 }}>
               Aplica desde el próximo conteo. Los reconocimientos ya asignados no cambian
               salvo que se reabra y vuelva a cerrarse la votación.
+            </div>
+          </Card>
+
+          {/* Pulgares */}
+          <Card padding="20px 24px">
+            <SectionHeader title="PULGARES" icon="👍" color="var(--green)" />
+            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+              Los 👍/👎 de la evaluación mueven el rating por grupos, no de a uno.
+              Los dos lados cuentan por separado: 4 👍 y 3 👎 en el mismo partido
+              son un escalón arriba y uno abajo.
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
+              {THUMBS_CONFIG.map(({ key, label, desc, def }) => (
+                <div key={key} style={{ minWidth: 0 }}>
+                  <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
+                    {label}
+                    {savingText === key && <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>guardando...</span>}
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={(settings[key] as string) ?? ''}
+                    placeholder={def}
+                    onChange={e => setSettings(prev => ({ ...prev, [key]: e.target.value }))}
+                    onBlur={e => guardarTexto(key, e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box' }}
+                  />
+                  <div className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 4 }}>{desc}</div>
+                </div>
+              ))}
             </div>
           </Card>
 

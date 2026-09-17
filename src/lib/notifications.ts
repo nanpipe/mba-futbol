@@ -32,6 +32,7 @@ export const NOTIF_EVENTS: NotifEvent[] = [
   { key: 'promovido',    label: 'Promovido de espera',     desc: 'Al jugador que pasa de espera a confirmado',   audience: 'player', emailKey: 'promovido_email',    pushKey: 'promovido_push',     emailDefault: true,  pushDefault: true },
   { key: 'equipos',      label: 'Equipos confirmados',     desc: 'A los jugadores cuando se arman equipos',      audience: 'player', emailKey: 'equipos_email',      pushKey: 'equipos_push',       emailDefault: true,  pushDefault: true },
   { key: 'evaluaciones', label: 'Evaluaciones abiertas',   desc: 'A confirmados para votar tras el partido',     audience: 'player', emailKey: 'evaluaciones_email', pushKey: 'evaluaciones_push',  emailDefault: false, pushDefault: true },
+  { key: 'badge_removido', label: 'Reconocimiento retirado', desc: 'Al jugador cuando un admin le quita un reconocimiento', audience: 'player', emailKey: 'badge_removido_email', pushKey: 'badge_removido_push', emailDefault: false, pushDefault: true },
 ]
 
 const EVENT_BY_KEY: Record<string, NotifEvent> = Object.fromEntries(NOTIF_EVENTS.map(e => [e.key, e]))

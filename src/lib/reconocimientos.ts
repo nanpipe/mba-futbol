@@ -36,9 +36,36 @@ export const RECO_CONFIG = [
   },
 ] as const
 
-export const RECO_CONFIG_KEYS = RECO_CONFIG.map(c => c.key) as readonly string[]
+// ── Pulgares ─────────────────────────────────────────────────────────────────
+// Los 👍/👎 se guardaban desde junio y no los leía nadie: la pantalla de
+// evaluación prometía que movían el rating y no movían nada. Ahora sí, con la
+// misma idea de respaldo que los reconocimientos — un pulgar suelto no mueve a
+// nadie, hacen falta varios del mismo lado.
+//
+// Suben y bajan por separado: 4 👍 y 3 👎 en el mismo partido son un escalón
+// arriba y uno abajo, no "uno neto". Cada lado se cuenta como lo vio la gente.
 
-export type RecoConfigKey = typeof RECO_CONFIG[number]['key']
+export const THUMBS_CONFIG = [
+  {
+    key: 'reco_thumbs_paso',
+    label: 'Pulgares por escalón',
+    desc: 'Cuántos 👍 (o 👎) del mismo partido mueven el rating un escalón. Acumulan: con paso 3, seis 👍 son dos escalones',
+    def: '3', min: 1, max: 20,
+  },
+] as const
+
+export const RECO_CONFIG_KEYS = [
+  ...RECO_CONFIG.map(c => c.key),
+  ...THUMBS_CONFIG.map(c => c.key),
+] as readonly string[]
+
+export type RecoConfigKey =
+  | typeof RECO_CONFIG[number]['key']
+  | typeof THUMBS_CONFIG[number]['key']
+
+const TODOS_LOS_CAMPOS = [...RECO_CONFIG, ...THUMBS_CONFIG] as readonly {
+  key: string; def: string; min?: number; max?: number
+}[]
 
 export interface Quorum {
   minVotos: number
@@ -46,12 +73,31 @@ export interface Quorum {
   minGanador: number
 }
 
-/** Lee un umbral numérico de reconocimientos con su default. */
+/** Lee un umbral numérico de la evaluación post-partido con su default. */
 export function recoNumber(settings: Record<string, unknown>, key: RecoConfigKey): number {
-  const cfg = RECO_CONFIG.find(c => c.key === key)!
+  const cfg = TODOS_LOS_CAMPOS.find(c => c.key === key)!
   const n = parseInt(String(settings[key] ?? cfg.def), 10)
   if (isNaN(n)) return parseInt(cfg.def, 10)
-  return Math.max(cfg.min, Math.min(cfg.max, n))
+  return Math.max(cfg.min ?? 1, Math.min(cfg.max ?? 99, n))
+}
+
+/** Cuántos pulgares del mismo lado mueven un escalón de rating. */
+export function thumbsPasoDeSettings(settings: Record<string, unknown>): number {
+  return recoNumber(settings, 'reco_thumbs_paso')
+}
+
+/**
+ * Escalones que mueven los pulgares de un jugador en un partido.
+ * Cada lado por separado, y solo por grupos completos: con paso 3, dos 👍 no
+ * mueven nada y cuatro mueven uno.
+ */
+export function escalonesPorPulgares(
+  likes: number,
+  dislikes: number,
+  paso: number
+): { arriba: number; abajo: number } {
+  const p = Math.max(1, paso)
+  return { arriba: Math.floor(likes / p), abajo: Math.floor(dislikes / p) }
 }
 
 /** Arma el quórum a partir de un mapa de settings ya leído. */
@@ -63,11 +109,11 @@ export function quorumDeSettings(settings: Record<string, unknown>): Quorum {
   }
 }
 
-/** Lee el quórum configurado del club desde app_settings. */
-export async function getQuorum(
+/** Lee los settings de evaluación post-partido del club desde app_settings. */
+async function leerSettings(
   admin: ReturnType<typeof createAdminClient>,
   clubId: string
-): Promise<Quorum> {
+): Promise<Record<string, unknown>> {
   const { data } = await admin
     .from('app_settings')
     .select('key, value')
@@ -78,7 +124,23 @@ export async function getQuorum(
   for (const row of (data ?? []) as { key: string; value: unknown }[]) {
     settings[row.key] = row.value
   }
-  return quorumDeSettings(settings)
+  return settings
+}
+
+/** Lee el quórum configurado del club desde app_settings. */
+export async function getQuorum(
+  admin: ReturnType<typeof createAdminClient>,
+  clubId: string
+): Promise<Quorum> {
+  return quorumDeSettings(await leerSettings(admin, clubId))
+}
+
+/** Lee el paso de pulgares configurado del club desde app_settings. */
+export async function getThumbsPaso(
+  admin: ReturnType<typeof createAdminClient>,
+  clubId: string
+): Promise<number> {
+  return thumbsPasoDeSettings(await leerSettings(admin, clubId))
 }
 
 export interface Ganadores {

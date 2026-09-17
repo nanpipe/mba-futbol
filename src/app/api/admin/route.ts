@@ -16,6 +16,7 @@ import { NOTIF_CHANNEL_KEYS } from '@/lib/notifications'
 import { revertMatchRatings, applyMatchRatings } from '@/lib/rating'
 import { tallyAndAssign } from '@/app/api/evaluaciones/route'
 import { RECO_CONFIG_KEYS, quorumDeSettings } from '@/lib/reconocimientos'
+import { avisarBadgeRemovido } from '@/lib/notifyBadge'
 import { sanitizeBadges, parseBadges, BADGES_SETTING_KEY } from '@/lib/categorias'
 import { sanitizeTiers, parseTiers, TIERS_SETTING_KEY } from '@/lib/tier'
 
@@ -821,7 +822,7 @@ export async function POST(req: NextRequest) {
 
     const { data: badgeRow } = await admin
       .from('player_badges')
-      .select('id, badge_nombre')
+      .select('id, badge_nombre, badge_emoji')
       .eq('club_id', clubId)
       .eq('partido_id', partido_id as string)
       .eq('player_id', player_id as string)
@@ -850,13 +851,23 @@ export async function POST(req: NextRequest) {
       await applyMatchRatings(admin, partido_id as string)
     } catch (e) { console.error('[rating] quitar_badge:', e) }
 
+    // Avisarle al dueño. Si el badge aparece en su perfil y luego desaparece
+    // sin explicación, el que pregunta es él.
+    const b = badgeRow as { badge_nombre: string; badge_emoji: string }
+    const motivoLimpio = typeof motivo === 'string' && motivo.trim() ? motivo.trim().slice(0, 200) : null
+    const avisado = await avisarBadgeRemovido(admin, {
+      clubId, playerId: player_id as string,
+      badgeNombre: b.badge_nombre, badgeEmoji: b.badge_emoji,
+      motivo: motivoLimpio, clubNombre: getClubNombre(req),
+    })
+
     await logActivity({
       user_id: adminUser.id, username: adminUser.username, accion: 'quitar_badge',
-      detalles: { partido_id, player_id, badge_id, motivo: motivo ?? null }, ip,
+      detalles: { partido_id, player_id, badge_id, motivo: motivoLimpio, ...avisado }, ip,
     })
     return NextResponse.json({
       ok: true,
-      mensaje: `Reconocimiento "${(badgeRow as { badge_nombre: string }).badge_nombre}" quitado.`,
+      mensaje: `Reconocimiento "${b.badge_nombre}" quitado.`,
     })
   }
 

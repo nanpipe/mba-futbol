@@ -31,6 +31,7 @@ interface Resultado {
   ganador: string
   ganadores: Ganador[]
   votos: number
+  abstenciones: number
   asignado: boolean
   empate: boolean
   motivo: string | null
@@ -91,6 +92,7 @@ function ResultadosPanel({ resultados, votantes }: { resultados: Resultado[]; vo
                   {r.ganadores.some(g => g.revocado)
                     ? 'Quitado por un admin'
                     : r.motivo}
+                  {r.abstenciones > 0 && ` · ${r.abstenciones} dijo${r.abstenciones !== 1 ? 'eron' : ''} "no aplica"`}
                 </div>
               </div>
             </div>
@@ -154,6 +156,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
   const [votosFinales, setVotosFinales] = useState(0)
   const [resultados, setResultados] = useState<Resultado[] | null>(null)
   const [votantes, setVotantes] = useState(0)
+  const [thumbsPaso, setThumbsPaso] = useState(3)
   const [progreso, setProgreso] = useState<{ votaron: number; total: number } | null>(null)
 
   useEffect(() => {
@@ -172,6 +175,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
       if (Array.isArray(data.badges) && data.badges.length) setBadges(data.badges)
       if (data.resultados) setResultados(data.resultados)
       if (typeof data.votantes === 'number') setVotantes(data.votantes)
+      if (typeof data.thumbs_paso === 'number') setThumbsPaso(data.thumbs_paso)
       if (data.progreso) setProgreso(data.progreso)
 
       if (!data.abierto) { setEstado(data.resultados ? 'already' : 'closed'); return }
@@ -209,11 +213,14 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
 
   const enviar = async () => {
     setEnviando(true)
-    // "No aplica" and neutral are answers, not votes — they're recorded as the
-    // player having decided, and nothing is sent for them.
+    // "No aplica" es una respuesta, no un silencio: viaja con votado_id null
+    // para que el servidor la distinga de una categoría que nadie miró.
     const votosArr = Object.entries(votos)
-      .filter(([, votado_id]) => votado_id !== NO_APLICA)
-      .map(([categoria, votado_id]) => ({ categoria, votado_id }))
+      .map(([categoria, votado_id]) => ({
+        categoria,
+        votado_id: votado_id === NO_APLICA ? null : votado_id,
+      }))
+    const votosReales = votosArr.filter(v => v.votado_id !== null).length
     const thumbsArr = Object.entries(thumbs)
       .filter(([, value]) => value !== 0)
       .map(([votado_id, value]) => ({ votado_id, value }))
@@ -224,7 +231,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
     })
     const data = await res.json()
     if (res.ok) {
-      setVotosFinales(votosArr.length)
+      setVotosFinales(votosReales)
       // If auto-closed (all voted), re-fetch to get resultados
       if (data.auto_cerrado) {
         const r2 = await fetch(`/api/evaluaciones?partido_id=${partido_id}`)
@@ -433,7 +440,9 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
             ¿CÓMO JUGARON?
           </div>
           <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
-            Pulgar arriba o abajo a cada compañero. Anónimo y opcional — ajusta el rating del equipo.
+            Pulgar arriba o abajo a cada compañero. Anónimo y opcional.
+            {' '}Cada {thumbsPaso} 👍 le suben un escalón de rating, y cada {thumbsPaso} 👎 se lo bajan:
+            un pulgar suelto no mueve a nadie.
           </div>
           <ThumbsRater teammates={compañeros} values={thumbs} onSet={setThumb} />
         </div>

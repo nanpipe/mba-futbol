@@ -28,7 +28,6 @@
 --       → evaluaciones_carta
 --       → activity_log → notificaciones_pendientes
 --       → app_settings
---       → bug_reports
 --
 -- Use CREATE TABLE IF NOT EXISTS — safe to run on a fresh project.
 -- DO NOT run on a live production DB without verifying idempotency.
@@ -450,22 +449,11 @@ ON CONFLICT (club_id, key) DO NOTHING;
 
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- SECTION 17: bug_reports
--- User-submitted bug reports (not scoped by club_id — global).
+-- SECTION 17: (libre — bug_reports se eliminó)
+-- La tabla y el bucket bug-screenshots existían sin una sola línea de app que
+-- los usara. Ver 20260917_quitar_bug_reports.sql. El número se deja quieto para
+-- no renumerar las secciones de abajo.
 -- ══════════════════════════════════════════════════════════════════════════════
-
-CREATE TABLE IF NOT EXISTS public.bug_reports (
-  id             uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id        uuid        REFERENCES public.profiles ON DELETE SET NULL,
-  username       text,
-  descripcion    text        NOT NULL,
-  screenshot_url text,
-  estado         text        NOT NULL DEFAULT 'nuevo'
-                             CHECK (estado IN ('nuevo', 'revisado', 'cerrado')),
-  created_at     timestamptz DEFAULT now()
-);
-
-ALTER TABLE public.bug_reports ENABLE ROW LEVEL SECURITY;
 
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -732,22 +720,6 @@ CREATE POLICY "Admin ve notificaciones del club"
     club_id = (SELECT club_id FROM public.profiles WHERE id = auth.uid())
     AND (SELECT role FROM public.profiles WHERE id = auth.uid()) IN ('admin', 'superadmin')
   );
-
--- ── bug_reports ───────────────────────────────────────────────────────────────
--- Superadmin can read all; authenticated users can insert their own.
-
-CREATE POLICY "Superadmin ve todos los bug reports"
-  ON public.bug_reports FOR SELECT TO authenticated
-  USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'superadmin');
-
-CREATE POLICY "Authenticated user inserts bug report"
-  ON public.bug_reports FOR INSERT TO authenticated
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Superadmin updates bug report"
-  ON public.bug_reports FOR UPDATE TO authenticated
-  USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'superadmin');
-
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- SECTION 20: Functions & Triggers

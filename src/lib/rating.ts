@@ -9,7 +9,7 @@ import { getFaltasGap, rachaDeFaltas, type PartidoRacha } from '@/lib/faltas'
 // the number is earned on the field: small per-match deltas, clamped so no
 // single game swings it wildly and no one can sit at the top untouched.
 //
-//   Jugó (activo)            +STEP
+//   Jugó                     0 — presencia, no mérito (ver "deriva" abajo)
 //   Ganó                     +STEP   ·  Perdió  −STEP  ·  Empató 0
 //   Reconocimiento positivo  +STEP each  (MVP, goleador, defensa, portero, técnico)
 //   Reconocimiento negativo  −STEP each  (desaparecido, aizaga, discutidor)
@@ -34,6 +34,24 @@ import { getFaltasGap, rachaDeFaltas, type PartidoRacha } from '@/lib/faltas'
 // Los pasos se mantienen chicos a propósito: subir cuesta y bajar cuesta. Por
 // eso el número se muestra con dos decimales (formatRating en lib/tier) — con
 // uno, un partidazo no movía nada visible y el sistema parecía muerto.
+//
+// ── Deriva: por qué jugar no suma ───────────────────────────────────────────
+// Hasta 2026-09-17 inscribirse daba +STEP. Era el único término que no tenía
+// contrapeso: ganar/perder es suma cero entre los dos equipos, pero el +STEP por
+// aparecer se lo llevaba todo el que jugaba, en todos los partidos. A dos
+// partidos por semana eso son +2.0 al año, así que los que van siempre llegaban
+// al techo de 5.0 en menos de un año y el rating dejaba de distinguir a nadie —
+// el mismo problema que tenía con todos clavados en 3.0, apilados arriba.
+//
+// Jugar ahora vale 0. El incentivo de ir no desaparece, cambia de lado: faltar
+// tres seguidas resta, así que ir sigue siendo mejor que no ir, solo que por
+// evitar el castigo y no por cobrar el premio. Y el número pasa a medir cómo
+// juegas, no cuántas veces apareciste, que es lo que el balanceador necesita.
+//
+// Queda una fuente de deriva que NO es de suma cero: los pulgares. Si el club da
+// muchos más 👍 que 👎, todos suben. Se amortigua subiendo reco_thumbs_paso. Los
+// reconocimientos tienen un sesgo menor por venir 5 positivos y 3 negativos de
+// fábrica, configurable por club.
 
 const STEP = 0.02
 // El tope decide cuántas señales de un mismo partido alcanzan a contar, porque
@@ -246,8 +264,9 @@ export async function applyMatchRatings(
     const motivos: string[] = []
 
     if (confirmados.has(id)) {
-      raw += STEP
-      motivos.push('activo')
+      // Jugar no suma por sí solo: queda en el ledger como señal de presencia y
+      // con delta 0. Ver la nota sobre la deriva en la cabecera.
+      motivos.push('jugó')
 
       const res = outcome(teamByPlayer.get(id))
       if (res === 'win') { raw += STEP; motivos.push('ganó') }

@@ -111,6 +111,17 @@ Es el mismo agujero que se cerró en `votos_reconocimiento` (`20260917_votos_sin
 
 Misma situación, sin filtración de datos sensibles y por tanto sin urgencia: `equipos`, `equipo_jugadores`, `clubs`, `alineacion_votos`, `rating_events`, `invitados_guardados` y `badges_revocados` conservan SELECT para `{authenticated}` y el navegador tampoco los lee.
 
+### 5.5 Medir el sesgo de los pulgares — pendiente
+Quitar el premio por asistir deja la deriva casi en cero **si** los 👍 y 👎 están equilibrados (7 años hasta el techo, o sea nunca). Si el club da 70/30, la deriva sigue en 0.5 años. No sabemos la proporción real; hay que medirla, no suponerla:
+
+```sql
+SELECT value, count(*) AS n,
+       round(100.0 * count(*) / sum(count(*)) OVER (), 1) AS pct
+FROM public.player_thumbs GROUP BY value;
+```
+
+Con 👍 por encima de ~60% conviene subir `reco_thumbs_paso` (Ajustes → Puntaje → Pulgares) y volver a recalcular.
+
 ### 5.4 Otros
 - **Invitaciones / multi-club:** pausado hasta comprar dominio (subdominios por club, `NEXT_PUBLIC_ROOT_DOMAIN`, `ALLOWED_ORIGINS`).
 - **Prueba de aislamiento entre clubes:** propuesta, no hecha. Un club canario con datos dummy, más un script que inicie sesión en cada club e intente leer y escribir datos del otro por cada ruta y tabla. Requiere que el usuario cree el usuario canario.
@@ -124,7 +135,9 @@ Misma situación, sin filtración de datos sensibles y por tanto sin urgencia: `
 ## 6. Decisiones de producto vigentes
 
 - **Rating v2** (`lib/rating.ts`):
-  - Base 3.0, rango 1–5. Pasos de 0.02: jugó +, ganó + / perdió −, reconocimientos ±, pulgares por escalones. Quien queda en espera está exento.
+  - Base 3.0, rango 1–5. Pasos de 0.02: ganó + / perdió −, reconocimientos ±, pulgares por escalones. Quien queda en espera está exento.
+  - **Jugar vale 0, a propósito** (2026-09-17). Antes inscribirse daba +0.02 y era el único término sin contrapeso: ganar/perder es suma cero entre equipos, pero el premio por aparecer se lo llevaba todo el que jugaba, siempre. A dos partidos por semana eso son +2.0 al año — los habituales llegaban al techo de 5.0 en menos de un año y el rating dejaba de distinguir a nadie, el mismo problema que con todos clavados en 3.0 pero apilados arriba. El incentivo de ir no desapareció, cambió de lado: faltar tres seguidas resta. **No volver a agregar un premio por asistir sin resolver antes la deriva.**
+  - Deriva que queda: los pulgares NO son de suma cero. Si el club da muchos más 👍 que 👎, todos suben. Se amortigua subiendo `reco_thumbs_paso`. Medir antes de tocar, con la consulta de §5.5. El sesgo de reconocimientos (5 positivos vs 3 negativos de fábrica) aporta +0.003 por partido.
   - **Faltas con racha** (`lib/faltas.ts`, `rating_faltas_gap`, default 3): no inscribirse solo resta desde la tercera falta **seguida**. Restar en cada partido castigaba a quien no puede un día fijo — el club juega martes y viernes, y el que solo puede martes perdía 0.02 cada viernes para siempre. Cortan la racha: jugar, quedar en espera, una ausencia marcada por admin, y los partidos anteriores a su llegada al club. Las faltas que no llegan al gap dejan un `rating_event` con delta 0 y motivo `no jugó (1/3)`, para que quede el rastro.
   - Tope por partido: ±0.075 normal, ±0.15 minitorneo. Se muestra con 2 decimales (`formatRating`).
   - Se aplica una vez por partido, al cerrar evaluaciones y con resultado, vía `rating_events`.

@@ -13,6 +13,8 @@ import { ErrorAlert } from '@/components/ErrorAlert'
 import { useClub } from '@/hooks/useClub'
 import { ratingTierStyle, formatRating } from '@/lib/tier'
 import { InvitadosGuardados } from '@/components/InvitadosGuardados'
+import { fechaColombia } from '@/lib/promoHora'
+import { AUSENCIA_MAX_DIAS } from '@/lib/ausencia'
 
 import { POSICIONES, type Posicion } from '@/lib/posiciones'
 
@@ -24,6 +26,9 @@ interface ProfileData {
   posicion: Posicion
   posiciones?: Posicion[]
   habilidad: number
+  role?: string
+  ausente_desde?: string | null
+  ausente_hasta?: string | null
 }
 
 interface Badge {
@@ -88,11 +93,39 @@ export default function PerfilPage() {
     setTimeout(() => setMensaje(null), 5000)
   }
 
+  // Ausencia — self-service only for admins/superadmins. Players get it from an
+  // admin; /api/admin rejects anyone else, so hiding the section isn't the guard.
+  const [ausenciaHasta, setAusenciaHasta] = useState('')
+  const [savingAusencia, setSavingAusencia] = useState(false)
+  const hoy = fechaColombia()
+  const esAdmin = profile?.role === 'admin' || profile?.role === 'superadmin'
+  const ausenteActiva = !!profile?.ausente_hasta && profile.ausente_hasta >= hoy
+  const fechaLarga = (f: string) => new Date(f + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })
+
+  const guardarAusencia = async (hasta: string) => {
+    if (!user) return
+    setSavingAusencia(true)
+    try {
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'marcar_ausencia', player_id: user.id, hasta }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { flash('error', data.error ?? 'No se pudo guardar.'); return }
+      flash('ok', data.mensaje ?? 'Listo.')
+      setAusenciaHasta('')
+      await cargarDatos(user)
+    } finally {
+      setSavingAusencia(false)
+    }
+  }
+
   const cargarDatos = useCallback(async (u: User) => {
     const [{ data: prof }, { data: badgesData }, { count }] = await Promise.all([
       supabase
         .from('profiles')
-        .select('username, email, avatar_url, created_at, posicion, posiciones, habilidad')
+        .select('username, email, avatar_url, created_at, posicion, posiciones, habilidad, role, ausente_desde, ausente_hasta')
         .eq('id', u.id)
         .single(),
       supabase
@@ -347,6 +380,52 @@ export default function PerfilPage() {
                 Miembro desde {new Date(profile.created_at).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })}
               </div>
             )}
+          </Section>
+        )}
+
+        {esAdmin && (
+          <Section title="MI AUSENCIA">
+            <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 12 }}>
+              ¿De viaje o lesionado? Mientras estés ausente no pierdes puntaje por no inscribirte ni te llegan avisos.
+              No puedes inscribirte hasta quitarla, y si juegas, el partido cuenta normal.
+            </div>
+            {ausenteActiva ? (
+              <>
+                <div className="mono" style={{ fontSize: 13, color: '#7dd3fc', marginBottom: 12 }}>
+                  ✈️ Ausente hasta el {fechaLarga(profile!.ausente_hasta!)}
+                </div>
+                <button
+                  onClick={() => guardarAusencia('')}
+                  disabled={savingAusencia}
+                  className="btn btn-ghost"
+                  style={{ fontSize: 12, padding: '8px 16px' }}
+                >
+                  {savingAusencia ? '...' : 'Ya volví — quitar ausencia'}
+                </button>
+              </>
+            ) : null}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', marginTop: ausenteActiva ? 16 : 0 }}>
+              <div style={{ flex: 1, minWidth: 160 }}>
+                <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>
+                  {ausenteActiva ? 'CAMBIAR FECHA DE REGRESO' : 'AUSENTE HASTA'}
+                </div>
+                <input
+                  type="date"
+                  value={ausenciaHasta}
+                  min={hoy}
+                  max={fechaColombia(new Date(Date.now() + AUSENCIA_MAX_DIAS * 86400000))}
+                  onChange={e => setAusenciaHasta(e.target.value)}
+                />
+              </div>
+              <button
+                onClick={() => guardarAusencia(ausenciaHasta)}
+                disabled={!ausenciaHasta || savingAusencia}
+                className="btn btn-primary"
+                style={{ padding: '10px 18px', opacity: ausenciaHasta ? 1 : 0.4 }}
+              >
+                {savingAusencia ? '...' : 'Guardar'}
+              </button>
+            </div>
           </Section>
         )}
 

@@ -119,6 +119,7 @@ Propuesta: optimizador determinista en vez de Gemini:
   - A hora + 1 h: con **más de 12 confirmados** (invitados incluidos) se marca jugado y abren votaciones solas. Si no, se pregunta a los admins por push.
   - La tarjeta "¿Se jugó el partido?" (home y panel admin) pide marcador y foto. "Sí" abre votaciones de inmediato; "No" no abre nada y revierte el rating.
 - **Ausencia** (`lib/ausencia.ts`, botón ✈️ en Admin → Jugadores):
+  - Admins y superadmin también pueden marcarse a sí mismos desde **Mi perfil** (sección "MI AUSENCIA", visible solo para esos roles). Si no, el superadmin no tendría quién se la pusiera.
   - **Solo la marca un admin o superadmin.** Si la marcara el jugador, cualquiera protegería su rating a gusto. El cliente no puede escribir en `profiles`.
   - Rango de fechas: desde el día en que se marca, hasta la fecha que elige el admin (máximo 90 días). Así, recalcular un partido viejo no la aplica hacia atrás.
   - Mientras está activa: no resta por no inscribirse (motivo `ausente` en `rating_events`), no llegan avisos de apertura ni de cupos, y **el jugador no puede inscribirse solo**.

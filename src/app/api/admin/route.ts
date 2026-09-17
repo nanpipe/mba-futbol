@@ -18,6 +18,7 @@ import { revertMatchRatings, applyMatchRatings } from '@/lib/rating'
 import { tallyAndAssign } from '@/app/api/evaluaciones/route'
 import { RECO_CONFIG_KEYS, quorumDeSettings } from '@/lib/reconocimientos'
 import { FALTAS_CONFIG_KEYS } from '@/lib/faltas'
+import { recalcularRatings } from '@/lib/recalcularRatings'
 import { avisarBadgeRemovido } from '@/lib/notifyBadge'
 import { sanitizeBadges, parseBadges, BADGES_SETTING_KEY } from '@/lib/categorias'
 import { sanitizeTiers, parseTiers, TIERS_SETTING_KEY } from '@/lib/tier'
@@ -38,7 +39,7 @@ async function verificarAdmin(supabase: Awaited<ReturnType<typeof createClient>>
   }
 }
 
-const SUPERADMIN_ONLY = new Set(['eliminar_jugador', 'editar_jugador', 'cambiar_password'])
+const SUPERADMIN_ONLY = new Set(['eliminar_jugador', 'editar_jugador', 'cambiar_password', 'recalcular_ratings'])
 const PRIVILEGED_ROLES = new Set(['admin', 'superadmin'])
 const isPrivileged = (role: string | undefined | null) => PRIVILEGED_ROLES.has(role ?? '')
 const ERR_PRIVILEGED = NextResponse.json({ error: 'No se puede aplicar esta acción a un administrador o superadmin' }, { status: 403 })
@@ -843,6 +844,48 @@ export async function POST(req: NextRequest) {
 
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'abrir_evaluaciones', detalles: { partido_id, push_enviados: r.push_enviados, jugadores_confirmados: r.jugadores }, ip })
     return NextResponse.json({ ok: true, mensaje: 'Evaluaciones abiertas y jugadores notificados.' })
+  }
+
+  // ── Recalcular todos los ratings desde cero ────────────────────────────────
+  // Los rating_events viejos se calcularon con reglas anteriores (la falta
+  // restaba en cada partido, el tope era 0.05, los pulgares no contaban). Esto
+  // reconstruye el ledger completo replayando cada partido con el motor actual.
+  // Superadmin: reescribe el número de todo el club.
+  if (accion === 'recalcular_ratings') {
+    const { reiniciar, desde_fecha } = body
+    if (desde_fecha !== undefined && desde_fecha !== null && !isDate(desde_fecha)) {
+      return NextResponse.json({ error: 'desde_fecha inválida' }, { status: 400 })
+    }
+
+    let r: Awaited<ReturnType<typeof recalcularRatings>>
+    try {
+      r = await recalcularRatings(admin, clubId, {
+        reiniciar: reiniciar === true,
+        desdeFecha: typeof desde_fecha === 'string' ? desde_fecha : null,
+      })
+    } catch (e) {
+      console.error('[admin] recalcular_ratings:', e)
+      return NextResponse.json(
+        { error: `Recálculo interrumpido: ${(e as Error).message}. Es seguro volver a correrlo desde el principio.` },
+        { status: 500 }
+      )
+    }
+
+    // Un log por lote: si esto se corta a mitad, el rastro dice hasta dónde llegó.
+    await logActivity({
+      user_id: adminUser.id, username: adminUser.username, club_id: clubId,
+      accion: 'recalcular_ratings',
+      detalles: {
+        reinicio: r.reiniciado,
+        partidos: r.partidos_procesados,
+        saltados: r.partidos_saltados.length,
+        sigue_en: r.siguiente_fecha,
+        terminado: r.siguiente_fecha === null,
+      },
+      ip,
+    })
+
+    return NextResponse.json({ ok: true, ...r })
   }
 
   // ── Quitar un reconocimiento ───────────────────────────────────────────────

@@ -81,6 +81,8 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
   const [notifPruebaResult, setNotifPruebaResult] = useState<{ ok: boolean; msg: string } | null>(null)
   const [cronSending, setCronSending] = useState(false)
   const [cronResult, setCronResult] = useState<{ ok: boolean; msg: string } | null>(null)
+  const [recalculando, setRecalculando] = useState(false)
+  const [recalculoResult, setRecalculoResult] = useState<{ ok: boolean; msg: string } | null>(null)
 
   const cargarSettings = useCallback(async () => {
     setSettingsLoading(true)
@@ -156,6 +158,92 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
       setNotifPruebaResult({ ok: false, msg: data.error ?? 'Error desconocido' })
     }
     setNotifPruebaSending(false)
+  }
+
+  // Va por lotes: el historial completo son cientos de consultas y la función se
+  // cortaría por tiempo en una sola llamada. Cada respuesta dice desde qué fecha
+  // sigue; null significa que terminó.
+  const recalcular = async () => {
+    if (!window.confirm(
+      'Reconstruir el rating de TODO el club desde cero, con las reglas de hoy.\n\n' +
+      'Los números van a cambiar. Es seguro repetirlo si algo falla.\n\n¿Seguir?'
+    )) return
+    setRecalculando(true)
+    setRecalculoResult(null)
+
+    type Snap = { username: string; rating: number }
+    type Lote = {
+      partidos_procesados: number
+      partidos_saltados: { fecha: string; razon: string }[]
+      siguiente_fecha: string | null
+      antes?: Snap[]
+      despues?: Snap[]
+      reseteados_a_base?: string[]
+    }
+
+    let antes: Snap[] = []
+    let despues: Snap[] = []
+    let reseteados: string[] = []
+    let procesados = 0
+    const saltados: { fecha: string; razon: string }[] = []
+    let cursor: string | null = null
+    let primera = true
+
+    // Cota de seguridad: si algo hiciera que el cursor no avance, no dar vueltas
+    // para siempre contra la API.
+    for (let vuelta = 0; vuelta < 200; vuelta++) {
+      const res: Response = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'recalcular_ratings', reiniciar: primera, desde_fecha: cursor }),
+      })
+      const d = await res.json()
+      if (!res.ok) {
+        setRecalculoResult({
+          ok: false,
+          msg: `${d.error ?? 'Error desconocido'}${procesados ? `\n\nAlcanzó a replayar ${procesados} partidos antes de cortarse.` : ''}`,
+        })
+        setRecalculando(false)
+        return
+      }
+      const lote = d as Lote
+      if (primera) {
+        antes = lote.antes ?? []
+        reseteados = lote.reseteados_a_base ?? []
+        primera = false
+      }
+      procesados += lote.partidos_procesados
+      saltados.push(...lote.partidos_saltados)
+      setRecalculoResult({ ok: true, msg: `Replayando… ${procesados} partidos` })
+
+      if (lote.siguiente_fecha === null) { despues = lote.despues ?? []; break }
+      cursor = lote.siguiente_fecha
+    }
+
+    // El diff es lo único que importa de verdad acá.
+    const antesPorNombre = new Map(antes.map(a => [a.username, a.rating]))
+    const cambios = despues
+      .map(d => ({ username: d.username, antes: antesPorNombre.get(d.username) ?? 3, despues: d.rating }))
+      .filter(c => c.antes !== c.despues)
+      .map(c => ({ ...c, delta: Math.round((c.despues - c.antes) * 1000) / 1000 }))
+      .sort((a, b) => b.delta - a.delta)
+
+    const lineas = cambios.slice(0, 15)
+      .map(c => `  ${c.username}: ${c.antes.toFixed(2)} → ${c.despues.toFixed(2)}  (${c.delta > 0 ? '+' : ''}${c.delta.toFixed(3)})`)
+      .join('\n')
+    const resto = cambios.length > 15 ? `\n  …y ${cambios.length - 15} más` : ''
+    const razones = saltados.length
+      ? `\n\nPartidos sin calificar (${saltados.length}): ${[...new Set(saltados.map(s => s.razon))].join(', ')}`
+      : ''
+    const reset = reseteados.length
+      ? `\n\nEn 3.00 por estar baneados o sin aprobar: ${reseteados.join(', ')}`
+      : ''
+
+    setRecalculoResult({
+      ok: true,
+      msg: `${procesados} partidos replayados. ${cambios.length} de ${despues.length} jugadores cambiaron.\n\n${lineas}${resto}${razones}${reset}`,
+    })
+    setRecalculando(false)
   }
 
   const dispararCron = async () => {
@@ -369,6 +457,44 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
               salvo que se reabra y vuelva a cerrarse la votación.
             </div>
           </Card>
+
+          {/* Recalcular ratings — superadmin */}
+          {isSuperAdmin && (
+            <Card padding="20px 24px">
+              <SectionHeader title="RECALCULAR RATINGS" icon="♻️" color="#a78bfa" />
+              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+                Reconstruye el rating de todo el club desde cero, replayando cada
+                partido con las reglas de hoy. Los ratings viejos se calcularon con
+                reglas anteriores (la falta restaba en cada partido, el tope era
+                0.05, los pulgares no contaban).
+                <br /><br />
+                Es seguro repetirlo: el resultado solo depende de los datos, no de
+                cuántas veces se corra. Los ratings van a cambiar visiblemente.
+                <br /><br />
+                <span style={{ color: 'var(--amber)' }}>
+                  Un jugador baneado o sin aprobar queda en 3.00: el motor solo
+                  califica a quien está activo hoy, y no hay registro histórico de
+                  esos dos campos.
+                </span>
+              </div>
+              <button
+                onClick={recalcular}
+                disabled={recalculando}
+                className="btn"
+                style={{ fontSize: 12, borderColor: '#a78bfa', color: '#a78bfa' }}
+              >
+                {recalculando ? 'Recalculando...' : '♻️ Recalcular todo'}
+              </button>
+              {recalculoResult && (
+                <div className="mono" style={{
+                  fontSize: 10, marginTop: 12, lineHeight: 1.7, whiteSpace: 'pre-wrap',
+                  color: recalculoResult.ok ? 'var(--green)' : 'var(--red, #f87171)',
+                }}>
+                  {recalculoResult.msg}
+                </div>
+              )}
+            </Card>
+          )}
 
           {/* Faltas */}
           <Card padding="20px 24px">

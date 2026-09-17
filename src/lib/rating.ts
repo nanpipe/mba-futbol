@@ -1,6 +1,7 @@
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { getClubBadges } from '@/lib/categorias'
 import { getThumbsPaso, escalonesPorPulgares } from '@/lib/reconocimientos'
+import { ausenteEn, type Ausencia } from '@/lib/ausencia'
 
 // ── Player rating (v2) ───────────────────────────────────────────────────────
 // Stateful 1–5 rating stored on profiles.habilidad. Everyone starts at 3.0 and
@@ -13,7 +14,8 @@ import { getThumbsPaso, escalonesPorPulgares } from '@/lib/reconocimientos'
 //   Reconocimiento negativo  −STEP each  (desaparecido, aizaga, discutidor)
 //   Pulgares                 +STEP por cada N 👍  ·  −STEP por cada N 👎
 //   No se inscribió (pudo)   −STEP
-//   En espera / lesionado    exento (no baja)
+//   En espera                exento (no baja)
+//   Ausente (lo marca admin) exento solo si NO jugó — ver lib/ausencia.ts
 //
 // N es configurable por club (reco_thumbs_paso, default 3): un pulgar suelto no
 // mueve a nadie. Los dos lados cuentan por separado — 4 👍 y 3 👎 son un escalón
@@ -81,7 +83,7 @@ export async function applyMatchRatings(
 ): Promise<{ applied: number; skipped?: string }> {
   const { data: partido } = await admin
     .from('partidos')
-    .select('id, club_id, tipo, evaluaciones_abiertas, goles_a, goles_b, puntos_blanco, puntos_negro, puntos_morado')
+    .select('id, club_id, fecha, tipo, evaluaciones_abiertas, goles_a, goles_b, puntos_blanco, puntos_negro, puntos_morado')
     .eq('id', partido_id)
     .single()
 
@@ -127,7 +129,7 @@ export async function applyMatchRatings(
       ? admin.from('equipo_jugadores').select('player_id, equipo_id').in('equipo_id', equipoIds)
       : Promise.resolve({ data: [] as { player_id: string; equipo_id: string }[] }),
     admin.from('player_badges').select('player_id, badge_id').eq('partido_id', partido_id),
-    admin.from('profiles').select('id, habilidad, aprobado, baneado').eq('club_id', clubId),
+    admin.from('profiles').select('id, habilidad, aprobado, baneado, ausente_desde, ausente_hasta').eq('club_id', clubId),
     admin.from('player_thumbs').select('votado_id, value').eq('partido_id', partido_id),
     getThumbsPaso(admin, clubId),
   ])
@@ -160,9 +162,11 @@ export async function applyMatchRatings(
   }
 
   const ratingById = new Map<string, number>()
+  const ausenciaById = new Map<string, Ausencia>()
   const eligible: string[] = []
-  for (const p of (profsRes.data ?? []) as { id: string; habilidad: number | null; aprobado: boolean; baneado: boolean }[]) {
+  for (const p of (profsRes.data ?? []) as ({ id: string; habilidad: number | null; aprobado: boolean; baneado: boolean } & Ausencia)[]) {
     ratingById.set(p.id, typeof p.habilidad === 'number' ? p.habilidad : BASE_RATING)
+    ausenciaById.set(p.id, { ausente_desde: p.ausente_desde, ausente_hasta: p.ausente_hasta })
     if (p.aprobado && !p.baneado) eligible.push(p.id)
   }
 
@@ -215,6 +219,10 @@ export async function applyMatchRatings(
       const pasos = escalonesPorPulgares(up, down, thumbsPaso)
       if (pasos.arriba) { raw += STEP * pasos.arriba; motivos.push(`👍 ${up} (×${pasos.arriba})`) }
       if (pasos.abajo)  { raw -= STEP * pasos.abajo;  motivos.push(`👎 ${down} (×${pasos.abajo})`) }
+    } else if (ausenteEn(ausenciaById.get(id), partido.fecha as string)) {
+      // Marked away by an admin: no penalty for not signing up. Only reachable
+      // when they didn't play — a confirmed player takes the branch above.
+      motivos.push('ausente')
     } else {
       raw -= STEP
       motivos.push('inactivo')

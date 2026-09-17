@@ -9,6 +9,10 @@ import { Card } from '@/components/Card'
 import { ModalOverlay } from '@/components/ModalOverlay'
 import type { Player, AdminAction } from '@/types/admin'
 import { ratingTierStyle, formatRating } from '@/lib/tier'
+import { fechaColombia } from '@/lib/promoHora'
+import { AUSENCIA_MAX_DIAS } from '@/lib/ausencia'
+
+const fechaCorta = (f: string) => new Date(f + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })
 
 interface Props {
   players: Player[]
@@ -44,6 +48,24 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
     if (!editModal) return
     const ok = await accionAdmin('toggle_uniform', { player_id: editModal.id })
     if (ok) setEditModal(prev => prev ? { ...prev, uniform: !prev.uniform } : prev)
+  }
+
+  // ── Ausencia ────────────────────────────────────────────────────────────
+  const [ausenciaModal, setAusenciaModal] = useState<Player | null>(null)
+  const [ausenciaHasta, setAusenciaHasta] = useState('')
+  const hoy = fechaColombia()
+  const maxAusencia = fechaColombia(new Date(Date.now() + AUSENCIA_MAX_DIAS * 86400000))
+  const ausenteActiva = (p: Player) => !!p.ausente_hasta && p.ausente_hasta >= hoy
+
+  const abrirAusencia = (p: Player) => {
+    setAusenciaModal(p)
+    setAusenciaHasta(ausenteActiva(p) ? p.ausente_hasta! : '')
+  }
+
+  const guardarAusencia = async (hasta: string) => {
+    if (!ausenciaModal) return
+    const ok = await accionAdmin('marcar_ausencia', { player_id: ausenciaModal.id, hasta })
+    if (ok) setAusenciaModal(null)
   }
 
   const abrirEdit = (p: Player) => {
@@ -172,19 +194,34 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                         {usarUniforme && p.uniform && !isPrivileged(p.role) && (
                           <span className="mono" style={{ fontSize: 9, color: 'var(--green)', letterSpacing: '0.1em', background: '#0f2d1a', padding: '2px 5px', borderRadius: 2 }}>UNIFORME</span>
                         )}
+                        {ausenteActiva(p) && (
+                          <span className="mono" style={{ fontSize: 9, color: '#7dd3fc', letterSpacing: '0.1em', background: '#082f49', border: '1px solid #0369a1', padding: '2px 5px', borderRadius: 2 }}>
+                            ✈️ AUSENTE · {fechaCorta(p.ausente_hasta!)}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
-                  {!isPrivileged(p.role) && (
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-                      <span title={hasPush ? 'Notificaciones activadas' : 'Sin notificaciones'} style={{ fontSize: 15, opacity: hasPush ? 1 : 0.3, cursor: 'default', lineHeight: 1 }}>
-                        {hasPush ? '🔔' : '🔕'}
-                      </span>
-                      <button onClick={() => abrirEdit(p)} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>
-                        Editar
-                      </button>
-                    </div>
-                  )}
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                    <button
+                      onClick={() => abrirAusencia(p)}
+                      title="Ausencia (viaje, lesión)"
+                      className="btn btn-ghost"
+                      style={{ fontSize: 13, padding: '5px 9px', lineHeight: 1, opacity: ausenteActiva(p) ? 1 : 0.5 }}
+                    >
+                      ✈️
+                    </button>
+                    {!isPrivileged(p.role) && (
+                      <>
+                        <span title={hasPush ? 'Notificaciones activadas' : 'Sin notificaciones'} style={{ fontSize: 15, opacity: hasPush ? 1 : 0.3, cursor: 'default', lineHeight: 1 }}>
+                          {hasPush ? '🔔' : '🔕'}
+                        </span>
+                        <button onClick={() => abrirEdit(p)} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>
+                          Editar
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               )
             })}
@@ -320,6 +357,63 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                 )}
               </div>}
             </div>
+          </Card>
+        </ModalOverlay>
+      )}
+
+      {/* Modal Ausencia */}
+      {ausenciaModal && (
+        <ModalOverlay>
+          <Card style={{ width: '100%', maxWidth: 420, margin: 'auto' }} padding={24}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
+              <PlayerAvatar url={ausenciaModal.avatar_url} username={ausenciaModal.username} size={40} />
+              <div>
+                <div className="display" style={{ fontSize: 20 }}>✈️ Ausencia</div>
+                <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{ausenciaModal.username}</div>
+              </div>
+            </div>
+
+            <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 18 }}>
+              Para viajes o lesiones. Mientras esté ausente:<br />
+              · no pierde puntaje por no inscribirse<br />
+              · no recibe avisos de inscripción ni de cupos<br />
+              · no puede inscribirse solo — si vuelve antes, quita la ausencia<br />
+              · si juega igual, el partido cuenta normal
+            </div>
+
+            {ausenteActiva(ausenciaModal) && (
+              <div className="mono" style={{ fontSize: 12, color: '#7dd3fc', marginBottom: 14 }}>
+                Ausente desde el {fechaCorta(ausenciaModal.ausente_desde!)} hasta el {fechaCorta(ausenciaModal.ausente_hasta!)}.
+              </div>
+            )}
+
+            <FormLabel label="AUSENTE HASTA" />
+            <input type="date" value={ausenciaHasta} min={hoy} max={maxAusencia} onChange={e => setAusenciaHasta(e.target.value)} />
+            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>
+              Empieza hoy. Máximo {AUSENCIA_MAX_DIAS} días.
+            </div>
+
+            <ButtonGroup gap={10} marginTop={20}>
+              <button
+                onClick={() => guardarAusencia(ausenciaHasta)}
+                disabled={!ausenciaHasta}
+                className="btn btn-primary"
+                style={{ flex: 1, justifyContent: 'center', opacity: ausenciaHasta ? 1 : 0.4 }}
+              >
+                Guardar
+              </button>
+              <button onClick={() => setAusenciaModal(null)} className="btn btn-ghost">Cancelar</button>
+            </ButtonGroup>
+
+            {ausenteActiva(ausenciaModal) && (
+              <button
+                onClick={() => guardarAusencia('')}
+                className="mono"
+                style={{ marginTop: 14, width: '100%', fontSize: 11, padding: '8px', background: 'none', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                Quitar ausencia (volvió)
+              </button>
+            )}
           </Card>
         </ModalOverlay>
       )}

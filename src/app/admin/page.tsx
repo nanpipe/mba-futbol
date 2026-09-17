@@ -48,7 +48,7 @@ export default function AdminPage() {
     const [{ data: ps }, pushRes, { data: pts }, settingsRes] = await Promise.all([
       supabase
         .from('profiles')
-        .select('id, username, email, role, baneado, aprobado, uniform, fecha_liberacion, razon_ban, ip_registro, created_at, avatar_url, habilidad')
+        .select('id, username, email, role, baneado, aprobado, uniform, fecha_liberacion, razon_ban, ip_registro, created_at, avatar_url, habilidad, ausente_desde, ausente_hasta')
         .order('created_at', { ascending: false }),
       fetch('/api/admin?accion=push_subs'),
       supabase

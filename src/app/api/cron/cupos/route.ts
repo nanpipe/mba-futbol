@@ -4,6 +4,7 @@ import { sendPush, isDeadPushError } from '@/lib/push'
 import { calcularVentanaPartido } from '@/lib/partidos'
 import { sendCuposEmail } from '@/lib/email'
 import { channelsFor } from '@/lib/notifications'
+import { fechaColombia } from '@/lib/promoHora'
 
 function verifyCron(req: NextRequest) {
   const secret = process.env.CRON_SECRET
@@ -19,7 +20,8 @@ export async function GET(req: NextRequest) {
 
   const admin = createAdminClient()
   const now = new Date()
-  const hoy = now.toISOString().split('T')[0]
+  // Colombia date — the UTC one rolls over at 7 PM Colombia.
+  const hoy = fechaColombia(now)
   let totalEnviados = 0
 
   const { data: partidos } = await admin
@@ -49,10 +51,20 @@ export async function GET(req: NextRequest) {
       .select('player_id')
       .eq('partido_id', partido.id)
 
-    const inscritosIds = (inscritos ?? []).map((i: { player_id: string }) => i.player_id)
-
     // Channel settings for this club's 'cupos' event
     const clubId = (partido as { club_id?: string }).club_id
+
+    // Nobody on the list gets nudged — and neither does anyone marked absent that day.
+    const { data: ausentes } = clubId
+      ? await admin.from('profiles').select('id')
+          .eq('club_id', clubId)
+          .lte('ausente_desde', partido.fecha)
+          .gte('ausente_hasta', partido.fecha)
+      : { data: [] }
+    const inscritosIds = [
+      ...(inscritos ?? []).map((i: { player_id: string }) => i.player_id),
+      ...(ausentes ?? []).map((a: { id: string }) => a.id),
+    ]
     const settings: Record<string, unknown> = {}
     if (clubId) {
       const { data: sRows } = await admin.from('app_settings').select('key, value').eq('club_id', clubId)

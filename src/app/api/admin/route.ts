@@ -9,6 +9,7 @@ import { abrirEvaluaciones, guardarResultado, traeResultado, contarConfirmados }
 import { calcularVentanaPartido, MIN_CONFIRMADOS_AUTO_JUGADO } from '@/lib/partidos'
 import { fechaColombia } from '@/lib/promoHora'
 import { getClientIp } from '@/lib/rateLimit'
+import { AUSENCIA_MAX_DIAS } from '@/lib/ausencia'
 import { getClubNombre } from '@/lib/club'
 import { isPosicion } from '@/lib/posiciones'
 import { GAME_CONFIG_KEYS } from '@/lib/gameConfig'
@@ -660,6 +661,48 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'toggle_uniform', detalles: { player_id, username: (current as { username?: string })?.username, uniform: nuevoValor }, ip })
     return NextResponse.json({ ok: true, uniform: nuevoValor, mensaje: nuevoValor ? 'Uniforme activado.' : 'Uniforme desactivado.' })
+  }
+
+  // ── Ausencia (viaje, lesión) ──────────────────────────────────────────────
+  // Admin-only on purpose: if players set it themselves, anyone could shield
+  // their rating on a whim. It only waives the "no se inscribió" penalty and
+  // blocks self sign-up while active (lib/ausencia.ts). Any member, admins
+  // included — they play too. `hasta` empty clears it.
+  if (accion === 'marcar_ausencia') {
+    const { player_id, hasta } = body
+    if (!isUUID(player_id)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
+
+    const { data: target } = await admin
+      .from('profiles').select('username, ausente_desde, ausente_hasta')
+      .eq('club_id', clubId).eq('id', player_id as string).maybeSingle()
+    if (!target) return NextResponse.json({ error: 'Jugador no encontrado' }, { status: 404 })
+    const t = target as { username: string; ausente_desde: string | null; ausente_hasta: string | null }
+    const hoy = fechaColombia()
+
+    if (hasta === '' || hasta === null || hasta === undefined) {
+      const { error } = await admin.from('profiles')
+        .update({ ausente_desde: null, ausente_hasta: null })
+        .eq('club_id', clubId).eq('id', player_id as string)
+      if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+      await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'quitar_ausencia', detalles: { player_id, username: t.username }, ip })
+      return NextResponse.json({ ok: true, mensaje: `Ausencia de ${t.username} quitada.` })
+    }
+
+    if (!isDate(hasta)) return NextResponse.json({ error: 'Fecha inválida' }, { status: 400 })
+    const max = fechaColombia(new Date(Date.now() + AUSENCIA_MAX_DIAS * 86400000))
+    if ((hasta as string) < hoy) return NextResponse.json({ error: 'La fecha ya pasó' }, { status: 400 })
+    if ((hasta as string) > max) return NextResponse.json({ error: `Máximo ${AUSENCIA_MAX_DIAS} días` }, { status: 400 })
+
+    // Extending an absence in progress keeps its original start.
+    const desde = t.ausente_desde && t.ausente_hasta && t.ausente_hasta >= hoy ? t.ausente_desde : hoy
+
+    const { error } = await admin.from('profiles')
+      .update({ ausente_desde: desde, ausente_hasta: hasta })
+      .eq('club_id', clubId).eq('id', player_id as string)
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'marcar_ausencia', detalles: { player_id, username: t.username, desde, hasta }, ip })
+    const hastaTxt = new Date((hasta as string) + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })
+    return NextResponse.json({ ok: true, mensaje: `${t.username} ausente hasta el ${hastaTxt}.` })
   }
 
   // ── Actualizar posición del jugador (admin) ────────────────────────────────

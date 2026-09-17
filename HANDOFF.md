@@ -70,7 +70,8 @@ Estado según lo que el usuario confirmó en conversación. **Si no dice "corrid
 | `20260917_registro_sin_metadata_del_cliente.sql` | sin confirmar | cloud |
 | `20260917_storage_limpiar_duplicadas.sql` | probablemente corrida | verificado 2026-09-17 con la llave anon: listar da 0 y subir queda rechazado en ambos buckets |
 | `20260917_votos_sin_politicas.sql` | sin confirmar | cloud |
-| `20260917_habilidad_precision.sql` | **pendiente** | ver §5.1 |
+| `20260917_habilidad_precision.sql` | corrida | el usuario vio su rating corregido (3.3 → 3.05) |
+| `20260917_ausencia.sql` | **pendiente** | `profiles.ausente_desde` / `ausente_hasta`. El panel admin la necesita: no hacer push del código sin que esté corrida. |
 
 ---
 
@@ -117,5 +118,11 @@ Propuesta: optimizador determinista en vez de Gemini:
   - El partido se ve hasta hora + 1 h. Desde el inicio se ocultan inscribirse / cancelar / invitados.
   - A hora + 1 h: con **más de 12 confirmados** (invitados incluidos) se marca jugado y abren votaciones solas. Si no, se pregunta a los admins por push.
   - La tarjeta "¿Se jugó el partido?" (home y panel admin) pide marcador y foto. "Sí" abre votaciones de inmediato; "No" no abre nada y revierte el rating.
+- **Ausencia** (`lib/ausencia.ts`, botón ✈️ en Admin → Jugadores):
+  - **Solo la marca un admin o superadmin.** Si la marcara el jugador, cualquiera protegería su rating a gusto. El cliente no puede escribir en `profiles`.
+  - Rango de fechas: desde el día en que se marca, hasta la fecha que elige el admin (máximo 90 días). Así, recalcular un partido viejo no la aplica hacia atrás.
+  - Mientras está activa: no resta por no inscribirse (motivo `ausente` en `rating_events`), no llegan avisos de apertura ni de cupos, y **el jugador no puede inscribirse solo**.
+  - Si juega igual (un admin lo agrega), el partido cuenta completo. La ausencia nunca protege de perder.
+  - Nota: se tocó `lib/rating.ts` (área del cloud) solo para esta exención, en la rama "no jugó".
 - **Evaluaciones:** se abren una sola vez (`evaluaciones_ya_abiertas`) y se cierran solas a los 2 días.
 - **Timezone:** todo en Colombia (UTC−5).

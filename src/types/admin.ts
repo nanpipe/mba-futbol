@@ -14,6 +14,8 @@ export interface Player {
   created_at: string
   avatar_url: string | null
   habilidad: number | null
+  ausente_desde?: string | null
+  ausente_hasta?: string | null
 }
 
 export interface ActivityLog {

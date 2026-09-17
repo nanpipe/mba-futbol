@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPush, isDeadPushError } from '@/lib/push'
 import { calcularVentanaPartido, MIN_CONFIRMADOS_AUTO_JUGADO } from '@/lib/partidos'
 import { abrirEvaluaciones, contarConfirmados } from '@/lib/partidoCierre'
+import { ausenteEn, type Ausencia } from '@/lib/ausencia'
 import { logActivity } from '@/lib/activityLog'
 import { sendAperturaEmail, sendRecordatorioEmail } from '@/lib/email'
 import { tallyAndAssign } from '@/app/api/evaluaciones/route'
@@ -68,21 +69,25 @@ async function getClubSettings(
   return s
 }
 
+type JugadorClub = { id: string } & Ausencia
+
+/** Approved, unbanned players of a club, minus those marked absent on `fecha`. */
 async function getClubPlayerIds(
   admin: AdminClient,
   clubId: string,
-  cache: Map<string, string[]>
+  cache: Map<string, JugadorClub[]>,
+  fecha: string
 ): Promise<string[]> {
-  if (cache.has(clubId)) return cache.get(clubId)!
-  const { data } = await admin
-    .from('profiles')
-    .select('id')
-    .eq('club_id', clubId)
-    .eq('aprobado', true)
-    .eq('baneado', false)
-  const ids = (data ?? []).map((p: { id: string }) => p.id)
-  cache.set(clubId, ids)
-  return ids
+  if (!cache.has(clubId)) {
+    const { data } = await admin
+      .from('profiles')
+      .select('id, ausente_desde, ausente_hasta')
+      .eq('club_id', clubId)
+      .eq('aprobado', true)
+      .eq('baneado', false)
+    cache.set(clubId, (data ?? []) as JugadorClub[])
+  }
+  return cache.get(clubId)!.filter(p => !ausenteEn(p, fecha)).map(p => p.id)
 }
 
 async function getClubNombreById(
@@ -121,7 +126,7 @@ export async function GET(req: NextRequest) {
   }
 
   const settingsCache = new Map<string, Settings>()
-  const playerIdsCache = new Map<string, string[]>()
+  const playerIdsCache = new Map<string, JugadorClub[]>()
   const clubNombreCache = new Map<string, string>()
 
   // ── Release expired bans ─────────────────────────────────────────────────
@@ -259,7 +264,7 @@ export async function GET(req: NextRequest) {
 
   for (const partido of aperturaDue) {
     const clubId = (partido as { club_id: string }).club_id
-    const clubPlayerIds = await getClubPlayerIds(admin, clubId, playerIdsCache)
+    const clubPlayerIds = await getClubPlayerIds(admin, clubId, playerIdsCache, partido.fecha)
     const clubNombre = await getClubNombreById(admin, clubId, clubNombreCache)
     const settings = await getClubSettings(admin, clubId, settingsCache)
     const ch = channelsFor(settings, 'apertura')
@@ -286,13 +291,13 @@ export async function GET(req: NextRequest) {
     if (ch.email) {
       const { data: profiles } = await admin
         .from('profiles')
-        .select('email, username')
+        .select('email, username, ausente_desde, ausente_hasta')
         .eq('club_id', clubId)
         .eq('aprobado', true)
         .eq('baneado', false)
         .neq('role', 'admin')
       const sent = await Promise.allSettled(
-        (profiles ?? []).map(p => sendAperturaEmail({
+        (profiles ?? []).filter(p => !ausenteEn(p as Ausencia, partido.fecha)).map(p => sendAperturaEmail({
           email: (p as { email: string }).email,
           username: (p as { username: string }).username,
           diaSemana: partido.dia_semana,
@@ -424,7 +429,7 @@ export async function GET(req: NextRequest) {
     const matchHora = partido.hora?.substring(0, 5) ?? '19:00'
 
     const settings = await getClubSettings(admin, clubId, settingsCache)
-    const clubPlayerIds = await getClubPlayerIds(admin, clubId, playerIdsCache)
+    const clubPlayerIds = await getClubPlayerIds(admin, clubId, playerIdsCache, partido.fecha)
 
     const sendDiaAntes  = settings['notif_dia_antes']  !== false
     const sendCupos     = settings['notif_cupos']      !== false

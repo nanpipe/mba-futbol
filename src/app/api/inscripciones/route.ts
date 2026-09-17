@@ -8,6 +8,7 @@ import { logActivity } from '@/lib/activityLog'
 import { isRateLimited, getClientIp } from '@/lib/rateLimit'
 import { fechaColombia } from '@/lib/promoHora'
 import { notifyAdmins } from '@/lib/notifyAdmins'
+import { ausenteEn } from '@/lib/ausencia'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('baneado, fecha_liberacion, username, uniform, aprobado, club_id')
+    .select('baneado, fecha_liberacion, username, uniform, aprobado, club_id, ausente_desde, ausente_hasta')
     .eq('id', user.id)
     .single()
 
@@ -66,6 +67,16 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (!partido) return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
+
+  // Absence waives the no-signup penalty, so it can't double as cover to play:
+  // coming back early goes through an admin removing it.
+  if (ausenteEn(profile, partido.fecha)) {
+    const hasta = new Date(profile.ausente_hasta + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })
+    return NextResponse.json(
+      { error: `Estás marcado como ausente hasta el ${hasta}. Si ya vas a jugar, pídele a un admin que quite la ausencia.` },
+      { status: 403 }
+    )
+  }
 
   const ventana = calcularVentanaPartido(partido)
   if (!ventana.abierta) {

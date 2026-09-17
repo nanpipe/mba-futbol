@@ -16,18 +16,15 @@ export default function RegistroPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [exito, setExito] = useState(false)
-  const [clubId, setClubId] = useState<string | null>(null)
   const [clubNombre, setClubNombre] = useState('')
 
-  // Fetch club context from middleware-resolved header
+  // Solo para el título. El club de la cuenta lo decide el servidor por el
+  // dominio, no este fetch.
   useState(() => {
     fetch('/api/club')
       .then(r => r.json())
       .then(d => {
-        if (d.club) {
-          setClubId(d.club.id)
-          setClubNombre(d.club.nombre)
-        }
+        if (d.club) setClubNombre(d.club.nombre)
       })
       .catch((err) => console.error('[registro] club fetch failed:', err))
   })
@@ -56,18 +53,16 @@ export default function RegistroPage() {
     }
 
     // Server-side IP check (reads real IP + checks DB — can't be bypassed client-side)
-    let ip = 'unknown'
     try {
       const checkRes = await fetch('/api/auth/check-registro', { method: 'POST' })
       const checkData = await checkRes.json()
-      ip = checkData.ip ?? 'unknown'
       if (checkData.blocked) {
-        setError(`Ya existe una cuenta registrada desde este dispositivo (@${checkData.existingUsername}). Solo se permite una cuenta por dispositivo.`)
+        setError('Ya existe una cuenta registrada desde este dispositivo. Solo se permite una cuenta por dispositivo.')
         setLoading(false)
         return
       }
     } catch {
-      // Si falla, continuar sin IP (el admin puede revisar)
+      // Si falla, continuar (el admin puede revisar)
     }
 
     // Verificar username disponible (server-side: profiles is not readable
@@ -90,11 +85,11 @@ export default function RegistroPage() {
       email: email.trim().toLowerCase(),
       password,
       options: {
-        data: {
-          username: usernameClean,
-          ip_registro: ip,
-          club_id: clubId,  // picked up by handle_new_user() trigger
-        }
+        // Solo el username: lo elige el jugador y no da privilegios. La IP y el
+        // club los sella el servidor abajo — mandarlos desde aquí dejaba que
+        // cualquiera se inventara la IP (saltándose "una cuenta por IP") o se
+        // metiera a otro club poniendo su uuid.
+        data: { username: usernameClean }
       }
     })
 
@@ -108,7 +103,15 @@ export default function RegistroPage() {
       return
     }
 
-    // El trigger de DB crea el perfil automáticamente
+    // El trigger de DB crea el perfil sin IP y en el club por defecto; el
+    // servidor los sella acá, leyendo la IP del proxy y el club del dominio.
+    // Antes del aviso a admins, para que el perfil ya esté completo cuando lo abran.
+    try {
+      await fetch('/api/auth/stamp-registro', { method: 'POST' })
+    } catch (err) {
+      console.error('[registro] stamp-registro failed:', err)
+    }
+
     // Notify admins of new signup request (fire-and-forget)
     fetch('/api/notify/signup', {
       method: 'POST',

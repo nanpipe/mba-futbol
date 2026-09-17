@@ -2,6 +2,7 @@ import type { createAdminClient } from '@/lib/supabase/admin'
 import { getClubBadges } from '@/lib/categorias'
 import { getThumbsPaso, escalonesPorPulgares } from '@/lib/reconocimientos'
 import { ausenteEn, type Ausencia } from '@/lib/ausencia'
+import { getFaltasGap, rachaDeFaltas, type PartidoRacha } from '@/lib/faltas'
 
 // ── Player rating (v2) ───────────────────────────────────────────────────────
 // Stateful 1–5 rating stored on profiles.habilidad. Everyone starts at 3.0 and
@@ -13,9 +14,14 @@ import { ausenteEn, type Ausencia } from '@/lib/ausencia'
 //   Reconocimiento positivo  +STEP each  (MVP, goleador, defensa, portero, técnico)
 //   Reconocimiento negativo  −STEP each  (desaparecido, aizaga, discutidor)
 //   Pulgares                 +STEP por cada N 👍  ·  −STEP por cada N 👎
-//   No se inscribió (pudo)   −STEP
+//   No se inscribió (pudo)   −STEP, pero solo desde la N-ésima falta SEGUIDA
 //   En espera                exento (no baja)
 //   Ausente (lo marca admin) exento solo si NO jugó — ver lib/ausencia.ts
+//
+// Las faltas necesitan racha (rating_faltas_gap, default 3) porque restar en
+// cada partido castigaba a quien no puede un día fijo: el club juega martes y
+// viernes, y quien solo puede los martes perdía 0.02 cada viernes para siempre.
+// Ver lib/faltas.ts.
 //
 // N es configurable por club (reco_thumbs_paso, default 3): un pulgar suelto no
 // mueve a nadie. Los dos lados cuentan por separado — 4 👍 y 3 👎 son un escalón
@@ -129,10 +135,44 @@ export async function applyMatchRatings(
       ? admin.from('equipo_jugadores').select('player_id, equipo_id').in('equipo_id', equipoIds)
       : Promise.resolve({ data: [] as { player_id: string; equipo_id: string }[] }),
     admin.from('player_badges').select('player_id, badge_id').eq('partido_id', partido_id),
-    admin.from('profiles').select('id, habilidad, aprobado, baneado, ausente_desde, ausente_hasta').eq('club_id', clubId),
+    admin.from('profiles').select('id, habilidad, aprobado, baneado, created_at, ausente_desde, ausente_hasta').eq('club_id', clubId),
     admin.from('player_thumbs').select('votado_id, value').eq('partido_id', partido_id),
     getThumbsPaso(admin, clubId),
   ])
+
+  // ── Racha de faltas ────────────────────────────────────────────────────────
+  // Basta con este partido y los (gap − 1) anteriores: si la racha no llega a
+  // gap dentro de esa ventana, no llega, y no hay para qué leer el historial
+  // completo. Solo partidos que se jugaron — faltar a uno que se canceló no es
+  // faltar. `jugado` NULL es "nadie respondió aún" y cuenta como jugado, igual
+  // que arriba.
+  const faltasGap = await getFaltasGap(admin, clubId)
+  const { data: ultimosPartidos } = await admin
+    .from('partidos')
+    .select('id, fecha, jugado')
+    .eq('club_id', clubId)
+    .lte('fecha', partido.fecha as string)
+    .order('fecha', { ascending: false })
+    .limit(faltasGap + 5)   // margen por si alguno salió como no jugado
+
+  const ventana: PartidoRacha[] = ((ultimosPartidos ?? []) as { id: string; fecha: string; jugado: boolean | null }[])
+    .filter(p => p.jugado !== false)
+    .slice(0, faltasGap)
+
+  const { data: insVentana } = ventana.length
+    ? await admin
+        .from('inscripciones')
+        .select('partido_id, player_id, estado')
+        .in('partido_id', ventana.map(p => p.id))
+    : { data: [] as { partido_id: string; player_id: string; estado: string }[] }
+
+  // player_id → (partido_id → estado)
+  const estadoPorJugador = new Map<string, Map<string, string>>()
+  for (const i of (insVentana ?? []) as { partido_id: string; player_id: string; estado: string }[]) {
+    let m = estadoPorJugador.get(i.player_id)
+    if (!m) { m = new Map(); estadoPorJugador.set(i.player_id, m) }
+    m.set(i.partido_id, i.estado)
+  }
 
   const confirmados = new Set<string>()
   const espera = new Set<string>()
@@ -163,10 +203,15 @@ export async function applyMatchRatings(
 
   const ratingById = new Map<string, number>()
   const ausenciaById = new Map<string, Ausencia>()
+  const desdeById = new Map<string, string>()
   const eligible: string[] = []
-  for (const p of (profsRes.data ?? []) as ({ id: string; habilidad: number | null; aprobado: boolean; baneado: boolean } & Ausencia)[]) {
+  for (const p of (profsRes.data ?? []) as ({ id: string; habilidad: number | null; aprobado: boolean; baneado: boolean; created_at: string | null } & Ausencia)[]) {
     ratingById.set(p.id, typeof p.habilidad === 'number' ? p.habilidad : BASE_RATING)
     ausenciaById.set(p.id, { ausente_desde: p.ausente_desde, ausente_hasta: p.ausente_hasta })
+    // Fecha de llegada al club, para no contarle faltas a partidos anteriores.
+    // created_at es timestamptz; el prefijo YYYY-MM-DD alcanza y compara bien
+    // contra partidos.fecha, que ya es fecha de Colombia.
+    desdeById.set(p.id, (p.created_at ?? '1970-01-01').slice(0, 10))
     if (p.aprobado && !p.baneado) eligible.push(p.id)
   }
 
@@ -224,8 +269,23 @@ export async function applyMatchRatings(
       // when they didn't play — a confirmed player takes the branch above.
       motivos.push('ausente')
     } else {
-      raw -= STEP
-      motivos.push('inactivo')
+      // Faltó. Solo resta si ya viene una racha: la primera y la segunda falta
+      // seguidas son gratis (con gap 3), y el que no puede los viernes nunca
+      // acumula porque el martes que juega le corta la cuenta.
+      const racha = rachaDeFaltas({
+        partidos: ventana,
+        estadoPorPartido: estadoPorJugador.get(id) ?? new Map(),
+        ausenteEnFecha: fecha => ausenteEn(ausenciaById.get(id), fecha),
+        desdeFecha: desdeById.get(id) ?? '1970-01-01',
+      })
+      if (racha >= faltasGap) {
+        raw -= STEP
+        motivos.push(`inactivo (${racha} faltas seguidas)`)
+      } else {
+        // Se guarda el evento con delta 0: queda el rastro de que faltó y de
+        // cuánto le falta para que empiece a costar.
+        motivos.push(`no jugó (${racha}/${faltasGap})`)
+      }
     }
 
     const delta = round3(clampDelta(raw, cap))

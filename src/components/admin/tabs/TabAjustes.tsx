@@ -8,6 +8,7 @@ import { SectionHeader } from '@/components/SectionHeader'
 import { ButtonGroup } from '@/components/ButtonGroup'
 import { GAME_CONFIG } from '@/lib/gameConfig'
 import { RECO_CONFIG, THUMBS_CONFIG } from '@/lib/reconocimientos'
+import { FALTAS_CONFIG } from '@/lib/faltas'
 import { NOTIF_EVENTS } from '@/lib/notifications'
 import { BadgesEditor, TiersEditor } from '@/components/admin/RatingConfigEditor'
 import { DEFAULT_BADGES, type Badge } from '@/lib/categorias'
@@ -366,6 +367,37 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
             <div className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 12, lineHeight: 1.6 }}>
               Aplica desde el próximo conteo. Los reconocimientos ya asignados no cambian
               salvo que se reabra y vuelva a cerrarse la votación.
+            </div>
+          </Card>
+
+          {/* Faltas */}
+          <Card padding="20px 24px">
+            <SectionHeader title="FALTAS" icon="📉" color="var(--amber)" />
+            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+              No inscribirse solo resta cuando ya hay racha. Cualquier señal de
+              presencia la corta — jugar, quedar en espera, o una ausencia marcada
+              por un admin — así que quien no puede un día fijo de la semana nunca
+              acumula.
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
+              {FALTAS_CONFIG.map(({ key, label, desc, def }) => (
+                <div key={key} style={{ minWidth: 0 }}>
+                  <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
+                    {label}
+                    {savingText === key && <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>guardando...</span>}
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={(settings[key] as string) ?? ''}
+                    placeholder={def}
+                    onChange={e => setSettings(prev => ({ ...prev, [key]: e.target.value }))}
+                    onBlur={e => guardarTexto(key, e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box' }}
+                  />
+                  <div className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 4 }}>{desc}</div>
+                </div>
+              ))}
             </div>
           </Card>
 

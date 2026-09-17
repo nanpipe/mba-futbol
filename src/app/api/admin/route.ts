@@ -17,6 +17,7 @@ import { NOTIF_CHANNEL_KEYS } from '@/lib/notifications'
 import { revertMatchRatings, applyMatchRatings } from '@/lib/rating'
 import { tallyAndAssign } from '@/app/api/evaluaciones/route'
 import { RECO_CONFIG_KEYS, quorumDeSettings } from '@/lib/reconocimientos'
+import { FALTAS_CONFIG_KEYS } from '@/lib/faltas'
 import { avisarBadgeRemovido } from '@/lib/notifyBadge'
 import { sanitizeBadges, parseBadges, BADGES_SETTING_KEY } from '@/lib/categorias'
 import { sanitizeTiers, parseTiers, TIERS_SETTING_KEY } from '@/lib/tier'
@@ -981,6 +982,7 @@ export async function POST(req: NextRequest) {
       ...GAME_CONFIG_KEYS,
       ...NOTIF_CHANNEL_KEYS,
       ...RECO_CONFIG_KEYS,
+      ...FALTAS_CONFIG_KEYS,
     ]
     if (typeof key !== 'string' || !ALLOWED_KEYS.includes(key)) {
       return NextResponse.json({ error: 'Clave inválida' }, { status: 400 })

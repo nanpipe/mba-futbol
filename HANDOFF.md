@@ -74,6 +74,7 @@ Estado según lo que el usuario confirmó en conversación. **Si no dice "corrid
 | `20260917_registro_sin_metadata_del_cliente.sql` | corrida | cloud |
 | `20260917_storage_limpiar_duplicadas.sql` | corrida | quedan solo las 5 `mbafc_*`, todas `{authenticated}`. Ojo: la prueba con llave anon que se citaba aquí era del 2026-09-12, anterior a esta migración |
 | `20260917_thumbs_sin_politicas.sql` | **pendiente** | cierra el anonimato de los pulgares — ver §5.3 |
+| `20260918_limpiar_badges_pocos_votos.sql` | **pendiente** | borra los reconocimientos ganados con ≤2 votos y los veta para que no reaparezcan. Va con dos cosas más: subir `reco_min_ganador` a 3 en Ajustes (si no, se repite), y ♻️ Recalcular después (los rating_events todavía los incluyen). |
 | `20260917_votos_sin_politicas.sql` | corrida o innecesaria | las 3 políticas que buscaba eran `{public}`, así que `quitar_politicas_public` las barrió igual. Estado final verificado: `votos_reconocimiento` sin políticas |
 | `20260917_habilidad_precision.sql` | corrida | el usuario vio su rating corregido (3.3 → 3.05) |
 | `20260917_ausencia.sql` | corrida | `profiles.ausente_desde` / `ausente_hasta`. Se deduce del recálculo total del 2026-09-17: `applyMatchRatings` pide esas columnas y devolvió ratings con dispersión real (2.78–4.00), cosa imposible si el `select` estuviera fallando. |

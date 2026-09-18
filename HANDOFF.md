@@ -2,7 +2,7 @@
 
 Varias sesiones de Claude trabajan este repo (local en Windows y cloud). **GitHub `main` es lo único que comparten.** Esta conversación, `.env.local`, las ramas locales y la memoria de cada sesión no viajan. Si algo importa, va aquí.
 
-Última actualización: 2026-09-17 (cloud — faltas con racha, recálculo total, jugar vale 0, anonimato de pulgares).
+Última actualización: 2026-09-18 (cloud — ficha de jugador, ausencia dentro de Editar, agrupación de reconocimientos, revisión de seguridad §5.6).
 
 ---
 
@@ -128,6 +128,18 @@ FROM public.player_thumbs GROUP BY value;
 
 Con 👍 por encima de ~60% conviene subir `reco_thumbs_paso` (Ajustes → Puntaje → Pulgares) y volver a recalcular.
 
+### 5.6 Revisión de seguridad 2026-09-18
+Se revisaron los 24 commits de la sesión cloud (`8941b9b..HEAD`): rutas de API nuevas y tocadas, y las 12 migraciones. **Sin hallazgos de severidad alta o media.** Lo que se verificó y quedó limpio:
+
+- `/api/auth/stamp-registro` — el `club_id` sale de `getClubId(req)`, y el middleware **borra** `x-club-id` de la petición antes de poner el suyo (`middleware.ts:138`), así que no se puede falsear por cabecera. La ruta entra en el matcher.
+- `perfil_jugador`, `quitar_badge`, `restaurar_badge`, `recalcular_ratings`, `marcar_ausencia` — todas exigen admin, filtran por `club_id`, y validan ids con `isUUID` / fechas con `isDate` (regex + parseo).
+- `recalcular_ratings` es superadmin-only y sus tres escrituras (`rating_events` delete, `profiles` update, `partidos` select) van filtradas por club.
+- `sendBadgeRemovidoEmail` escapa `motivo`, `username` y los nombres de badge con `esc()`.
+- La abstención en `POST /api/evaluaciones` está acotada por `validCategorias` + `seen` + el UNIQUE de la tabla: como mucho una fila por categoría.
+- Las 12 migraciones solo **quitan** permisos. Ninguna abre nada.
+
+**Punto latente, no explotable hoy, para cuando se retome multi-club:** `stamp-registro` usa `ip_registro IS NULL` como candado de un solo uso. Si `getClientIp` devuelve `unknown`, `ip_registro` se queda en NULL y el endpoint sigue llamable — y reescribe `club_id`. Con un solo club y las cabeceras saneadas no lleva a ninguna parte. Cuando existan subdominios por club, cambiar el candado a "solo si el perfil se creó hace menos de X minutos", o sellar `club_id` una sola vez aparte de la IP.
+
 ### 5.4 Otros
 - **Invitaciones / multi-club:** pausado hasta comprar dominio (subdominios por club, `NEXT_PUBLIC_ROOT_DOMAIN`, `ALLOWED_ORIGINS`).
 - **Prueba de aislamiento entre clubes:** propuesta, no hecha. Un club canario con datos dummy, más un script que inicie sesión en cada club e intente leer y escribir datos del otro por cada ruta y tabla. Requiere que el usuario cree el usuario canario.
@@ -162,6 +174,7 @@ Con 👍 por encima de ~60% conviene subir `reco_thumbs_paso` (Ajustes → Punta
   - Si juega igual (un admin lo agrega), el partido cuenta completo. La ausencia nunca protege de perder.
   - Nota: se tocó `lib/rating.ts` (área del cloud) solo para esta exención, en la rama "no jugó".
 - **Ver perfil de un jugador** (`components/admin/PerfilJugadorModal.tsx`, acción GET `perfil_jugador`): ficha de solo lectura en Admin → Jugadores. Partidos jugados, % de asistencia, reconocimientos agrupados por tipo, rating y tier, posiciones.
+  - Los reconocimientos se agrupan con `agruparBadges()` de `lib/categorias`, **compartida con el perfil del jugador**. Las dos pantallas tenían su propia copia; que muestren lo mismo con código distinto es lo que se separa al primer cambio.
   - **No muestra el historial partido por partido, a propósito.** Se probó y se descartó: lo que pasó ya pasó y el rating lo resume. Lo que sirve es el estado presente, en una sola frase — "No juega hace 45 días (20 partidos) · 5 faltas seguidas, ya le está restando" o "🔥 7 partidos seguidos". El cálculo vive en `lib/asistencia.ts` (puro, con pruebas).
   - El aviso de faltas usa el `rating_faltas_gap` del club, así que dice cuántas le faltan para que empiece a costarle. Sin ese número, "2 faltas seguidas" no le dice nada al admin.
 - **Evaluaciones:** se abren una sola vez (`evaluaciones_ya_abiertas`) y se cierran solas a los 2 días.

@@ -9,7 +9,8 @@ import { abrirEvaluaciones, guardarResultado, traeResultado, contarConfirmados }
 import { calcularVentanaPartido, MIN_CONFIRMADOS_AUTO_JUGADO } from '@/lib/partidos'
 import { fechaColombia } from '@/lib/promoHora'
 import { getClientIp } from '@/lib/rateLimit'
-import { AUSENCIA_MAX_DIAS } from '@/lib/ausencia'
+import { AUSENCIA_MAX_DIAS, ausenteEn } from '@/lib/ausencia'
+import { resumenAsistencia } from '@/lib/asistencia'
 import { getClubNombre } from '@/lib/club'
 import { isPosicion } from '@/lib/posiciones'
 import { GAME_CONFIG_KEYS } from '@/lib/gameConfig'
@@ -17,7 +18,7 @@ import { NOTIF_CHANNEL_KEYS } from '@/lib/notifications'
 import { revertMatchRatings, applyMatchRatings } from '@/lib/rating'
 import { tallyAndAssign } from '@/app/api/evaluaciones/route'
 import { RECO_CONFIG_KEYS, quorumDeSettings } from '@/lib/reconocimientos'
-import { FALTAS_CONFIG_KEYS } from '@/lib/faltas'
+import { FALTAS_CONFIG_KEYS, getFaltasGap } from '@/lib/faltas'
 import { recalcularRatings } from '@/lib/recalcularRatings'
 import { avisarBadgeRemovido } from '@/lib/notifyBadge'
 import { sanitizeBadges, parseBadges, BADGES_SETTING_KEY } from '@/lib/categorias'
@@ -138,26 +139,26 @@ export async function GET(req: NextRequest) {
       .maybeSingle()
     if (!perfil) return NextResponse.json({ error: 'Jugador no encontrado' }, { status: 404 })
 
-    const [badgesRes, jugadosRes, eventosRes] = await Promise.all([
+    const hoy = fechaColombia()
+    const [badgesRes, partidosRes, insRes] = await Promise.all([
       admin
         .from('player_badges')
         .select('badge_id, badge_emoji, badge_nombre, votos, earned_at, partidos(fecha)')
         .eq('club_id', clubId)
         .eq('player_id', playerId)
         .order('earned_at', { ascending: false }),
+      // Solo los que se jugaron: faltar a uno que se canceló no es faltar.
+      admin
+        .from('partidos')
+        .select('id, fecha, jugado')
+        .eq('club_id', clubId)
+        .lte('fecha', hoy)
+        .order('fecha', { ascending: false }),
       admin
         .from('inscripciones')
-        .select('id', { count: 'exact', head: true })
+        .select('partido_id, estado')
         .eq('club_id', clubId)
-        .eq('player_id', playerId)
-        .eq('estado', 'confirmado'),
-      admin
-        .from('rating_events')
-        .select('delta, motivos, rating_after, created_at, partidos(fecha, dia_semana)')
-        .eq('club_id', clubId)
-        .eq('player_id', playerId)
-        .order('created_at', { ascending: false })
-        .limit(20),
+        .eq('player_id', playerId),
     ])
 
     type BadgeRow = {
@@ -165,28 +166,36 @@ export async function GET(req: NextRequest) {
       votos: number | null; earned_at: string | null
       partidos: { fecha: string } | null
     }
-    type EventoRow = {
-      delta: number; motivos: unknown; rating_after: number; created_at: string
-      partidos: { fecha: string; dia_semana: string } | null
-    }
+
+    const jugables = ((partidosRes.data ?? []) as { id: string; fecha: string; jugado: boolean | null }[])
+      .filter(p => p.jugado !== false)
+      .map(p => ({ id: p.id, fecha: p.fecha }))
+
+    const estadoPorPartido = new Map(
+      ((insRes.data ?? []) as { partido_id: string; estado: string }[]).map(i => [i.partido_id, i.estado])
+    )
+
+    const perfilTyped = perfil as { created_at: string; ausente_desde: string | null; ausente_hasta: string | null }
+    const asistencia = resumenAsistencia({
+      partidos: jugables,
+      estadoPorPartido,
+      ausenteEnFecha: fecha => ausenteEn(perfilTyped, fecha),
+      desdeFecha: perfilTyped.created_at.slice(0, 10),
+    })
 
     return NextResponse.json({
       ok: true,
       perfil,
-      partidos_jugados: jugadosRes.count ?? 0,
+      asistencia,
+      // Cuántas faltas seguidas hacen falta para que empiece a restar: sin eso,
+      // "2 faltas seguidas" no le dice nada al admin.
+      faltas_gap: await getFaltasGap(admin, clubId),
       badges: ((badgesRes.data ?? []) as unknown as BadgeRow[]).map(b => ({
         badge_id: b.badge_id,
         badge_emoji: b.badge_emoji,
         badge_nombre: b.badge_nombre,
         votos: b.votos,
         fecha: b.partidos?.fecha ?? (b.earned_at ? b.earned_at.slice(0, 10) : null),
-      })),
-      rating_events: ((eventosRes.data ?? []) as unknown as EventoRow[]).map(e => ({
-        delta: Number(e.delta),
-        rating_after: Number(e.rating_after),
-        motivos: Array.isArray(e.motivos) ? e.motivos as string[] : [],
-        fecha: e.partidos?.fecha ?? e.created_at.slice(0, 10),
-        dia_semana: e.partidos?.dia_semana ?? null,
       })),
     })
   }

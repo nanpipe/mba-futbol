@@ -7,6 +7,7 @@ import { ModalOverlay } from '@/components/ModalOverlay'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ratingTierStyle, formatRating } from '@/lib/tier'
 import { fechaColombia } from '@/lib/promoHora'
+import { diasDesde } from '@/lib/asistencia'
 
 interface PerfilData {
   perfil: {
@@ -23,9 +24,17 @@ interface PerfilData {
     ausente_desde: string | null
     ausente_hasta: string | null
   }
-  partidos_jugados: number
+  asistencia: {
+    jugados: number
+    posibles: number
+    porcentaje: number | null
+    ultimo_jugado: string | null
+    partidos_desde_ultimo: number
+    racha_jugados: number
+    racha_faltas: number
+  }
+  faltas_gap: number
   badges: { badge_id: string; badge_emoji: string; badge_nombre: string; votos: number | null; fecha: string | null }[]
-  rating_events: { delta: number; rating_after: number; motivos: string[]; fecha: string; dia_semana: string | null }[]
 }
 
 const fechaCorta = (f: string | null) =>
@@ -54,8 +63,12 @@ function Bloque({ titulo, children }: { titulo: string; children: React.ReactNod
 }
 
 /**
- * Ficha de un jugador para el panel: lo mismo que él ve en su perfil, más el
- * historial de rating. Solo lectura — lo que se cambia va en el modal de editar.
+ * Ficha de un jugador para el panel. Solo lectura — lo que se cambia va en el
+ * modal de editar.
+ *
+ * No muestra el historial partido por partido a propósito: eso ya pasó y el
+ * rating lo resume. Lo que se muestra es dónde está parado hoy — si viene
+ * seguido, si desapareció y hace cuánto, y si ya le está costando rating.
  */
 export function PerfilJugadorModal({ playerId, onClose }: { playerId: string; onClose: () => void }) {
   const [data, setData] = useState<PerfilData | null>(null)
@@ -74,6 +87,48 @@ export function PerfilJugadorModal({ playerId, onClose }: { playerId: string; on
   const hoy = fechaColombia()
   const ausente = !!p?.ausente_hasta && p.ausente_hasta >= hoy
   const tier = p ? ratingTierStyle(p.habilidad ?? 3) : null
+
+  // ── Estado actual ─────────────────────────────────────────────────────────
+  // Una sola frase que diga si hay algo que hacer con este jugador. El
+  // historial partido por partido no se muestra: eso ya pasó y el rating lo
+  // resume. Lo que sirve es dónde está parado hoy.
+  const a = data?.asistencia
+  const gap = data?.faltas_gap ?? 3
+  const estado = (() => {
+    const gris  = { color: 'var(--text-muted)', fondo: 'var(--bg-elevated)', borde: 'var(--border)' }
+    const verde = { color: 'var(--green)',      fondo: '#0f2d1a',           borde: '#166534' }
+    const azul  = { color: '#7dd3fc',           fondo: '#082f49',           borde: '#0369a1' }
+    const ambar = { color: 'var(--amber)',      fondo: '#2d1f00',           borde: '#92400e' }
+    const rojo  = { color: '#f87171',           fondo: '#1a0808',           borde: '#7f1d1d' }
+
+    if (!a) return { ...gris, titulo: '', detalle: '' }
+
+    if (ausente) {
+      return { ...azul, titulo: `✈️ Ausente hasta el ${fechaCorta(p!.ausente_hasta)}`,
+        detalle: 'No pierde puntaje por no inscribirse mientras dure.' }
+    }
+    if (a.posibles === 0) {
+      return { ...gris, titulo: 'Recién llegado', detalle: 'Todavía no ha habido un partido desde que entró.' }
+    }
+    if (a.ultimo_jugado === null) {
+      return { ...rojo, titulo: `Nunca ha jugado`,
+        detalle: `${a.posibles} partido${a.posibles !== 1 ? 's' : ''} desde que entró al club.` }
+    }
+    if (a.racha_faltas === 0) {
+      const r = a.racha_jugados
+      return { ...verde, titulo: r > 1 ? `🔥 ${r} partidos seguidos` : 'Jugó el último partido',
+        detalle: r > 1 ? 'Viene en racha.' : '' }
+    }
+    // Faltando: lo importante es hace cuánto y si ya le está costando.
+    const dias = diasDesde(a.ultimo_jugado, hoy)
+    const titulo = `No juega hace ${dias} día${dias !== 1 ? 's' : ''}` +
+      ` (${a.partidos_desde_ultimo} partido${a.partidos_desde_ultimo !== 1 ? 's' : ''})`
+    const detalle = a.racha_faltas >= gap
+      ? `${a.racha_faltas} faltas seguidas — ya le está restando rating en cada partido.`
+      : `${a.racha_faltas} de ${gap} faltas seguidas. ` +
+        `${gap - a.racha_faltas === 1 ? 'A la próxima' : `En ${gap - a.racha_faltas} más`} empieza a restarle rating.`
+    return a.racha_faltas >= gap ? { ...rojo, titulo, detalle } : { ...ambar, titulo, detalle }
+  })()
 
   // Cuántos reconocimientos de cada tipo: más útil que la lista cruda cuando
   // alguien acumula el mismo varias veces.
@@ -124,9 +179,25 @@ export function PerfilJugadorModal({ playerId, onClose }: { playerId: string; on
               display: 'flex', gap: 8, padding: '14px 0',
               borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)',
             }}>
-              <Stat valor={String(data.partidos_jugados)} etiqueta="PARTIDOS" color="var(--green)" />
+              <Stat valor={String(data.asistencia.jugados)} etiqueta="PARTIDOS" color="var(--green)" />
+              <Stat valor={data.asistencia.porcentaje === null ? '—' : `${data.asistencia.porcentaje}%`} etiqueta="ASISTENCIA" />
               <Stat valor={String(data.badges.length)} etiqueta="RECONOCIMIENTOS" color="var(--amber)" />
               <Stat valor={`★${formatRating(p.habilidad)}`} etiqueta={tier?.label.toUpperCase() ?? 'RATING'} />
+            </div>
+
+            {/* Estado actual — lo único que es accionable */}
+            <div style={{
+              marginTop: 14, padding: '12px 14px', borderRadius: 4,
+              background: estado.fondo, border: `1px solid ${estado.borde}`,
+            }}>
+              <div className="mono" style={{ fontSize: 13, color: estado.color, lineHeight: 1.5 }}>
+                {estado.titulo}
+              </div>
+              {estado.detalle && (
+                <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 5, lineHeight: 1.6 }}>
+                  {estado.detalle}
+                </div>
+              )}
             </div>
 
             {/* Posiciones */}
@@ -165,43 +236,11 @@ export function PerfilJugadorModal({ playerId, onClose }: { playerId: string; on
               )}
             </Bloque>
 
-            {/* Historial de rating — el "por qué" del número de arriba */}
-            <Bloque titulo="MOVIMIENTOS DE RATING">
-              {data.rating_events.length === 0 ? (
-                <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-                  Sin movimientos todavía.
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  {data.rating_events.map((e, i) => (
-                    <div key={i} style={{
-                      display: 'flex', alignItems: 'baseline', gap: 10,
-                      padding: '7px 10px', background: 'var(--bg-card)',
-                      border: '1px solid var(--border)', borderRadius: 3,
-                    }}>
-                      <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', width: 52, flexShrink: 0 }}>
-                        {fechaCorta(e.fecha)}
-                      </span>
-                      <span className="mono" style={{ flex: 1, fontSize: 10, color: 'var(--text-muted)', minWidth: 0 }}>
-                        {e.motivos.join(' · ') || '—'}
-                      </span>
-                      <span className="mono" style={{
-                        fontSize: 11, flexShrink: 0, width: 46, textAlign: 'right',
-                        color: e.delta > 0 ? 'var(--green)' : e.delta < 0 ? '#f87171' : 'var(--text-dim)',
-                      }}>
-                        {e.delta > 0 ? '+' : ''}{e.delta.toFixed(3)}
-                      </span>
-                      <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', width: 34, textAlign: 'right', flexShrink: 0 }}>
-                        {e.rating_after.toFixed(2)}
-                      </span>
-                    </div>
-                  ))}
-                  <div className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 4 }}>
-                    Últimos {data.rating_events.length}, del más reciente al más viejo.
-                  </div>
-                </div>
-              )}
-            </Bloque>
+            {a && a.ultimo_jugado && (
+              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 18 }}>
+                Último partido jugado: {fechaCorta(a.ultimo_jugado)} · {a.jugados} de {a.posibles} desde que entró
+              </div>
+            )}
 
             <button onClick={onClose} className="btn btn-ghost" style={{ width: '100%', marginTop: 22, justifyContent: 'center' }}>
               Cerrar

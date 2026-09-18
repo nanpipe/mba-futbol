@@ -161,6 +161,8 @@ Con 👍 por encima de ~60% conviene subir `reco_thumbs_paso` (Ajustes → Punta
   - Mientras está activa: no resta por no inscribirse (motivo `ausente` en `rating_events`), no llegan avisos de apertura ni de cupos, y **el jugador no puede inscribirse solo**.
   - Si juega igual (un admin lo agrega), el partido cuenta completo. La ausencia nunca protege de perder.
   - Nota: se tocó `lib/rating.ts` (área del cloud) solo para esta exención, en la rama "no jugó".
-- **Ver perfil de un jugador** (`components/admin/PerfilJugadorModal.tsx`, acción GET `perfil_jugador`): ficha de solo lectura en Admin → Jugadores. Muestra lo mismo que el jugador ve en su perfil (partidos, reconocimientos, rating, posiciones) más los **últimos 20 movimientos de rating con sus motivos**, que es lo que responde "¿por qué este está en 3.48?". Va por el servidor y no por lecturas del cliente para que el filtro por club quede en un solo lugar.
+- **Ver perfil de un jugador** (`components/admin/PerfilJugadorModal.tsx`, acción GET `perfil_jugador`): ficha de solo lectura en Admin → Jugadores. Partidos jugados, % de asistencia, reconocimientos agrupados por tipo, rating y tier, posiciones.
+  - **No muestra el historial partido por partido, a propósito.** Se probó y se descartó: lo que pasó ya pasó y el rating lo resume. Lo que sirve es el estado presente, en una sola frase — "No juega hace 45 días (20 partidos) · 5 faltas seguidas, ya le está restando" o "🔥 7 partidos seguidos". El cálculo vive en `lib/asistencia.ts` (puro, con pruebas).
+  - El aviso de faltas usa el `rating_faltas_gap` del club, así que dice cuántas le faltan para que empiece a costarle. Sin ese número, "2 faltas seguidas" no le dice nada al admin.
 - **Evaluaciones:** se abren una sola vez (`evaluaciones_ya_abiertas`) y se cierran solas a los 2 días.
 - **Timezone:** todo en Colombia (UTC−5).

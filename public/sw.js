@@ -1,6 +1,10 @@
 // ── Cache config ─────────────────────────────────────────────────────────────
 // Bump CACHE_VER manually if you need to nuke all cached pages (rare).
-const CACHE_VER = 'v1'
+// v2 (2026-09-18): el shell y los chunks guardados por v1 pueden ser de una
+// versión anterior de la app — ver la nota de la navegación HTML abajo. Subir la
+// versión los borra en el activate, así que todo el mundo arranca limpio en vez
+// de quedarse con lo que tuviera pegado.
+const CACHE_VER = 'v2'
 const CACHE_SHELL = `mba-shell-${CACHE_VER}`
 const CACHE_STATIC = `mba-static-${CACHE_VER}`
 
@@ -48,23 +52,41 @@ self.addEventListener('fetch', e => {
     return
   }
 
-  // HTML navigation: stale-while-revalidate
-  // → serve cached instantly if available, fetch fresh in background
+  // HTML navigation: network-first, con el caché como red de seguridad.
+  //
+  // Antes era stale-while-revalidate y eso escondía cada deploy una vuelta
+  // entera. El HTML referencia los chunks de Next por su hash, y los chunks se
+  // cachean para siempre (cache-first, arriba). Al servir el HTML viejo de
+  // caché, ese HTML pedía los chunks VIEJOS — que seguían cacheados — así que
+  // la app entera se quedaba en la versión anterior. El fetch de fondo
+  // refrescaba el HTML, pero para la apertura SIGUIENTE: había que abrir dos
+  // veces para ver un cambio, y quien abría una sola vez juraba que no estaba.
+  //
+  // Peor todavía: si el deploy viejo ya no sirve esos chunks y tampoco están en
+  // caché, la pantalla queda en blanco.
+  //
+  // Con red primero, un deploy se ve en la primera apertura. Sin conexión sigue
+  // funcionando: cae al HTML guardado.
   if (request.mode === 'navigate' || request.headers.get('accept')?.includes('text/html')) {
     e.respondWith(
-      caches.open(CACHE_SHELL).then(cache =>
-        cache.match(request).then(cached => {
-          const fetchPromise = fetch(request)
-            .then(res => {
-              if (res.ok) cache.put(request, res.clone())
-              return res
-            })
-            .catch(() => cached) // if network fails, cached is already returned below
-
-          // Serve cached immediately; fetch runs in background to refresh
-          return cached ?? fetchPromise
+      fetch(request)
+        .then(res => {
+          if (res.ok) {
+            const copia = res.clone()
+            caches.open(CACHE_SHELL).then(cache => cache.put(request, copia))
+          }
+          return res
         })
-      )
+        .catch(async () => {
+          const cached = await caches.match(request, { cacheName: CACHE_SHELL })
+          if (cached) return cached
+          return new Response(
+            '<!doctype html><meta charset="utf-8"><title>Sin conexión</title>' +
+            '<body style="background:#0a0a0a;color:#f0f0f0;font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0">' +
+            '<div style="text-align:center"><div style="font-size:40px">⚽</div><p>Sin conexión</p></div>',
+            { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+          )
+        })
     )
     return
   }

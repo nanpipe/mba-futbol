@@ -2,7 +2,7 @@
 
 Varias sesiones de Claude trabajan este repo (local en Windows y cloud). **GitHub `main` es lo único que comparten.** Esta conversación, `.env.local`, las ramas locales y la memoria de cada sesión no viajan. Si algo importa, va aquí.
 
-Última actualización: 2026-09-18 (cloud — ficha de jugador, ausencia dentro de Editar, agrupación de reconocimientos, revisión de seguridad §5.6).
+Última actualización: 2026-09-18 (cloud — todas las migraciones corridas; quedan dos pasos de panel en §5.7).
 
 ---
 
@@ -73,8 +73,8 @@ Estado según lo que el usuario confirmó en conversación. **Si no dice "corrid
 | `20260917_reconocimientos_revocados.sql` | corrida | cloud |
 | `20260917_registro_sin_metadata_del_cliente.sql` | corrida | cloud |
 | `20260917_storage_limpiar_duplicadas.sql` | corrida | quedan solo las 5 `mbafc_*`, todas `{authenticated}`. Ojo: la prueba con llave anon que se citaba aquí era del 2026-09-12, anterior a esta migración |
-| `20260917_thumbs_sin_politicas.sql` | **pendiente** | cierra el anonimato de los pulgares — ver §5.3 |
-| `20260918_limpiar_badges_pocos_votos.sql` | **pendiente** | borra los reconocimientos ganados con ≤2 votos y los veta para que no reaparezcan. Va con dos cosas más: subir `reco_min_ganador` a 3 en Ajustes (si no, se repite), y ♻️ Recalcular después (los rating_events todavía los incluyen). |
+| `20260917_thumbs_sin_politicas.sql` | corrida | `player_thumbs` queda con RLS y cero políticas |
+| `20260918_limpiar_badges_pocos_votos.sql` | corrida | borró los reconocimientos de ≤2 votos y los dejó vetados. **Pide dos cosas que el SQL no puede hacer: subir `reco_min_ganador` a 3 en Ajustes, y ♻️ Recalcular.** Ver §5.7. |
 | `20260917_votos_sin_politicas.sql` | corrida o innecesaria | las 3 políticas que buscaba eran `{public}`, así que `quitar_politicas_public` las barrió igual. Estado final verificado: `votos_reconocimiento` sin políticas |
 | `20260917_habilidad_precision.sql` | corrida | el usuario vio su rating corregido (3.3 → 3.05) |
 | `20260917_ausencia.sql` | corrida | `profiles.ausente_desde` / `ausente_hasta`. Se deduce del recálculo total del 2026-09-17: `applyMatchRatings` pide esas columnas y devolvió ratings con dispersión real (2.78–4.00), cosa imposible si el `select` estuviera fallando. |
@@ -106,14 +106,14 @@ Propuesta: optimizador determinista en vez de Gemini:
 - rotación respecto al partido anterior;
 - una explicación visible de por qué quedó así.
 
-### 5.3 Anonimato de los pulgares — migración escrita, falta correrla
+### 5.3 Anonimato de los pulgares — resuelto (2026-09-18)
 `player_thumbs` conserva `thumbs club read` (SELECT, `{authenticated}`): cualquier jugador con sesión puede leer la tabla, que trae `votante_id` y `votado_id`, o sea **quién le puso pulgar abajo a quién**. La pantalla de evaluación dice "Anónimo y opcional".
 
 Es el mismo agujero que se cerró en `votos_reconocimiento` (`20260917_votos_sin_politicas.sql`). El navegador no lee esa tabla — las dos únicas lecturas están en `api/evaluaciones` y `lib/rating`, ambas con la service key —, así que la política sobra.
 
 Importa más desde el 2026-09-17: hasta entonces los pulgares se guardaban y no los leía nadie, así que filtrar la tabla no cambiaba el rating de nadie. Ahora que alimentan el rating, saber quién te bajó el puntaje es exactamente lo que el anonimato debía evitar.
 
-`20260917_thumbs_sin_politicas.sql` lo cierra por barrido. **Falta correrla.**
+`20260917_thumbs_sin_politicas.sql` lo cerró por barrido: `player_thumbs` queda con RLS activo y cero políticas. Comprobar con una sesión de jugador normal que `SELECT count(*) FROM public.player_thumbs` devuelve 0.
 
 Misma situación, sin filtración de datos sensibles y por tanto sin urgencia: `equipos`, `equipo_jugadores`, `clubs`, `alineacion_votos`, `rating_events`, `invitados_guardados` y `badges_revocados` conservan SELECT para `{authenticated}` y el navegador tampoco los lee.
 
@@ -139,6 +139,12 @@ Se revisaron los 24 commits de la sesión cloud (`8941b9b..HEAD`): rutas de API 
 - Las 12 migraciones solo **quitan** permisos. Ninguna abre nada.
 
 **Punto latente, no explotable hoy, para cuando se retome multi-club:** `stamp-registro` usa `ip_registro IS NULL` como candado de un solo uso. Si `getClientIp` devuelve `unknown`, `ip_registro` se queda en NULL y el endpoint sigue llamable — y reescribe `club_id`. Con un solo club y las cabeceras saneadas no lleva a ninguna parte. Cuando existan subdominios por club, cambiar el candado a "solo si el perfil se creó hace menos de X minutos", o sellar `club_id` una sola vez aparte de la IP.
+
+### 5.7 Después de limpiar los reconocimientos de ≤2 votos — PENDIENTE
+`20260918_limpiar_badges_pocos_votos.sql` ya corrió, pero el SQL solo hace la mitad del trabajo. Faltan dos cosas, y sin ellas la limpieza queda a medias:
+
+1. **♻️ Recalcular ratings** (Ajustes → Puntaje). Cada reconocimiento vale ±0.02 y los `rating_events` ya aplicados todavía incluyen los que se borraron. Hasta recalcular, la gente conserva puntaje de reconocimientos que ya no tiene.
+2. **Subir `reco_min_ganador` de 2 a 3** (Ajustes → Puntaje → Quórum de reconocimientos). El quórum vigente asigna si `votos ≥ 5` **O** `votantes ≥ 8`, con piso 2 — ese "o" es justo lo que deja pasar a un ganador de 2 votos en un partido concurrido. Sin cambiarlo, el próximo partido reparte lo mismo y hay que volver a correr la limpieza.
 
 ### 5.4 Otros
 - **Invitaciones / multi-club:** pausado hasta comprar dominio (subdominios por club, `NEXT_PUBLIC_ROOT_DOMAIN`, `ALLOWED_ORIGINS`).

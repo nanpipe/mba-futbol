@@ -8,6 +8,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ratingTierStyle, formatRating } from '@/lib/tier'
 import { fechaColombia } from '@/lib/promoHora'
 import { diasDesde } from '@/lib/asistencia'
+import { agruparBadges } from '@/lib/categorias'
 
 interface PerfilData {
   perfil: {
@@ -134,14 +135,8 @@ export function PerfilJugadorModal({ playerId, onClose }: { playerId: string; on
     return a.racha_faltas >= gap ? { ...rojo, titulo, detalle } : { ...ambar, titulo, detalle }
   })()
 
-  // Cuántos reconocimientos de cada tipo: más útil que la lista cruda cuando
-  // alguien acumula el mismo varias veces.
-  const porTipo = new Map<string, { emoji: string; nombre: string; n: number }>()
-  for (const b of data?.badges ?? []) {
-    const prev = porTipo.get(b.badge_id)
-    if (prev) prev.n++
-    else porTipo.set(b.badge_id, { emoji: b.badge_emoji, nombre: b.badge_nombre, n: 1 })
-  }
+  // Misma función que el perfil del jugador, para que no se vean distintos.
+  const agrupados = agruparBadges(data?.badges ?? [])
 
   return (
     <ModalOverlay>
@@ -225,17 +220,17 @@ export function PerfilJugadorModal({ playerId, onClose }: { playerId: string; on
 
             {/* Reconocimientos */}
             <Bloque titulo={`RECONOCIMIENTOS (${data.badges.length})`}>
-              {porTipo.size === 0 ? (
+              {agrupados.length === 0 ? (
                 <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>Todavía no tiene ninguno.</div>
               ) : (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {[...porTipo.values()].sort((a, b) => b.n - a.n).map(t => (
-                    <span key={t.nombre} className="mono" style={{
+                  {agrupados.map(t => (
+                    <span key={t.badge_id} className="mono" style={{
                       fontSize: 11, padding: '4px 9px', borderRadius: 2,
                       background: 'var(--bg-elevated)', border: '1px solid var(--border)',
                     }}>
                       {t.emoji} {t.nombre}
-                      {t.n > 1 && <span style={{ color: 'var(--amber)', marginLeft: 5 }}>×{t.n}</span>}
+                      {t.veces > 1 && <span style={{ color: 'var(--amber)', marginLeft: 5 }}>×{t.veces}</span>}
                     </span>
                   ))}
                 </div>

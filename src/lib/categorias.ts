@@ -29,6 +29,37 @@ export const DEFAULT_BADGES: Badge[] = [
 
 const VALID_SIGNOS = new Set<BadgeSigno>(['positivo', 'negativo', 'neutral'])
 
+export interface BadgeAgrupado {
+  badge_id: string
+  emoji: string
+  nombre: string
+  veces: number
+}
+
+/**
+ * Agrupa los reconocimientos ganados por tipo, con su contador.
+ *
+ * La lista cruda es ilegible en cuanto alguien repite: seis "Mejor Portero"
+ * sueltos ocupan media pantalla y no dejan ver que también tiene un MVP.
+ * Agrupados, el que más veces ganó queda primero, que es la lectura útil.
+ *
+ * Sirve tanto para el perfil del jugador como para la ficha del panel — que
+ * usen la misma función es lo que evita que se vean distintos con el tiempo.
+ */
+export function agruparBadges(
+  ganados: { badge_id: string; badge_emoji: string; badge_nombre: string }[]
+): BadgeAgrupado[] {
+  const porTipo = new Map<string, BadgeAgrupado>()
+  for (const b of ganados) {
+    const prev = porTipo.get(b.badge_id)
+    if (prev) prev.veces++
+    else porTipo.set(b.badge_id, { badge_id: b.badge_id, emoji: b.badge_emoji, nombre: b.badge_nombre, veces: 1 })
+  }
+  // Más repetidos primero; a igual cantidad, alfabético para que el orden no
+  // dependa de en qué partido se ganó cada uno.
+  return [...porTipo.values()].sort((a, b) => b.veces - a.veces || a.nombre.localeCompare(b.nombre))
+}
+
 /** Read a club's configured badges from app_settings (falls back to defaults). */
 export async function getClubBadges(
   admin: ReturnType<typeof createAdminClient>,

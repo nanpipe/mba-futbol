@@ -12,6 +12,7 @@ import { SectionHeader } from '@/components/SectionHeader'
 import { ErrorAlert } from '@/components/ErrorAlert'
 import { useClub } from '@/hooks/useClub'
 import { ratingTierStyle, formatRating } from '@/lib/tier'
+import { agruparBadges } from '@/lib/categorias'
 import { InvitadosGuardados } from '@/components/InvitadosGuardados'
 import { fechaColombia } from '@/lib/promoHora'
 import { AUSENCIA_MAX_DIAS } from '@/lib/ausencia'
@@ -364,14 +365,17 @@ export default function PerfilPage() {
         {badges.length > 0 && (
           <Section title="MIS BADGES">
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {badges.map((b, i) => (
-                <div key={i} title={b.badge_nombre} style={{
+              {agruparBadges(badges).map(b => (
+                <div key={b.badge_id} title={`${b.nombre} · ${b.veces} ${b.veces === 1 ? 'vez' : 'veces'}`} style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   background: 'var(--bg-elevated)', border: '1px solid var(--border)',
                   borderRadius: 20, padding: '6px 12px',
                 }}>
-                  <span style={{ fontSize: 18 }}>{b.badge_emoji}</span>
-                  <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>{b.badge_nombre}</span>
+                  <span style={{ fontSize: 18 }}>{b.emoji}</span>
+                  <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>{b.nombre}</span>
+                  {b.veces > 1 && (
+                    <span className="mono" style={{ fontSize: 11, color: 'var(--amber)', fontWeight: 600 }}>×{b.veces}</span>
+                  )}
                 </div>
               ))}
             </div>

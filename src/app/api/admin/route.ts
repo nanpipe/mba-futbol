@@ -122,6 +122,75 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, partido, confirmados, auto_jugado_min: MIN_CONFIRMADOS_AUTO_JUGADO })
   }
 
+  // Ficha de un jugador para el panel: lo mismo que ve él en su perfil, más el
+  // historial de rating, que es lo que un admin necesita para responder "¿por
+  // qué este está en 3.48?". Va por el servidor y no por el cliente para que
+  // quede filtrado por club en un solo lugar.
+  if (accion === 'perfil_jugador') {
+    const playerId = req.nextUrl.searchParams.get('player_id')
+    if (!isUUID(playerId)) return NextResponse.json({ error: 'player_id inválido' }, { status: 400 })
+
+    const { data: perfil } = await admin
+      .from('profiles')
+      .select('id, username, email, avatar_url, created_at, posicion, posiciones, habilidad, role, uniform, aprobado, baneado, ausente_desde, ausente_hasta')
+      .eq('club_id', clubId)
+      .eq('id', playerId)
+      .maybeSingle()
+    if (!perfil) return NextResponse.json({ error: 'Jugador no encontrado' }, { status: 404 })
+
+    const [badgesRes, jugadosRes, eventosRes] = await Promise.all([
+      admin
+        .from('player_badges')
+        .select('badge_id, badge_emoji, badge_nombre, votos, earned_at, partidos(fecha)')
+        .eq('club_id', clubId)
+        .eq('player_id', playerId)
+        .order('earned_at', { ascending: false }),
+      admin
+        .from('inscripciones')
+        .select('id', { count: 'exact', head: true })
+        .eq('club_id', clubId)
+        .eq('player_id', playerId)
+        .eq('estado', 'confirmado'),
+      admin
+        .from('rating_events')
+        .select('delta, motivos, rating_after, created_at, partidos(fecha, dia_semana)')
+        .eq('club_id', clubId)
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: false })
+        .limit(20),
+    ])
+
+    type BadgeRow = {
+      badge_id: string; badge_emoji: string; badge_nombre: string
+      votos: number | null; earned_at: string | null
+      partidos: { fecha: string } | null
+    }
+    type EventoRow = {
+      delta: number; motivos: unknown; rating_after: number; created_at: string
+      partidos: { fecha: string; dia_semana: string } | null
+    }
+
+    return NextResponse.json({
+      ok: true,
+      perfil,
+      partidos_jugados: jugadosRes.count ?? 0,
+      badges: ((badgesRes.data ?? []) as unknown as BadgeRow[]).map(b => ({
+        badge_id: b.badge_id,
+        badge_emoji: b.badge_emoji,
+        badge_nombre: b.badge_nombre,
+        votos: b.votos,
+        fecha: b.partidos?.fecha ?? (b.earned_at ? b.earned_at.slice(0, 10) : null),
+      })),
+      rating_events: ((eventosRes.data ?? []) as unknown as EventoRow[]).map(e => ({
+        delta: Number(e.delta),
+        rating_after: Number(e.rating_after),
+        motivos: Array.isArray(e.motivos) ? e.motivos as string[] : [],
+        fecha: e.partidos?.fecha ?? e.created_at.slice(0, 10),
+        dia_semana: e.partidos?.dia_semana ?? null,
+      })),
+    })
+  }
+
   if (accion === 'settings') {
     const { data } = await admin.from('app_settings').select('key, value, updated_at').eq('club_id', clubId)
     const settings: Record<string, unknown> = {}

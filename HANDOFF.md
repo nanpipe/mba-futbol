@@ -153,12 +153,14 @@ Con 👍 por encima de ~60% conviene subir `reco_thumbs_paso` (Ajustes → Punta
   - El partido se ve hasta hora + 1 h. Desde el inicio se ocultan inscribirse / cancelar / invitados.
   - A hora + 1 h: con **más de 12 confirmados** (invitados incluidos) se marca jugado y abren votaciones solas. Si no, se pregunta a los admins por push.
   - La tarjeta "¿Se jugó el partido?" (home y panel admin) pide marcador y foto. "Sí" abre votaciones de inmediato; "No" no abre nada y revierte el rating.
-- **Ausencia** (`lib/ausencia.ts`, botón ✈️ en Admin → Jugadores):
-  - Admins y superadmin también pueden marcarse a sí mismos desde **Mi perfil** (sección "MI AUSENCIA", visible solo para esos roles). Si no, el superadmin no tendría quién se la pusiera.
+- **Ausencia** (`lib/ausencia.ts`, dentro de **Editar** en Admin → Jugadores):
+  - Admins y superadmin también pueden marcarse a sí mismos desde **Mi perfil** (sección "MI AUSENCIA", visible solo para esos roles).
+  - Desde 2026-09-18 vive dentro del modal de **Editar**, no en un botón ✈️ suelto en la fila. Por eso **"Editar" se muestra ahora también para admins y superadmins**: es lo único que se les puede hacer, y sin eso un admin no podría marcarle la ausencia a otro. Dentro del modal, a un target privilegiado solo se le pinta la ausencia — uniforme, email, contraseña, suspender y eliminar quedan ocultos porque el API ya los rechaza con `ERR_PRIVILEGED`.
   - **Solo la marca un admin o superadmin.** Si la marcara el jugador, cualquiera protegería su rating a gusto. El cliente no puede escribir en `profiles`.
   - Rango de fechas: desde el día en que se marca, hasta la fecha que elige el admin (máximo 90 días). Así, recalcular un partido viejo no la aplica hacia atrás.
   - Mientras está activa: no resta por no inscribirse (motivo `ausente` en `rating_events`), no llegan avisos de apertura ni de cupos, y **el jugador no puede inscribirse solo**.
   - Si juega igual (un admin lo agrega), el partido cuenta completo. La ausencia nunca protege de perder.
   - Nota: se tocó `lib/rating.ts` (área del cloud) solo para esta exención, en la rama "no jugó".
+- **Ver perfil de un jugador** (`components/admin/PerfilJugadorModal.tsx`, acción GET `perfil_jugador`): ficha de solo lectura en Admin → Jugadores. Muestra lo mismo que el jugador ve en su perfil (partidos, reconocimientos, rating, posiciones) más los **últimos 20 movimientos de rating con sus motivos**, que es lo que responde "¿por qué este está en 3.48?". Va por el servidor y no por lecturas del cliente para que el filtro por club quede en un solo lugar.
 - **Evaluaciones:** se abren una sola vez (`evaluaciones_ya_abiertas`) y se cierran solas a los 2 días.
 - **Timezone:** todo en Colombia (UTC−5).

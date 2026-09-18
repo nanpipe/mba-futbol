@@ -7,6 +7,7 @@ import { FormLabel } from '@/components/FormLabel'
 import { ButtonGroup } from '@/components/ButtonGroup'
 import { Card } from '@/components/Card'
 import { ModalOverlay } from '@/components/ModalOverlay'
+import { PerfilJugadorModal } from '@/components/admin/PerfilJugadorModal'
 import type { Player, AdminAction } from '@/types/admin'
 import { ratingTierStyle, formatRating } from '@/lib/tier'
 import { fechaColombia } from '@/lib/promoHora'
@@ -51,22 +52,22 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
   }
 
   // ── Ausencia ────────────────────────────────────────────────────────────
-  const [ausenciaModal, setAusenciaModal] = useState<Player | null>(null)
+  // Vive dentro del modal de editar. Por eso "Editar" se muestra también para
+  // admins y superadmins: marcar ausencia es lo único que se les puede hacer,
+  // y antes tenían su propio botón ✈️ en la fila.
   const [ausenciaHasta, setAusenciaHasta] = useState('')
   const hoy = fechaColombia()
   const maxAusencia = fechaColombia(new Date(Date.now() + AUSENCIA_MAX_DIAS * 86400000))
   const ausenteActiva = (p: Player) => !!p.ausente_hasta && p.ausente_hasta >= hoy
 
-  const abrirAusencia = (p: Player) => {
-    setAusenciaModal(p)
-    setAusenciaHasta(ausenteActiva(p) ? p.ausente_hasta! : '')
+  const guardarAusencia = async (hasta: string) => {
+    if (!editModal) return
+    const ok = await accionAdmin('marcar_ausencia', { player_id: editModal.id, hasta })
+    if (ok) cerrarEdit()
   }
 
-  const guardarAusencia = async (hasta: string) => {
-    if (!ausenciaModal) return
-    const ok = await accionAdmin('marcar_ausencia', { player_id: ausenciaModal.id, hasta })
-    if (ok) setAusenciaModal(null)
-  }
+  // ── Ver perfil ──────────────────────────────────────────────────────────
+  const [perfilId, setPerfilId] = useState<string | null>(null)
 
   const abrirEdit = (p: Player) => {
     setEditModal(p)
@@ -77,6 +78,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
     setEditBanFecha('')
     setEditDeleteOpen(false)
     setEditDeleteConfirm('')
+    setAusenciaHasta(ausenteActiva(p) ? p.ausente_hasta! : '')
   }
 
   const cerrarEdit = () => {
@@ -203,24 +205,18 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-                    <button
-                      onClick={() => abrirAusencia(p)}
-                      title="Ausencia (viaje, lesión)"
-                      className="btn btn-ghost"
-                      style={{ fontSize: 13, padding: '5px 9px', lineHeight: 1, opacity: ausenteActiva(p) ? 1 : 0.5 }}
-                    >
-                      ✈️
-                    </button>
                     {!isPrivileged(p.role) && (
-                      <>
-                        <span title={hasPush ? 'Notificaciones activadas' : 'Sin notificaciones'} style={{ fontSize: 15, opacity: hasPush ? 1 : 0.3, cursor: 'default', lineHeight: 1 }}>
-                          {hasPush ? '🔔' : '🔕'}
-                        </span>
-                        <button onClick={() => abrirEdit(p)} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>
-                          Editar
-                        </button>
-                      </>
+                      <span title={hasPush ? 'Notificaciones activadas' : 'Sin notificaciones'} style={{ fontSize: 15, opacity: hasPush ? 1 : 0.3, cursor: 'default', lineHeight: 1 }}>
+                        {hasPush ? '🔔' : '🔕'}
+                      </span>
                     )}
+                    <button onClick={() => setPerfilId(p.id)} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>
+                      Ver perfil
+                    </button>
+                    {/* También para admins: adentro solo les aparece la ausencia. */}
+                    <button onClick={() => abrirEdit(p)} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>
+                      Editar
+                    </button>
                   </div>
                 </div>
               )
@@ -239,6 +235,55 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                 <div className="display" style={{ fontSize: 20 }}>{editModal.username}</div>
                 <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>{editModal.email}</div>
               </div>
+            </div>
+
+            {/* ── Ausencia ── */}
+            <div style={{
+              marginBottom: 20, padding: '14px 16px',
+              background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 4,
+            }}>
+              <div className="mono" style={{ fontSize: 11, letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: 8 }}>
+                ✈️ AUSENCIA
+              </div>
+              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.7, marginBottom: 14 }}>
+                Para viajes o lesiones. Mientras esté ausente:<br />
+                · no pierde puntaje por no inscribirse<br />
+                · no recibe avisos de inscripción ni de cupos<br />
+                · no puede inscribirse solo — si vuelve antes, quítasela<br />
+                · si juega igual, el partido cuenta normal
+              </div>
+
+              {ausenteActiva(editModal) && (
+                <div className="mono" style={{ fontSize: 11, color: '#7dd3fc', marginBottom: 12 }}>
+                  Ausente desde el {fechaCorta(editModal.ausente_desde!)} hasta el {fechaCorta(editModal.ausente_hasta!)}.
+                </div>
+              )}
+
+              <FormLabel label="AUSENTE HASTA" />
+              <input type="date" value={ausenciaHasta} min={hoy} max={maxAusencia} onChange={e => setAusenciaHasta(e.target.value)} />
+              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>
+                Empieza hoy. Máximo {AUSENCIA_MAX_DIAS} días.
+              </div>
+
+              <ButtonGroup gap={10} marginTop={14}>
+                <button
+                  onClick={() => guardarAusencia(ausenciaHasta)}
+                  disabled={!ausenciaHasta}
+                  className="btn btn-ghost"
+                  style={{ flex: 1, justifyContent: 'center', fontSize: 11, opacity: ausenciaHasta ? 1 : 0.4 }}
+                >
+                  {ausenteActiva(editModal) ? 'Actualizar ausencia' : 'Marcar ausente'}
+                </button>
+                {ausenteActiva(editModal) && (
+                  <button
+                    onClick={() => guardarAusencia('')}
+                    className="btn btn-ghost"
+                    style={{ fontSize: 11, whiteSpace: 'nowrap' }}
+                  >
+                    Volvió
+                  </button>
+                )}
+              </ButtonGroup>
             </div>
 
             {usarUniforme && !isPrivileged(editModal.role) && (
@@ -265,7 +310,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
               </div>
             )}
 
-            {isSuperAdmin && (
+            {isSuperAdmin && !isPrivileged(editModal.role) && (
               <>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <div>
@@ -284,13 +329,15 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                 </ButtonGroup>
               </>
             )}
-            {!isSuperAdmin && (
+            {(!isSuperAdmin || isPrivileged(editModal.role)) && (
               <div style={{ marginTop: 4 }}>
                 <button onClick={cerrarEdit} className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }}>Cerrar</button>
               </div>
             )}
 
-            {/* Danger zone */}
+            {/* Danger zone — no aplica a admins: el API rechaza suspenderlos y
+                eliminarlos, así que mostrar los botones sería mentir. */}
+            {!isPrivileged(editModal.role) && (
             <div style={{ marginTop: 28, borderTop: '1px solid #3a1a1a', paddingTop: 20 }}>
               <SectionHeader title="ZONA DE RIESGO" color="#7f1d1d" />
 
@@ -357,66 +404,13 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                 )}
               </div>}
             </div>
-          </Card>
-        </ModalOverlay>
-      )}
-
-      {/* Modal Ausencia */}
-      {ausenciaModal && (
-        <ModalOverlay>
-          <Card style={{ width: '100%', maxWidth: 420, margin: 'auto' }} padding={24}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
-              <PlayerAvatar url={ausenciaModal.avatar_url} username={ausenciaModal.username} size={40} />
-              <div>
-                <div className="display" style={{ fontSize: 20 }}>✈️ Ausencia</div>
-                <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{ausenciaModal.username}</div>
-              </div>
-            </div>
-
-            <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 18 }}>
-              Para viajes o lesiones. Mientras esté ausente:<br />
-              · no pierde puntaje por no inscribirse<br />
-              · no recibe avisos de inscripción ni de cupos<br />
-              · no puede inscribirse solo — si vuelve antes, quita la ausencia<br />
-              · si juega igual, el partido cuenta normal
-            </div>
-
-            {ausenteActiva(ausenciaModal) && (
-              <div className="mono" style={{ fontSize: 12, color: '#7dd3fc', marginBottom: 14 }}>
-                Ausente desde el {fechaCorta(ausenciaModal.ausente_desde!)} hasta el {fechaCorta(ausenciaModal.ausente_hasta!)}.
-              </div>
-            )}
-
-            <FormLabel label="AUSENTE HASTA" />
-            <input type="date" value={ausenciaHasta} min={hoy} max={maxAusencia} onChange={e => setAusenciaHasta(e.target.value)} />
-            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>
-              Empieza hoy. Máximo {AUSENCIA_MAX_DIAS} días.
-            </div>
-
-            <ButtonGroup gap={10} marginTop={20}>
-              <button
-                onClick={() => guardarAusencia(ausenciaHasta)}
-                disabled={!ausenciaHasta}
-                className="btn btn-primary"
-                style={{ flex: 1, justifyContent: 'center', opacity: ausenciaHasta ? 1 : 0.4 }}
-              >
-                Guardar
-              </button>
-              <button onClick={() => setAusenciaModal(null)} className="btn btn-ghost">Cancelar</button>
-            </ButtonGroup>
-
-            {ausenteActiva(ausenciaModal) && (
-              <button
-                onClick={() => guardarAusencia('')}
-                className="mono"
-                style={{ marginTop: 14, width: '100%', fontSize: 11, padding: '8px', background: 'none', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text-muted)', cursor: 'pointer' }}
-              >
-                Quitar ausencia (volvió)
-              </button>
             )}
           </Card>
         </ModalOverlay>
       )}
+
+      {/* Ficha del jugador — solo lectura */}
+      {perfilId && <PerfilJugadorModal playerId={perfilId} onClose={() => setPerfilId(null)} />}
     </>
   )
 }

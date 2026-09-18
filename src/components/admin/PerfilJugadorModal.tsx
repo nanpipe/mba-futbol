@@ -42,9 +42,13 @@ const fechaCorta = (f: string | null) =>
 
 function Stat({ valor, etiqueta, color }: { valor: string; etiqueta: string; color?: string }) {
   return (
-    <div style={{ textAlign: 'center', flex: 1, minWidth: 0 }}>
-      <div className="display" style={{ fontSize: 24, color }}>{valor}</div>
-      <div className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', marginTop: 2 }}>
+    <div style={{ textAlign: 'center', minWidth: 0 }}>
+      <div className="display" style={{ fontSize: 26, color, lineHeight: 1.1 }}>{valor}</div>
+      <div className="mono" style={{
+        fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.08em', marginTop: 4,
+        // Una etiqueta larga parte de línea en vez de meterse debajo de la vecina.
+        overflowWrap: 'anywhere', lineHeight: 1.3,
+      }}>
         {etiqueta}
       </div>
     </div>
@@ -174,9 +178,11 @@ export function PerfilJugadorModal({ playerId, onClose }: { playerId: string; on
               </div>
             </div>
 
-            {/* Stats */}
+            {/* Stats — 2×2. En una sola fila, "RECONOCIMIENTOS" y el nombre del
+                tier se pisan en pantalla de teléfono. */}
             <div style={{
-              display: 'flex', gap: 8, padding: '14px 0',
+              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 8px',
+              padding: '16px 0',
               borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)',
             }}>
               <Stat valor={String(data.asistencia.jugados)} etiqueta="PARTIDOS" color="var(--green)" />

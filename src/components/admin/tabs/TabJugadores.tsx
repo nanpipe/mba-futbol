@@ -194,7 +194,15 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                           <span className="mono" style={{ fontSize: 9, color: 'var(--amber)', letterSpacing: '0.1em', background: '#2d1f00', border: '1px solid #92400e', padding: '2px 5px', borderRadius: 2 }}>ADMIN</span>
                         )}
                         {usarUniforme && p.uniform && !isPrivileged(p.role) && (
-                          <span className="mono" style={{ fontSize: 9, color: 'var(--green)', letterSpacing: '0.1em', background: '#0f2d1a', padding: '2px 5px', borderRadius: 2 }}>UNIFORME</span>
+                          <span title="Tiene uniforme" style={{ fontSize: 13, lineHeight: 1 }}>👕</span>
+                        )}
+                        {!isPrivileged(p.role) && (
+                          <span
+                            title={hasPush ? 'Notificaciones activadas' : 'Sin notificaciones'}
+                            style={{ fontSize: 13, opacity: hasPush ? 1 : 0.3, lineHeight: 1 }}
+                          >
+                            {hasPush ? '🔔' : '🔕'}
+                          </span>
                         )}
                         {ausenteActiva(p) && (
                           <span className="mono" style={{ fontSize: 9, color: '#7dd3fc', letterSpacing: '0.1em', background: '#082f49', border: '1px solid #0369a1', padding: '2px 5px', borderRadius: 2 }}>
@@ -205,16 +213,11 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-                    {!isPrivileged(p.role) && (
-                      <span title={hasPush ? 'Notificaciones activadas' : 'Sin notificaciones'} style={{ fontSize: 15, opacity: hasPush ? 1 : 0.3, cursor: 'default', lineHeight: 1 }}>
-                        {hasPush ? '🔔' : '🔕'}
-                      </span>
-                    )}
-                    <button onClick={() => setPerfilId(p.id)} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>
-                      Ver perfil
+                    <button onClick={() => setPerfilId(p.id)} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 14px' }}>
+                      Ver
                     </button>
                     {/* También para admins: adentro solo les aparece la ausencia. */}
-                    <button onClick={() => abrirEdit(p)} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>
+                    <button onClick={() => abrirEdit(p)} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 14px' }}>
                       Editar
                     </button>
                   </div>

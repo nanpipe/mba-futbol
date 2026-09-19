@@ -1,6 +1,6 @@
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { getClubBadges } from '@/lib/categorias'
-import { getThumbsPaso, escalonesPorPulgares } from '@/lib/reconocimientos'
+import { getThumbsPaso, getCastigoNoVotar, escalonesPorPulgares } from '@/lib/reconocimientos'
 import { ausenteEn, type Ausencia } from '@/lib/ausencia'
 import { getFaltasGap, rachaDeFaltas, type PartidoRacha } from '@/lib/faltas'
 
@@ -14,6 +14,7 @@ import { getFaltasGap, rachaDeFaltas, type PartidoRacha } from '@/lib/faltas'
 //   Reconocimiento positivo  +STEP each  (MVP, goleador, defensa, portero, técnico)
 //   Reconocimiento negativo  −STEP each  (desaparecido, aizaga, discutidor)
 //   Pulgares                 +STEP por cada N 👍  ·  −STEP por cada N 👎
+//   Jugó y no votó           −STEP  (solo si las votaciones se abrieron)
 //   No se inscribió (pudo)   −STEP, pero solo desde la N-ésima falta SEGUIDA
 //   En espera                exento (no baja)
 //   Ausente (lo marca admin) exento solo si NO jugó — ver lib/ausencia.ts
@@ -107,7 +108,7 @@ export async function applyMatchRatings(
 ): Promise<{ applied: number; skipped?: string }> {
   const { data: partido } = await admin
     .from('partidos')
-    .select('id, club_id, fecha, tipo, evaluaciones_abiertas, goles_a, goles_b, puntos_blanco, puntos_negro, puntos_morado')
+    .select('id, club_id, fecha, tipo, evaluaciones_abiertas, evaluaciones_ya_abiertas, goles_a, goles_b, puntos_blanco, puntos_negro, puntos_morado')
     .eq('id', partido_id)
     .single()
 
@@ -147,16 +148,31 @@ export async function applyMatchRatings(
 
   const { pos: POSITIVE_BADGES, neg: NEGATIVE_BADGES } = await badgeSigns(admin, clubId)
 
-  const [insRes, ejRes, badgesRes, profsRes, thumbsRes, thumbsPaso] = await Promise.all([
+  const [insRes, ejRes, badgesRes, profsRes, thumbsRes, thumbsPaso, castigoNoVotar, votosRes] = await Promise.all([
     admin.from('inscripciones').select('player_id, estado').eq('partido_id', partido_id).in('estado', ['confirmado', 'espera']),
     equipoIds.length
       ? admin.from('equipo_jugadores').select('player_id, equipo_id').in('equipo_id', equipoIds)
       : Promise.resolve({ data: [] as { player_id: string; equipo_id: string }[] }),
     admin.from('player_badges').select('player_id, badge_id').eq('partido_id', partido_id),
     admin.from('profiles').select('id, habilidad, aprobado, baneado, created_at, ausente_desde, ausente_hasta').eq('club_id', clubId),
-    admin.from('player_thumbs').select('votado_id, value').eq('partido_id', partido_id),
+    admin.from('player_thumbs').select('votante_id, votado_id, value').eq('partido_id', partido_id),
     getThumbsPaso(admin, clubId),
+    getCastigoNoVotar(admin, clubId),
+    admin.from('votos_reconocimiento').select('votante_id').eq('partido_id', partido_id),
   ])
+
+  // Quién entregó su evaluación. Cuenta cualquier cosa enviada — votos por
+  // categoría, abstenciones ("No aplica") y pulgares: se castiga no abrir la
+  // pantalla, no el contenido.
+  const votaron = new Set<string>()
+  for (const v of (votosRes.data ?? []) as { votante_id: string }[]) votaron.add(v.votante_id)
+  for (const t of (thumbsRes.data ?? []) as { votante_id: string }[]) votaron.add(t.votante_id)
+
+  // Guarda imprescindible: si las votaciones nunca se abrieron, nadie tuvo cómo
+  // votar. Sin esto, un partido al que solo se le cargó el marcador castigaría
+  // a los 14 por algo que jamás pudieron hacer.
+  const huboVotacion = (partido as { evaluaciones_ya_abiertas?: boolean | null }).evaluaciones_ya_abiertas === true
+  const castigaNoVotar = castigoNoVotar && huboVotacion
 
   // ── Racha de faltas ────────────────────────────────────────────────────────
   // Basta con este partido y los (gap − 1) anteriores: si la racha no llega a
@@ -277,6 +293,11 @@ export async function applyMatchRatings(
       const neg = badgeNeg.get(id) ?? 0
       if (pos) { raw += STEP * pos; motivos.push(`reconocimiento+ ×${pos}`) }
       if (neg) { raw -= STEP * neg; motivos.push(`reconocimiento- ×${neg}`) }
+
+      if (castigaNoVotar && !votaron.has(id)) {
+        raw -= STEP
+        motivos.push('no votó')
+      }
 
       const up = likes.get(id) ?? 0
       const down = dislikes.get(id) ?? 0

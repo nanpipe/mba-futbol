@@ -38,6 +38,32 @@ async function adminAction(accion: string, extra: Record<string, unknown>): Prom
   return res.json()
 }
 
+/**
+ * Cuántos entregaron su evaluación. Con la votación abierta es lo que el admin
+ * mira para decidir si ya vale la pena cerrar; con la votación cerrada explica
+ * por qué hubo (o no hubo) reconocimientos.
+ */
+function ProgresoVotacion({ progreso, cerrada }: {
+  progreso?: { votaron: number; total: number }
+  cerrada?: boolean
+}) {
+  if (!progreso || progreso.total === 0) return null
+  const { votaron, total } = progreso
+  const pct = Math.round((votaron / total) * 100)
+  const color = votaron === total ? 'var(--green)' : votaron >= total / 2 ? 'var(--amber)' : 'var(--text-dim)'
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ flex: 1, maxWidth: 160, height: 5, background: 'var(--bg-elevated)', borderRadius: 3, overflow: 'hidden' }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: color, transition: 'width 0.3s' }} />
+      </div>
+      <span className="mono" style={{ fontSize: 11, color, whiteSpace: 'nowrap' }}>
+        {votaron} de {total} {cerrada ? 'votaron' : 'han votado'}
+      </span>
+    </div>
+  )
+}
+
 export function TabHistorial({ active }: Props) {
   const supabase = createClient()
   const [historial, setHistorial] = useState<HistorialPartido[]>([])
@@ -68,6 +94,9 @@ export function TabHistorial({ active }: Props) {
   const [savingEval, setSavingEval] = useState(false)
   const [savingCerrar, setSavingCerrar] = useState(false)
   const [quitandoBadge, setQuitandoBadge] = useState<string | null>(null)
+  // partido_id → cuántos entregaron su evaluación. Viene del servidor: el
+  // cliente ya no puede leer votos_reconocimiento ni player_thumbs.
+  const [progreso, setProgreso] = useState<Record<string, { votaron: number; total: number }>>({})
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [uploadingFoto, setUploadingFoto] = useState(false)
 
@@ -89,6 +118,13 @@ export function TabHistorial({ active }: Props) {
       .limit(30)
     const ahora = new Date()
     setHistorial(((data as unknown as HistorialPartido[]) ?? []).filter(p => ahora >= calcularVentanaPartido(p).termina))
+
+    // No bloquea la lista: si falla, simplemente no se muestra el contador.
+    fetch('/api/admin?accion=progreso_votaciones')
+      .then(r => r.json())
+      .then(d => { if (d?.ok) setProgreso(d.progreso ?? {}) })
+      .catch(() => {})
+
     setLoading(false)
   }, [supabase])
 
@@ -606,6 +642,7 @@ export function TabHistorial({ active }: Props) {
                       {p.evaluaciones_abiertas ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                           <div className="mono" style={{ fontSize: 12, color: '#a78bfa' }}>📊 Votación abierta — jugadores pueden evaluar.</div>
+                          <ProgresoVotacion progreso={progreso[p.id]} />
                           <button
                             onClick={() => handleCerrarVotacion(p.id)}
                             disabled={savingCerrar}
@@ -620,6 +657,7 @@ export function TabHistorial({ active }: Props) {
                         </div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <ProgresoVotacion progreso={progreso[p.id]} cerrada />
                           <button
                             onClick={() => handleAbrirEval(p.id)}
                             disabled={savingEval}

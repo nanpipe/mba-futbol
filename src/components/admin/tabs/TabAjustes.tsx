@@ -7,7 +7,7 @@ import { Card } from '@/components/Card'
 import { SectionHeader } from '@/components/SectionHeader'
 import { ButtonGroup } from '@/components/ButtonGroup'
 import { GAME_CONFIG } from '@/lib/gameConfig'
-import { RECO_CONFIG, THUMBS_CONFIG } from '@/lib/reconocimientos'
+import { RECO_CONFIG, THUMBS_CONFIG, CASTIGO_NO_VOTAR_KEY } from '@/lib/reconocimientos'
 import { FALTAS_CONFIG } from '@/lib/faltas'
 import { NOTIF_EVENTS } from '@/lib/notifications'
 import { BadgesEditor, TiersEditor } from '@/components/admin/RatingConfigEditor'
@@ -455,6 +455,24 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
             <div className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 12, lineHeight: 1.6 }}>
               Aplica desde el próximo conteo. Los reconocimientos ya asignados no cambian
               salvo que se reabra y vuelva a cerrarse la votación.
+            </div>
+
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+              marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--border)',
+            }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>Castigar a quien no vota</div>
+                <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.6 }}>
+                  Jugó el partido y no evaluó a nadie: −0.02. Cuenta cualquier
+                  evaluación enviada, incluidos los &ldquo;No aplica&rdquo; y los pulgares
+                  sueltos. Nunca se aplica si las votaciones no llegaron a abrirse.
+                </div>
+              </div>
+              <ToggleSwitch
+                checked={settings[CASTIGO_NO_VOTAR_KEY] !== false}
+                onChange={v => toggleSetting(CASTIGO_NO_VOTAR_KEY, v)}
+              />
             </div>
           </Card>
 

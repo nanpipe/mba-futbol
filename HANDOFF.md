@@ -2,7 +2,7 @@
 
 Varias sesiones de Claude trabajan este repo (local en Windows y cloud). **GitHub `main` es lo único que comparten.** Esta conversación, `.env.local`, las ramas locales y la memoria de cada sesión no viajan. Si algo importa, va aquí.
 
-Última actualización: 2026-09-18 (cloud — todas las migraciones corridas; quedan dos pasos de panel en §5.7).
+Última actualización: 2026-09-19 (cloud — castigo por no votar, progreso de votación, fix del service worker).
 
 ---
 
@@ -141,6 +141,22 @@ Se revisaron los 24 commits de la sesión cloud (`8941b9b..HEAD`): rutas de API 
 
 **Punto latente, no explotable hoy, para cuando se retome multi-club:** `stamp-registro` usa `ip_registro IS NULL` como candado de un solo uso. Si `getClientIp` devuelve `unknown`, `ip_registro` se queda en NULL y el endpoint sigue llamable — y reescribe `club_id`. Con un solo club y las cabeceras saneadas no lleva a ninguna parte. Cuando existan subdominios por club, cambiar el candado a "solo si el perfil se creó hace menos de X minutos", o sellar `club_id` una sola vez aparte de la IP.
 
+### 5.8 El castigo por no votar es retroactivo al recalcular — OJO
+La regla se aplica en `applyMatchRatings`, así que **el próximo ♻️ Recalcular la aplica a todo el historial**. Si la participación histórica fue baja, mucha gente va a bajar de golpe. El recálculo muestra el diff al terminar; si el resultado no gusta, se apaga el toggle en Ajustes → Puntaje y se vuelve a recalcular (el ledger es función pura de los datos, así que se puede ir y volver).
+
+Vale la pena mirar antes cuánta gente jugó sin votar:
+
+```sql
+SELECT p.fecha,
+       count(*) FILTER (WHERE i.estado = 'confirmado') AS jugaron,
+       count(DISTINCT v.votante_id)                    AS votaron
+FROM public.partidos p
+JOIN public.inscripciones i ON i.partido_id = p.id
+LEFT JOIN public.votos_reconocimiento v ON v.partido_id = p.id
+WHERE p.evaluaciones_ya_abiertas
+GROUP BY p.fecha ORDER BY p.fecha DESC LIMIT 15;
+```
+
 ### 5.7 Después de limpiar los reconocimientos de ≤2 votos — PENDIENTE
 `20260918_limpiar_badges_pocos_votos.sql` ya corrió, pero el SQL solo hace la mitad del trabajo. Faltan dos cosas, y sin ellas la limpieza queda a medias:
 
@@ -163,6 +179,7 @@ Se revisaron los 24 commits de la sesión cloud (`8941b9b..HEAD`): rutas de API 
   - Base 3.0, rango 1–5. Pasos de 0.02: ganó + / perdió −, reconocimientos ±, pulgares por escalones. Quien queda en espera está exento.
   - **Jugar vale 0, a propósito** (2026-09-17). Antes inscribirse daba +0.02 y era el único término sin contrapeso: ganar/perder es suma cero entre equipos, pero el premio por aparecer se lo llevaba todo el que jugaba, siempre. A dos partidos por semana eso son +2.0 al año — los habituales llegaban al techo de 5.0 en menos de un año y el rating dejaba de distinguir a nadie, el mismo problema que con todos clavados en 3.0 pero apilados arriba. El incentivo de ir no desapareció, cambió de lado: faltar tres seguidas resta. **No volver a agregar un premio por asistir sin resolver antes la deriva.**
   - Deriva que queda: los pulgares NO son de suma cero. Si el club da muchos más 👍 que 👎, todos suben. Se amortigua subiendo `reco_thumbs_paso`. Medir antes de tocar, con la consulta de §5.5. El sesgo de reconocimientos (5 positivos vs 3 negativos de fábrica) aporta +0.003 por partido.
+  - **Castigo por no votar** (`reco_castigo_no_votar`, default ON, toggle en Ajustes → Puntaje): jugaste y no entregaste evaluación → −0.02. Cuenta como votar cualquier envío: votos por categoría, abstenciones ("No aplica") y pulgares — se castiga no abrir la pantalla, no el contenido. **Guarda imprescindible:** solo aplica si `partidos.evaluaciones_ya_abiertas` es true. Sin eso, un partido al que solo se le cargó el marcador castigaría a los 14 por algo que nunca pudieron hacer.
   - **Faltas con racha** (`lib/faltas.ts`, `rating_faltas_gap`, default 3): no inscribirse solo resta desde la tercera falta **seguida**. Restar en cada partido castigaba a quien no puede un día fijo — el club juega martes y viernes, y el que solo puede martes perdía 0.02 cada viernes para siempre. Cortan la racha: jugar, quedar en espera, una ausencia marcada por admin, y los partidos anteriores a su llegada al club. Las faltas que no llegan al gap dejan un `rating_event` con delta 0 y motivo `no jugó (1/3)`, para que quede el rastro.
   - Tope por partido: ±0.075 normal, ±0.15 minitorneo. Se muestra con 2 decimales (`formatRating`).
   - Se aplica una vez por partido, al cerrar evaluaciones y con resultado, vía `rating_events`.
@@ -184,5 +201,6 @@ Se revisaron los 24 commits de la sesión cloud (`8941b9b..HEAD`): rutas de API 
   - Los reconocimientos se agrupan con `agruparBadges()` de `lib/categorias`, **compartida con el perfil del jugador**. Las dos pantallas tenían su propia copia; que muestren lo mismo con código distinto es lo que se separa al primer cambio.
   - **No muestra el historial partido por partido, a propósito.** Se probó y se descartó: lo que pasó ya pasó y el rating lo resume. Lo que sirve es el estado presente, en una sola frase — "No juega hace 45 días (20 partidos) · 5 faltas seguidas, ya le está restando" o "🔥 7 partidos seguidos". El cálculo vive en `lib/asistencia.ts` (puro, con pruebas).
   - El aviso de faltas usa el `rating_faltas_gap` del club, así que dice cuántas le faltan para que empiece a costarle. Sin ese número, "2 faltas seguidas" no le dice nada al admin.
+- **Progreso de votación** (Admin → Historial, acción GET `progreso_votaciones`): barra + "8 de 14 han votado" junto al botón de cerrar, y "votaron" cuando ya cerró. Va por el servidor porque el cliente ya no puede leer `votos_reconocimiento` ni `player_thumbs` — quedaron sin políticas para que los votos sean anónimos de verdad. Un jugador cuenta una sola vez aunque haya mandado votos y pulgares.
 - **Evaluaciones:** se abren una sola vez (`evaluaciones_ya_abiertas`) y se cierran solas a los 2 días.
 - **Timezone:** todo en Colombia (UTC−5).

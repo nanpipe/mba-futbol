@@ -200,6 +200,42 @@ export async function GET(req: NextRequest) {
     })
   }
 
+  // Cuántos entregaron su evaluación en cada partido reciente.
+  // Va por el servidor porque el cliente ya no puede leer votos_reconocimiento
+  // ni player_thumbs: esas tablas quedaron sin políticas para que los votos sean
+  // anónimos de verdad (20260917_votos_sin_politicas / _thumbs_).
+  if (accion === 'progreso_votaciones') {
+    const desde = fechaColombia(new Date(Date.now() - 120 * 86400000))
+    const { data: partidos } = await admin
+      .from('partidos').select('id').eq('club_id', clubId).gte('fecha', desde)
+    const ids = ((partidos ?? []) as { id: string }[]).map(p => p.id)
+    if (ids.length === 0) return NextResponse.json({ ok: true, progreso: {} })
+
+    const [votosRes, thumbsRes, insRes] = await Promise.all([
+      admin.from('votos_reconocimiento').select('partido_id, votante_id').in('partido_id', ids),
+      admin.from('player_thumbs').select('partido_id, votante_id').in('partido_id', ids),
+      admin.from('inscripciones').select('partido_id').eq('estado', 'confirmado').in('partido_id', ids),
+    ])
+
+    // Un jugador cuenta una sola vez aunque haya mandado votos y pulgares.
+    const votantes = new Map<string, Set<string>>()
+    for (const r of [...(votosRes.data ?? []), ...(thumbsRes.data ?? [])] as { partido_id: string; votante_id: string }[]) {
+      let s = votantes.get(r.partido_id)
+      if (!s) { s = new Set(); votantes.set(r.partido_id, s) }
+      s.add(r.votante_id)
+    }
+    const confirmados = new Map<string, number>()
+    for (const i of (insRes.data ?? []) as { partido_id: string }[]) {
+      confirmados.set(i.partido_id, (confirmados.get(i.partido_id) ?? 0) + 1)
+    }
+
+    const progreso: Record<string, { votaron: number; total: number }> = {}
+    for (const id of ids) {
+      progreso[id] = { votaron: votantes.get(id)?.size ?? 0, total: confirmados.get(id) ?? 0 }
+    }
+    return NextResponse.json({ ok: true, progreso })
+  }
+
   if (accion === 'settings') {
     const { data } = await admin.from('app_settings').select('key, value, updated_at').eq('club_id', clubId)
     const settings: Record<string, unknown> = {}

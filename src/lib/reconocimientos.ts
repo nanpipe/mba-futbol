@@ -54,10 +54,28 @@ export const THUMBS_CONFIG = [
   },
 ] as const
 
+// ── Castigo por no votar ─────────────────────────────────────────────────────
+// Jugaste el partido y no evaluaste a nadie: −STEP. Las votaciones solo sirven
+// si vota la gente — un partido con 4 votos de 14 no reparte nada (no llega al
+// quórum) y deja los reconocimientos vacíos para todos.
+//
+// Cuenta como votar cualquier evaluación enviada: votos por categoría,
+// abstenciones ("No aplica") y pulgares. Lo que se castiga es no abrir la
+// pantalla, no el contenido de lo que votaste.
+export const CASTIGO_NO_VOTAR_KEY = 'reco_castigo_no_votar'
+
 export const RECO_CONFIG_KEYS = [
   ...RECO_CONFIG.map(c => c.key),
   ...THUMBS_CONFIG.map(c => c.key),
+  CASTIGO_NO_VOTAR_KEY,
 ] as readonly string[]
+
+/** ¿El club castiga a quien jugó y no votó? Default: sí. */
+export function castigoNoVotarDeSettings(settings: Record<string, unknown>): boolean {
+  const v = settings[CASTIGO_NO_VOTAR_KEY]
+  if (v === false || v === 'false') return false
+  return true
+}
 
 export type RecoConfigKey =
   | typeof RECO_CONFIG[number]['key']
@@ -141,6 +159,14 @@ export async function getThumbsPaso(
   clubId: string
 ): Promise<number> {
   return thumbsPasoDeSettings(await leerSettings(admin, clubId))
+}
+
+/** ¿El club castiga a quien jugó y no votó? */
+export async function getCastigoNoVotar(
+  admin: ReturnType<typeof createAdminClient>,
+  clubId: string
+): Promise<boolean> {
+  return castigoNoVotarDeSettings(await leerSettings(admin, clubId))
 }
 
 export interface Ganadores {

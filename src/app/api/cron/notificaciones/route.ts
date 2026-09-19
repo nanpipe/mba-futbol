@@ -5,9 +5,10 @@ import { calcularVentanaPartido, MIN_CONFIRMADOS_AUTO_JUGADO } from '@/lib/parti
 import { abrirEvaluaciones, contarConfirmados } from '@/lib/partidoCierre'
 import { ausenteEn, type Ausencia } from '@/lib/ausencia'
 import { logActivity } from '@/lib/activityLog'
-import { sendAperturaEmail, sendRecordatorioEmail } from '@/lib/email'
+import { sendAperturaEmail, sendRecordatorioEmail, sendRecordatorioVotarEmail } from '@/lib/email'
 import { tallyAndAssign } from '@/app/api/evaluaciones/route'
 import { channelsFor } from '@/lib/notifications'
+import { quorumDeSettings } from '@/lib/reconocimientos'
 import { applyMatchRatings } from '@/lib/rating'
 import { notificarInvitadoConfirmado } from '@/lib/invitados'
 import { generarBorradorAuto } from '@/lib/teamDraft'
@@ -156,6 +157,8 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Auto-open/close evaluaciones ─────────────────────────────────────────
+  // 7 PM: la gente ya salió del trabajo y quedan ~5 horas de margen.
+  const HORA_RECORDATORIO_VOTAR = 19
   const ayerStr = fechaColombia(new Date(now.getTime() - 86400000))
   const dosDiasAtrasStr = fechaColombia(new Date(now.getTime() - 2 * 86400000))
 
@@ -240,6 +243,104 @@ export async function GET(req: NextRequest) {
       // Recognitions are final — apply rating deltas (no-op without a result).
       try { await applyMatchRatings(admin, p.id) } catch (e) { console.error('[rating] cron auto_cerrar:', e) }
       await logActivity({ club_id: (p as { club_id?: string }).club_id, accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha, badges_asignados } })
+    }
+  }
+
+  // ── Recordatorio de votación (7 PM del día siguiente al partido) ──────────
+  // La ventana real de votación es corta: abren al cerrar el partido y el cron
+  // las cierra a las 00:00 del día D+2. O sea, se vota "hasta que se acabe el
+  // día siguiente" — y eso no está escrito en ninguna parte.
+  //
+  // Solo sale si la votación TODAVÍA no llegó al quórum de votantes: si ya
+  // alcanzó, los reconocimientos se van a repartir igual y nadie va a perder
+  // puntaje, así que no hay por qué molestar a nadie.
+  //
+  // Todo el bloque va en try/catch: depende de partidos.notif_votar_sent
+  // (20260919_recordatorio_votar.sql). Si la migración no ha corrido, esto no
+  // manda nada y el resto del cron sigue igual, en vez de tumbarlo entero.
+  if (horaColombia(now) === HORA_RECORDATORIO_VOTAR) {
+    try {
+      const { data: abiertos } = await admin
+        .from('partidos')
+        .select('id, club_id, fecha, dia_semana, notif_votar_sent')
+        .eq('fecha', ayerStr)
+        .eq('evaluaciones_abiertas', true)
+
+      for (const p of (abiertos ?? []) as { id: string; club_id: string; fecha: string; dia_semana: string; notif_votar_sent: boolean }[]) {
+        if (p.notif_votar_sent) continue
+
+        const settings = await getClubSettings(admin, p.club_id, settingsCache)
+        const ch = channelsFor(settings, 'recordatorio_votar')
+        if (!ch.email && !ch.push) continue
+
+        const [{ data: confirmados }, { data: votos }, { data: thumbs }] = await Promise.all([
+          admin.from('inscripciones').select('player_id').eq('partido_id', p.id).eq('estado', 'confirmado'),
+          admin.from('votos_reconocimiento').select('votante_id').eq('partido_id', p.id),
+          admin.from('player_thumbs').select('votante_id').eq('partido_id', p.id),
+        ])
+
+        const yaVotaron = new Set<string>()
+        for (const v of [...(votos ?? []), ...(thumbs ?? [])] as { votante_id: string }[]) yaVotaron.add(v.votante_id)
+
+        // Si ya hay quórum, nadie va a perder puntaje: no se molesta a nadie.
+        const { minVotantes } = quorumDeSettings(settings)
+        if (yaVotaron.size >= minVotantes) {
+          await admin.from('partidos').update({ notif_votar_sent: true }).eq('id', p.id)
+          await logActivity({ club_id: p.club_id, accion: 'recordatorio_votar_omitido', detalles: { partido_id: p.id, votaron: yaVotaron.size, min: minVotantes } })
+          continue
+        }
+
+        const faltan = ((confirmados ?? []) as { player_id: string }[])
+          .map(c => c.player_id)
+          .filter(id => !yaVotaron.has(id))
+        if (faltan.length === 0) {
+          await admin.from('partidos').update({ notif_votar_sent: true }).eq('id', p.id)
+          continue
+        }
+
+        const clubNombre = await getClubNombreById(admin, p.club_id, clubNombreCache)
+        let enviadosPush = 0, enviadosEmail = 0
+
+        if (ch.push) {
+          const { data: subs } = await admin
+            .from('push_subscriptions').select('endpoint, p256dh, auth').in('player_id', faltan)
+          for (const sub of subs ?? []) {
+            try {
+              await sendPush(sub, {
+                title: '⏰ Te faltan tus votos',
+                body: `Evalúa el partido del ${p.dia_semana}. Tienes hasta esta noche o pierdes 0.02 de puntaje.`,
+                url: `/evaluar/${p.id}`,
+              })
+              enviadosPush++
+            } catch (err) {
+              if (isDeadPushError(err)) await admin.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+              else console.error('[cron] recordatorio_votar push:', err)
+            }
+          }
+        }
+
+        if (ch.email) {
+          const { data: perfiles } = await admin
+            .from('profiles').select('email, username').in('id', faltan)
+          const res = await Promise.allSettled(
+            ((perfiles ?? []) as { email: string | null; username: string }[])
+              .filter(pr => pr.email)
+              .map(pr => sendRecordatorioVotarEmail({
+                email: pr.email!, username: pr.username,
+                diaSemana: p.dia_semana, partidoId: p.id, clubNombre,
+              }))
+          )
+          enviadosEmail = res.filter(r => r.status === 'fulfilled').length
+        }
+
+        await admin.from('partidos').update({ notif_votar_sent: true }).eq('id', p.id)
+        await logActivity({
+          club_id: p.club_id, accion: 'recordatorio_votar',
+          detalles: { partido_id: p.id, faltaban: faltan.length, votaron: yaVotaron.size, push: enviadosPush, email: enviadosEmail },
+        })
+      }
+    } catch (e) {
+      console.error('[cron] recordatorio_votar (¿falta 20260919_recordatorio_votar.sql?):', e)
     }
   }
 

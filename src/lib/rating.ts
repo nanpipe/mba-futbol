@@ -1,6 +1,6 @@
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { getClubBadges } from '@/lib/categorias'
-import { getThumbsPaso, getCastigoNoVotar, escalonesPorPulgares } from '@/lib/reconocimientos'
+import { getThumbsPaso, getCastigoNoVotar, castigaEnFecha, getQuorum, escalonesPorPulgares } from '@/lib/reconocimientos'
 import { ausenteEn, type Ausencia } from '@/lib/ausencia'
 import { getFaltasGap, rachaDeFaltas, type PartidoRacha } from '@/lib/faltas'
 
@@ -14,7 +14,9 @@ import { getFaltasGap, rachaDeFaltas, type PartidoRacha } from '@/lib/faltas'
 //   Reconocimiento positivo  +STEP each  (MVP, goleador, defensa, portero, técnico)
 //   Reconocimiento negativo  −STEP each  (desaparecido, aizaga, discutidor)
 //   Pulgares                 +STEP por cada N 👍  ·  −STEP por cada N 👎
-//   Jugó y no votó           −STEP  (solo si las votaciones se abrieron)
+//   Jugó y no votó           −STEP  (solo si abrieron votaciones, el partido
+//                            está dentro del período configurado, y la votación
+//                            NO llegó al quórum de votantes)
 //   No se inscribió (pudo)   −STEP, pero solo desde la N-ésima falta SEGUIDA
 //   En espera                exento (no baja)
 //   Ausente (lo marca admin) exento solo si NO jugó — ver lib/ausencia.ts
@@ -168,11 +170,23 @@ export async function applyMatchRatings(
   for (const v of (votosRes.data ?? []) as { votante_id: string }[]) votaron.add(v.votante_id)
   for (const t of (thumbsRes.data ?? []) as { votante_id: string }[]) votaron.add(t.votante_id)
 
-  // Guarda imprescindible: si las votaciones nunca se abrieron, nadie tuvo cómo
-  // votar. Sin esto, un partido al que solo se le cargó el marcador castigaría
-  // a los 14 por algo que jamás pudieron hacer.
+  // El castigo por no votar tiene tres condiciones, y las tres importan:
+  //
+  // 1. Las votaciones se abrieron. Un partido al que solo se le cargó el
+  //    marcador castigaría a los 14 por algo que jamás pudieron hacer.
+  // 2. El partido es del período en que la regla ya existe. La fecha la pone el
+  //    club; sin fecha no se castiga nada, así que un recálculo no la vuelve
+  //    retroactiva sobre partidos de cuando nadie sabía que esto existía.
+  // 3. La votación NO llegó al quórum de votantes. Si alcanzó, los
+  //    reconocimientos se repartieron igual y no hubo daño — el castigo existe
+  //    para que haya votos suficientes, no para cobrarle a cada quien.
   const huboVotacion = (partido as { evaluaciones_ya_abiertas?: boolean | null }).evaluaciones_ya_abiertas === true
-  const castigaNoVotar = castigoNoVotar && huboVotacion
+  const quorumVotantes = await getQuorum(admin, clubId)
+  const alcanzoQuorum = votaron.size >= quorumVotantes.minVotantes
+  const castigaNoVotar =
+    huboVotacion &&
+    castigaEnFecha(castigoNoVotar, partido.fecha as string) &&
+    !alcanzoQuorum
 
   // ── Racha de faltas ────────────────────────────────────────────────────────
   // Basta con este partido y los (gap − 1) anteriores: si la racha no llega a
@@ -296,7 +310,7 @@ export async function applyMatchRatings(
 
       if (castigaNoVotar && !votaron.has(id)) {
         raw -= STEP
-        motivos.push('no votó')
+        motivos.push('no votó')  // la votación además se quedó sin quórum
       }
 
       const up = likes.get(id) ?? 0

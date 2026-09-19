@@ -63,18 +63,43 @@ export const THUMBS_CONFIG = [
 // abstenciones ("No aplica") y pulgares. Lo que se castiga es no abrir la
 // pantalla, no el contenido de lo que votaste.
 export const CASTIGO_NO_VOTAR_KEY = 'reco_castigo_no_votar'
+/** YYYY-MM-DD. Solo se castiga a partir de esta fecha de partido. Vacío = nunca. */
+export const CASTIGO_DESDE_KEY = 'reco_castigo_no_votar_desde'
 
 export const RECO_CONFIG_KEYS = [
   ...RECO_CONFIG.map(c => c.key),
   ...THUMBS_CONFIG.map(c => c.key),
   CASTIGO_NO_VOTAR_KEY,
+  CASTIGO_DESDE_KEY,
 ] as readonly string[]
 
-/** ¿El club castiga a quien jugó y no votó? Default: sí. */
-export function castigoNoVotarDeSettings(settings: Record<string, unknown>): boolean {
+export interface CastigoNoVotar {
+  activo: boolean
+  /** null = sin fecha configurada, y entonces no se castiga nada. */
+  desde: string | null
+}
+
+const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * Cómo está configurado el castigo por no votar.
+ *
+ * La fecha NO tiene default a propósito. Sin ella no se castiga a nadie, así que
+ * la regla no puede volverse retroactiva por accidente: el club decide desde
+ * cuándo cuenta, y los partidos anteriores quedan como lo que fueron, un período
+ * en el que nadie sabía que esto existía.
+ */
+export function castigoNoVotarDeSettings(settings: Record<string, unknown>): CastigoNoVotar {
   const v = settings[CASTIGO_NO_VOTAR_KEY]
-  if (v === false || v === 'false') return false
-  return true
+  const activo = !(v === false || v === 'false')
+  const raw = settings[CASTIGO_DESDE_KEY]
+  const desde = typeof raw === 'string' && FECHA_RE.test(raw) ? raw : null
+  return { activo, desde }
+}
+
+/** ¿Se castiga a quien no votó en un partido de esta fecha? */
+export function castigaEnFecha(cfg: CastigoNoVotar, fechaPartido: string): boolean {
+  return cfg.activo && cfg.desde !== null && fechaPartido >= cfg.desde
 }
 
 export type RecoConfigKey =
@@ -161,11 +186,11 @@ export async function getThumbsPaso(
   return thumbsPasoDeSettings(await leerSettings(admin, clubId))
 }
 
-/** ¿El club castiga a quien jugó y no votó? */
+/** Cómo está configurado el castigo por no votar en este club. */
 export async function getCastigoNoVotar(
   admin: ReturnType<typeof createAdminClient>,
   clubId: string
-): Promise<boolean> {
+): Promise<CastigoNoVotar> {
   return castigoNoVotarDeSettings(await leerSettings(admin, clubId))
 }
 

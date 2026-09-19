@@ -7,7 +7,7 @@ import { Card } from '@/components/Card'
 import { SectionHeader } from '@/components/SectionHeader'
 import { ButtonGroup } from '@/components/ButtonGroup'
 import { GAME_CONFIG } from '@/lib/gameConfig'
-import { RECO_CONFIG, THUMBS_CONFIG, CASTIGO_NO_VOTAR_KEY } from '@/lib/reconocimientos'
+import { RECO_CONFIG, THUMBS_CONFIG, CASTIGO_NO_VOTAR_KEY, CASTIGO_DESDE_KEY } from '@/lib/reconocimientos'
 import { FALTAS_CONFIG } from '@/lib/faltas'
 import { NOTIF_EVENTS } from '@/lib/notifications'
 import { BadgesEditor, TiersEditor } from '@/components/admin/RatingConfigEditor'
@@ -465,14 +465,37 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
                 <div style={{ fontSize: 14, fontWeight: 500 }}>Castigar a quien no vota</div>
                 <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.6 }}>
                   Jugó el partido y no evaluó a nadie: −0.02. Cuenta cualquier
-                  evaluación enviada, incluidos los &ldquo;No aplica&rdquo; y los pulgares
-                  sueltos. Nunca se aplica si las votaciones no llegaron a abrirse.
+                  evaluación enviada, incluidos los &ldquo;No aplica&rdquo; y los pulgares sueltos.
+                  <br /><br />
+                  No se aplica si las votaciones no llegaron a abrirse, ni si la
+                  votación <b>sí alcanzó</b> los votantes mínimos del quórum — si hubo
+                  votos suficientes los reconocimientos se repartieron igual y nadie
+                  salió perjudicado.
                 </div>
               </div>
               <ToggleSwitch
                 checked={settings[CASTIGO_NO_VOTAR_KEY] !== false}
                 onChange={v => toggleSetting(CASTIGO_NO_VOTAR_KEY, v)}
               />
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
+                SOLO PARTIDOS DESDE
+                {savingText === CASTIGO_DESDE_KEY && <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>guardando...</span>}
+              </label>
+              <input
+                type="date"
+                value={(settings[CASTIGO_DESDE_KEY] as string) ?? ''}
+                onChange={e => setSettings(prev => ({ ...prev, [CASTIGO_DESDE_KEY]: e.target.value }))}
+                onBlur={e => guardarTexto(CASTIGO_DESDE_KEY, e.target.value)}
+                style={{ width: '100%', boxSizing: 'border-box', maxWidth: 220 }}
+              />
+              <div className="mono" style={{ fontSize: 9, color: (settings[CASTIGO_DESDE_KEY] as string) ? 'var(--text-dim)' : 'var(--amber)', marginTop: 6, lineHeight: 1.6 }}>
+                {(settings[CASTIGO_DESDE_KEY] as string)
+                  ? 'Los partidos anteriores a esta fecha nunca se castigan, ni al recalcular.'
+                  : 'Sin fecha no se castiga a nadie. Ponla en el próximo partido para que la regla no sea retroactiva.'}
+              </div>
             </div>
           </Card>
 

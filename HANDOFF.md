@@ -2,7 +2,7 @@
 
 Varias sesiones de Claude trabajan este repo (local en Windows y cloud). **GitHub `main` es lo único que comparten.** Esta conversación, `.env.local`, las ramas locales y la memoria de cada sesión no viajan. Si algo importa, va aquí.
 
-Última actualización: 2026-09-19 (cloud — recordatorio de votación 7 PM, castigo no retroactivo y exento con quórum).
+Última actualización: 2026-09-19 (cloud — migraciones y configuración de puntaje al día; nada pendiente de correr).
 
 ---
 
@@ -75,7 +75,7 @@ Estado según lo que el usuario confirmó en conversación. **Si no dice "corrid
 | `20260917_registro_sin_metadata_del_cliente.sql` | corrida | cloud |
 | `20260917_storage_limpiar_duplicadas.sql` | corrida | quedan solo las 5 `mbafc_*`, todas `{authenticated}`. Ojo: la prueba con llave anon que se citaba aquí era del 2026-09-12, anterior a esta migración |
 | `20260917_thumbs_sin_politicas.sql` | corrida | `player_thumbs` queda con RLS y cero políticas |
-| `20260919_recordatorio_votar.sql` | **pendiente** | `partidos.notif_votar_sent`. El cron degrada solo si falta, pero sin ella el recordatorio no sale. |
+| `20260919_recordatorio_votar.sql` | corrida | `partidos.notif_votar_sent`, y el histórico marcado para que no salga un recordatorio retroactivo |
 | `20260918_limpiar_badges_pocos_votos.sql` | corrida | borró los reconocimientos de ≤2 votos y los dejó vetados. **Pide dos cosas que el SQL no puede hacer: subir `reco_min_ganador` a 3 en Ajustes, y ♻️ Recalcular.** Ver §5.7. |
 | `20260917_votos_sin_politicas.sql` | corrida o innecesaria | las 3 políticas que buscaba eran `{public}`, así que `quitar_politicas_public` las barrió igual. Estado final verificado: `votos_reconocimiento` sin políticas |
 | `20260917_habilidad_precision.sql` | corrida | el usuario vio su rating corregido (3.3 → 3.05) |
@@ -142,16 +142,20 @@ Se revisaron los 24 commits de la sesión cloud (`8941b9b..HEAD`): rutas de API 
 
 **Punto latente, no explotable hoy, para cuando se retome multi-club:** `stamp-registro` usa `ip_registro IS NULL` como candado de un solo uso. Si `getClientIp` devuelve `unknown`, `ip_registro` se queda en NULL y el endpoint sigue llamable — y reescribe `club_id`. Con un solo club y las cabeceras saneadas no lleva a ninguna parte. Cuando existan subdominios por club, cambiar el candado a "solo si el perfil se creó hace menos de X minutos", o sellar `club_id` una sola vez aparte de la IP.
 
-### 5.7 Después de limpiar los reconocimientos de ≤2 votos — PENDIENTE
-`20260918_limpiar_badges_pocos_votos.sql` ya corrió, pero el SQL solo hace la mitad del trabajo. Faltan dos cosas, y sin ellas la limpieza queda a medias:
+### 5.7 Configuración de puntaje — al día (2026-09-19)
+Todo lo que quedaba del panel está aplicado:
 
-1. **♻️ Recalcular ratings** (Ajustes → Puntaje). Cada reconocimiento vale ±0.02 y los `rating_events` ya aplicados todavía incluyen los que se borraron. Hasta recalcular, la gente conserva puntaje de reconocimientos que ya no tiene.
-2. **Subir `reco_min_ganador` de 2 a 3** (Ajustes → Puntaje → Quórum de reconocimientos). El quórum vigente asigna si `votos ≥ 5` **O** `votantes ≥ 8`, con piso 2 — ese "o" es justo lo que deja pasar a un ganador de 2 votos en un partido concurrido. Sin cambiarlo, el próximo partido reparte lo mismo y hay que volver a correr la limpieza.
+- `reco_min_ganador` = **3**. El quórum asigna con `votos ≥ 5` **O** `votantes ≥ 8`; ese "o" dejaba pasar a un ganador de 2 votos en un partido concurrido, y el piso de 2 no lo frenaba.
+- `reco_castigo_no_votar_desde` **configurada**. Sin fecha no se castiga a nadie; con fecha, solo cuentan los partidos de ahí en adelante. Lo anterior queda como lo que fue, un período en que nadie sabía que la regla existía.
+- ♻️ Recalcular corrido después de la limpieza de reconocimientos de ≤2 votos.
+
+**Si alguna vez hay que volver a recalcular**, revisar antes estos tres valores: el recálculo aplica las reglas de HOY a todo el historial, y la fecha del castigo es lo único que evita que la regla de no votar se vuelva retroactiva.
 
 ### 5.4 Otros
 - **Invitaciones / multi-club:** pausado hasta comprar dominio (subdominios por club, `NEXT_PUBLIC_ROOT_DOMAIN`, `ALLOWED_ORIGINS`).
 - **Prueba de aislamiento entre clubes:** propuesta, no hecha. Un club canario con datos dummy, más un script que inicie sesión en cada club e intente leer y escribir datos del otro por cada ruta y tabla. Requiere que el usuario cree el usuario canario.
 - **Verificar en Vercel** que `NEXT_PUBLIC_SITE_URL` no sea localhost.
+- **Primer recordatorio de votación, sin ver todavía:** sale a las 7 PM del día siguiente al próximo partido, y solo si la votación no llegó a `reco_min_votantes`. Vale la pena mirar el `activity_log` esa noche: `recordatorio_votar` (con cuántos push/email salieron) o `recordatorio_votar_omitido` si ya había quórum.
 - **Prueba funcional con sesión de jugador, sin hacer:** las migraciones de RLS quitaron todas las políticas de escritura. La app no debería notarlo (el navegador no escribe en ninguna tabla: cero `insert`/`update`/`delete`/`upsert` y cero `.rpc()` en los doce archivos que usan el cliente de navegador), pero eso se verificó leyendo el código, no usando la app. Falta abrir home, lista del partido, historial y perfil con una sesión de jugador normal, e inscribirse y retirarse.
 - **`avatars`: sin verificar si alguien subió algo** mientras existieron las políticas concedidas a `{public}`. La consulta que lo responde: `SELECT name, owner, created_at FROM storage.objects WHERE bucket_id='avatars' AND (owner IS NULL OR (storage.foldername(name))[1] <> owner::text)`. 0 filas = nunca se abusó.
 - ~~`tsconfig.tsbuildinfo` versionado~~ — resuelto: destrackeado y `*.tsbuildinfo` en `.gitignore`.

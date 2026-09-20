@@ -45,6 +45,35 @@ const PRIVILEGED_ROLES = new Set(['admin', 'superadmin'])
 const isPrivileged = (role: string | undefined | null) => PRIVILEGED_ROLES.has(role ?? '')
 const ERR_PRIVILEGED = NextResponse.json({ error: 'No se puede aplicar esta acción a un administrador o superadmin' }, { status: 403 })
 
+/**
+ * Lee una tabla entera por páginas.
+ *
+ * PostgREST devuelve como máximo ~1000 filas por petición y lo hace en silencio:
+ * no hay error, simplemente faltan datos. Cualquier conteo hecho sobre el
+ * resultado de un `.select()` sin paginar es correcto solo mientras la tabla sea
+ * chica, y deja de serlo sin avisar. Usar esto siempre que se cuente sobre
+ * votos, pulgares o inscripciones de varios partidos a la vez.
+ *
+ * Cada página debe ordenarse por una columna única (`id`): sin ORDER BY, dos
+ * consultas seguidas no tienen por qué devolver las filas en el mismo orden y
+ * la paginación se saltaría unas y repetiría otras.
+ */
+async function leerTodo<T>(
+  pagina: (desde: number, hasta: number) => PromiseLike<{ data: unknown; error: unknown }>,
+  tam = 1000
+): Promise<T[]> {
+  const out: T[] = []
+  for (let i = 0; ; i += tam) {
+    const { data, error } = await pagina(i, i + tam - 1)
+    if (error) { console.error('[leerTodo] página', i, error); break }
+    const filas = (data ?? []) as T[]
+    out.push(...filas)
+    if (filas.length < tam) break
+    if (out.length > 200000) break  // cinturón: nunca dar vueltas sin fin
+  }
+  return out
+}
+
 // Audit-log IP. Proxy-set value only — the first x-forwarded-for entry is
 // whatever the caller chose to send.
 function getIP(req: NextRequest) {
@@ -211,11 +240,25 @@ export async function GET(req: NextRequest) {
     const ids = ((partidos ?? []) as { id: string }[]).map(p => p.id)
     if (ids.length === 0) return NextResponse.json({ ok: true, progreso: {} })
 
-    const [votosRes, thumbsRes, insRes] = await Promise.all([
-      admin.from('votos_reconocimiento').select('partido_id, votante_id').in('partido_id', ids),
-      admin.from('player_thumbs').select('partido_id, votante_id').in('partido_id', ids),
-      admin.from('inscripciones').select('partido_id').eq('estado', 'confirmado').in('partido_id', ids),
+    // OJO: estas tablas pasan las 1000 filas que PostgREST devuelve por defecto.
+    // Sin paginar, la primera versión de esto mostraba "2 de 14 votaron" en un
+    // partido donde habían votado 8 — inscripciones cabía bajo el tope y salía
+    // bien, pero votos_reconocimiento y player_thumbs venían cortadas.
+    const [votos, thumbs, ins] = await Promise.all([
+      leerTodo<{ partido_id: string; votante_id: string }>(
+        (desde_, hasta_) => admin.from('votos_reconocimiento')
+          .select('partido_id, votante_id').in('partido_id', ids).order('id').range(desde_, hasta_)
+      ),
+      leerTodo<{ partido_id: string; votante_id: string }>(
+        (desde_, hasta_) => admin.from('player_thumbs')
+          .select('partido_id, votante_id').in('partido_id', ids).order('id').range(desde_, hasta_)
+      ),
+      leerTodo<{ partido_id: string }>(
+        (desde_, hasta_) => admin.from('inscripciones')
+          .select('partido_id').eq('estado', 'confirmado').in('partido_id', ids).order('id').range(desde_, hasta_)
+      ),
     ])
+    const votosRes = { data: votos }, thumbsRes = { data: thumbs }, insRes = { data: ins }
 
     // Un jugador cuenta una sola vez aunque haya mandado votos y pulgares.
     const votantes = new Map<string, Set<string>>()

@@ -42,6 +42,23 @@ export function MatchResultCard({ titulo, partido, badges }: {
   badges: MatchBadge[]
 }) {
   const p = partido
+  // Un empate son DOS filas en player_badges, una por ganador. Sin agrupar, la
+  // tarjeta repetía la categoría ("La más perrota" dos veces con nombres
+  // distintos) y parecía un error de conteo. Agrupadas se lee lo que es.
+  const categorias = (() => {
+    const porId = new Map<string, { badge_id: string; emoji: string; nombre: string; votos: number | null; ganadores: string[] }>()
+    for (const b of badges) {
+      const prev = porId.get(b.badge_id)
+      const quien = b.profiles?.username ?? '?'
+      if (prev) prev.ganadores.push(quien)
+      else porId.set(b.badge_id, {
+        badge_id: b.badge_id, emoji: b.badge_emoji, nombre: b.badge_nombre,
+        votos: b.votos ?? null, ganadores: [quien],
+      })
+    }
+    for (const c of porId.values()) c.ganadores.sort()
+    return [...porId.values()]
+  })()
   const esMinitorneo = p.tipo === 'minitorneo'
   const hora = formatHora12(p.hora)
 
@@ -102,25 +119,30 @@ export function MatchResultCard({ titulo, partido, badges }: {
           }
           return null
         })()}
-        {badges.length > 0 && (
+        {categorias.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {badges.map(b => (
-              <div key={b.badge_id + (b.profiles?.username ?? '')} style={{
+            {categorias.map(c => (
+              <div key={c.badge_id} style={{
                 display: 'flex', alignItems: 'center', gap: 12,
                 padding: '10px 14px', background: 'var(--bg-card)',
                 border: '1px solid var(--border)', borderRadius: 4,
               }}>
-                <span style={{ fontSize: 22, flexShrink: 0 }}>{b.badge_emoji}</span>
+                <span style={{ fontSize: 22, flexShrink: 0 }}>{c.emoji}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 1 }}>
-                    {b.badge_nombre}
-                    {typeof b.votos === 'number' && (
+                    {c.nombre}
+                    {typeof c.votos === 'number' && (
                       <span style={{ color: 'var(--text-dim)' }}>
-                        {' '}· {b.votos} voto{b.votos !== 1 ? 's' : ''}
+                        {' '}· {c.votos} voto{c.votos !== 1 ? 's' : ''}{c.ganadores.length > 1 ? ' c/u' : ''}
                       </span>
                     )}
+                    {c.ganadores.length > 1 && (
+                      <span style={{ color: 'var(--amber)' }}> · EMPATE</span>
+                    )}
                   </div>
-                  <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.profiles?.username ?? '?'}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {c.ganadores.join(' y ')}
+                  </div>
                 </div>
               </div>
             ))}

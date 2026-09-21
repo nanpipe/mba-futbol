@@ -2,7 +2,7 @@
 
 Varias sesiones de Claude trabajan este repo (local en Windows y cloud). **GitHub `main` es lo único que comparten.** Esta conversación, `.env.local`, las ramas locales y la memoria de cada sesión no viajan. Si algo importa, va aquí.
 
-Última actualización: 2026-09-20 (cloud — conteo de votaciones corregido; **sin migraciones nuevas, nada pendiente de correr**).
+Última actualización: 2026-09-21 (cloud — límites del plan gratis medidos, §5.8; sin migraciones pendientes).
 
 ---
 
@@ -151,6 +151,20 @@ Todo lo que quedaba del panel está aplicado:
 - ♻️ Recalcular corrido después de la limpieza de reconocimientos de ≤2 votos.
 
 **Si alguna vez hay que volver a recalcular**, revisar antes estos tres valores: el recálculo aplica las reglas de HOY a todo el historial, y la fecha del castigo es lo único que evita que la regla de no votar se vuelva retroactiva.
+
+### 5.8 Límites del plan gratis — medido 2026-09-21, sin acción urgente
+
+Herramienta: `supabase/auditoria_peso.sql` (no es migración, no cambia nada).
+
+Medido en producción: **storage 56 MB de 1 GB (5,5%), creciendo 119 MB/año → ~8 años de margen.** La base de datos crece ~12 MB/año contra 500 MB, o sea décadas.
+
+- **NO hay que borrar historia cada año.** Es la conclusión importante y es contraintuitiva. Las tablas que más crecen (`player_thumbs`, `votos_reconocimiento`) son filas de puros uuid: a tres años juntas no llegan a 10 MB. Borrar historia no libera nada que importe **y rompe el recálculo de rating**, que replaya todos los partidos desde el principio para reconstruir el ledger. Si una sesión futura propone un purgado de datos "por espacio", esto es la respuesta: no.
+- **Lo que sí crece son las fotos de partido**, y se suben **sin comprimir** (hasta 8 MB, `api/admin/foto/route.ts`). Los avatares sí se comprimen (800px, máx 1 MB, `perfil/page.tsx`) y se sobrescriben, así que están acotados.
+- **Fuga conocida, no cuantificada:** el nombre del archivo lleva timestamp (`<partido_id>/foto-<ms>.jpg`), así que volver a subir la foto de un partido crea otra y **nada borra la anterior** — ni borrar el partido. Consulta 6 del script.
+- **Lo que el SQL NO puede ver: el egress, 5 GB/mes.** Está solo en el dashboard (Settings → Usage). Es el límite que no avisa con años de anticipación. La foto del último partido la descarga cada jugador cada vez que abre el home.
+- **Idea descartada (por ahora): app aparte para consultar historial.** Los números no la justifican, y un segundo proyecto gratis de Supabase **se pausa a los 7 días sin actividad** — un historial que se consulta de vez en cuando estaría caído casi siempre. Si algún día hace falta un archivo permanente, lo que no se cae es no tener base: un HTML/JSON estático generado una vez al año en GitHub Pages.
+- **Cuidado con la tasa:** los 8 años salen de una ventana de ~3 meses de fotos, y las cámaras de celular crecen con los años. Contar con 5 o 6, no con 8.
+- Pendiente menor: `activity_log` tiene 87 sitios que escriben y **nada que borre**. ~2 MB/año, no urge, pero es la única tabla que crece por uso y no por partidos.
 
 ### 5.4 Otros
 - **Invitaciones / multi-club:** pausado hasta comprar dominio (subdominios por club, `NEXT_PUBLIC_ROOT_DOMAIN`, `ALLOWED_ORIGINS`).

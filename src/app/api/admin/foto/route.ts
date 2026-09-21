@@ -6,7 +6,12 @@ import { logActivity } from '@/lib/activityLog'
 
 export const dynamic = 'force-dynamic'
 
-const MAX_BYTES = 8 * 1024 * 1024 // 8 MB
+// El cliente recorta a 16:9, reduce a 1280 px y pasa a WebP antes de subir
+// (`lib/imagen.ts`), así que lo que llega aquí pesa ~150 KB. El tope se deja en
+// 3 MB y no en 8: el navegador no es de fiar — quien se lo salte no debería
+// poder llenar el storage igual que antes — pero un cliente con caché vieja,
+// que todavía mande la foto cruda, tiene que poder terminar su subida.
+const MAX_BYTES = 3 * 1024 * 1024 // 3 MB
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'])
 
 // POST /api/admin/foto — multipart upload of a match photo.
@@ -32,7 +37,7 @@ export async function POST(req: NextRequest) {
   const file = form.get('file')
   if (typeof partido_id !== 'string' || !isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
   if (!(file instanceof Blob)) return NextResponse.json({ error: 'Archivo faltante' }, { status: 400 })
-  if (file.size > MAX_BYTES) return NextResponse.json({ error: 'Imagen muy grande (máx 8 MB)' }, { status: 400 })
+  if (file.size > MAX_BYTES) return NextResponse.json({ error: 'Imagen muy grande (máx 3 MB). Si la app está desactualizada, ciérrala y vuelve a abrirla.' }, { status: 400 })
   if (file.type && !ALLOWED.has(file.type)) return NextResponse.json({ error: 'Formato no permitido' }, { status: 400 })
 
   // Partido must belong to the admin's club
@@ -52,6 +57,24 @@ export async function POST(req: NextRequest) {
 
   const { error: updErr } = await admin.from('partidos').update({ foto_url: publicUrl }).eq('id', partido_id).eq('club_id', clubId)
   if (updErr) return NextResponse.json({ error: 'Error guardando URL' }, { status: 500 })
+
+  // Borrar las fotos anteriores de este partido.
+  //
+  // El nombre lleva timestamp para romper cachés, así que `upsert` NO reemplaza
+  // nada: cada resubida creaba un archivo nuevo y el viejo quedaba ocupando
+  // espacio para siempre, sin que nada lo apuntara. Se limpia DESPUÉS de que la
+  // nueva quedó guardada y referenciada, para no dejar el partido sin foto si
+  // algo falla en el camino. Que falle el borrado no es motivo para fallar la
+  // subida: la foto ya está bien, esto solo recupera espacio.
+  try {
+    const { data: previas } = await admin.storage.from('match-photos').list(partido_id)
+    const sobran = (previas ?? [])
+      .map(o => `${partido_id}/${o.name}`)
+      .filter(p => p !== path)
+    if (sobran.length > 0) await admin.storage.from('match-photos').remove(sobran)
+  } catch (e) {
+    console.error('[foto] no se pudieron borrar las fotos previas', e)
+  }
 
   await logActivity({ user_id: user.id, username: (prof as { username?: string })?.username, accion: 'guardar_foto_partido', detalles: { partido_id } })
   return NextResponse.json({ ok: true, foto_url: publicUrl })

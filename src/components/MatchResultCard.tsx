@@ -74,12 +74,23 @@ export function MatchResultCard({ titulo, partido, badges }: {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {p.foto_url && (
-          <div style={{ borderRadius: 6, overflow: 'hidden' }}>
+          // Desde 2026-09-21 las fotos se suben recortadas a 16:9, así que la
+          // caja reserva esa forma y la tarjeta deja de saltar de alto según la
+          // foto de cada partido.
+          //
+          // `contain` y no `cover` a propósito: las fotos ANTERIORES a ese
+          // cambio tienen otras proporciones, y `cover` las recortaría para
+          // llenar la caja — una foto vertical vieja quedaría en una franja
+          // delgada, cortando cabezas. Con `contain` la nueva llena la caja
+          // exacta (sin franjas, porque ya viene 16:9) y la vieja se ve
+          // completa con algo de negro al lado. Se gana el alto parejo sin
+          // estropear lo que ya está subido.
+          <div style={{ borderRadius: 6, overflow: 'hidden', aspectRatio: '16 / 9', background: '#000' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={p.foto_url}
               alt="Foto del partido"
-              style={{ width: '100%', display: 'block', maxHeight: 400, objectFit: 'contain' }}
+              style={{ width: '100%', height: '100%', display: 'block', objectFit: 'contain' }}
             />
           </div>
         )}

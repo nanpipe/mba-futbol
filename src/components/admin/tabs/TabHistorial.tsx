@@ -9,6 +9,7 @@ import { SectionHeader } from '@/components/SectionHeader'
 import { ButtonGroup } from '@/components/ButtonGroup'
 import { calcularVentanaPartido } from '@/lib/partidos'
 import { fechaColombia } from '@/lib/promoHora'
+import { RecorteFotoModal } from '@/components/admin/RecorteFotoModal'
 
 interface Props {
   active: boolean
@@ -99,6 +100,8 @@ export function TabHistorial({ active }: Props) {
   const [progreso, setProgreso] = useState<Record<string, { votaron: number; total: number }>>({})
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [uploadingFoto, setUploadingFoto] = useState(false)
+  // Foto elegida esperando encuadre. Solo se sube lo que sale del recortador.
+  const [porRecortar, setPorRecortar] = useState<{ partidoId: string; file: File } | null>(null)
 
   const showFlash = (msg: string) => {
     setFlash(msg)
@@ -628,7 +631,11 @@ export function TabHistorial({ active }: Props) {
                           accept="image/*"
                           style={{ display: 'none' }}
                           disabled={uploadingFoto}
-                          onChange={e => { const f = e.target.files?.[0]; if (f) handleFotoUpload(p.id, f) }}
+                          onChange={e => {
+                            const f = e.target.files?.[0]
+                            e.target.value = ''   // permite reelegir la misma tras cancelar
+                            if (f) setPorRecortar({ partidoId: p.id, file: f })
+                          }}
                         />
                       </label>
                       <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 6 }}>
@@ -679,6 +686,18 @@ export function TabHistorial({ active }: Props) {
             )
           })}
         </div>
+      )}
+
+      {porRecortar && (
+        <RecorteFotoModal
+          archivo={porRecortar.file}
+          onCancelar={() => setPorRecortar(null)}
+          onListo={f => {
+            const { partidoId } = porRecortar
+            setPorRecortar(null)
+            handleFotoUpload(partidoId, f)
+          }}
+        />
       )}
     </div>
   )

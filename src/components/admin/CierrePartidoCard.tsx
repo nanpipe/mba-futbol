@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { RecorteFotoModal } from '@/components/admin/RecorteFotoModal'
 
 // "¿Se jugó el partido?" — shown to admins one hour after kickoff, on the home
 // screen and at the top of the admin panel, until the match has an answer and
@@ -49,6 +50,9 @@ export function CierrePartidoCard({ onDone }: { onDone?: () => void }) {
   const [ptsN, setPtsN] = useState('')
   const [ptsM, setPtsM] = useState('')
   const [foto, setFoto] = useState<File | null>(null)
+  // El archivo recién elegido, esperando que el admin lo encuadre. `foto` es
+  // el resultado ya recortado y comprimido, que es lo único que se sube.
+  const [porRecortar, setPorRecortar] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -235,10 +239,24 @@ export function CierrePartidoCard({ onDone }: { onDone?: () => void }) {
                 accept="image/*"
                 style={{ display: 'none' }}
                 disabled={saving}
-                onChange={e => setFoto(e.target.files?.[0] ?? null)}
+                onChange={e => {
+                  const f = e.target.files?.[0] ?? null
+                  // Se limpia el input para que volver a elegir la MISMA foto
+                  // después de cancelar dispare el change otra vez.
+                  e.target.value = ''
+                  setPorRecortar(f)
+                }}
               />
             </label>
           </div>
+
+          {porRecortar && (
+            <RecorteFotoModal
+              archivo={porRecortar}
+              onCancelar={() => setPorRecortar(null)}
+              onListo={f => { setFoto(f); setPorRecortar(null) }}
+            />
+          )}
 
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <button onClick={guardarResultado} disabled={saving} className="btn btn-primary" style={{ padding: '10px 20px', fontSize: 13 }}>

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isUUID } from '@/lib/validation'
 import { logActivity } from '@/lib/activityLog'
+import { listarCarpeta, sobrantes, PAGINA_STORAGE } from '@/lib/fotosStorage'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +14,8 @@ export const dynamic = 'force-dynamic'
 // que todavía mande la foto cruda, tiene que poder terminar su subida.
 const MAX_BYTES = 3 * 1024 * 1024 // 3 MB
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'])
+
+const BUCKET = 'match-photos'
 
 // POST /api/admin/foto — multipart upload of a match photo.
 // Uploads with the service-role client (bypasses storage RLS) so admins never
@@ -49,11 +52,11 @@ export async function POST(req: NextRequest) {
   const buffer = Buffer.from(await file.arrayBuffer())
 
   const { error: upErr } = await admin.storage
-    .from('match-photos')
+    .from(BUCKET)
     .upload(path, buffer, { contentType: file.type || 'image/jpeg', upsert: true })
   if (upErr) return NextResponse.json({ error: `Error subiendo foto: ${upErr.message}` }, { status: 500 })
 
-  const { data: { publicUrl } } = admin.storage.from('match-photos').getPublicUrl(path)
+  const { data: { publicUrl } } = admin.storage.from(BUCKET).getPublicUrl(path)
 
   const { error: updErr } = await admin.from('partidos').update({ foto_url: publicUrl }).eq('id', partido_id).eq('club_id', clubId)
   if (updErr) return NextResponse.json({ error: 'Error guardando URL' }, { status: 500 })
@@ -66,12 +69,27 @@ export async function POST(req: NextRequest) {
   // nueva quedó guardada y referenciada, para no dejar el partido sin foto si
   // algo falla en el camino. Que falle el borrado no es motivo para fallar la
   // subida: la foto ya está bien, esto solo recupera espacio.
+  //
+  // Lo que se conserva es LA FOTO QUE LA BASE APUNTA AHORA, releída aquí, no la
+  // que subió esta petición (ver `sobrantes` en lib/fotosStorage).
   try {
-    const { data: previas } = await admin.storage.from('match-photos').list(partido_id)
-    const sobran = (previas ?? [])
-      .map(o => `${partido_id}/${o.name}`)
-      .filter(p => p !== path)
-    if (sobran.length > 0) await admin.storage.from('match-photos').remove(sobran)
+    const { data: fila } = await admin
+      .from('partidos').select('foto_url').eq('id', partido_id).eq('club_id', clubId).single()
+    const vigente = (fila as { foto_url?: string | null } | null)?.foto_url || publicUrl
+
+    const sobran = sobrantes(
+      await listarCarpeta(admin.storage.from(BUCKET), partido_id),
+      partido_id,
+      vigente,
+    )
+
+    // `remove` en lotes: una carpeta con la basura acumulada por la fuga vieja
+    // puede traer bastantes más de las dos o tres que tendría normalmente.
+    for (let i = 0; i < sobran.length; i += PAGINA_STORAGE) {
+      const lote = sobran.slice(i, i + PAGINA_STORAGE)
+      const { error } = await admin.storage.from(BUCKET).remove(lote)
+      if (error) { console.error('[foto] borrando lote', i, error); break }
+    }
   } catch (e) {
     console.error('[foto] no se pudieron borrar las fotos previas', e)
   }

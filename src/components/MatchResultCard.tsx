@@ -78,19 +78,34 @@ export function MatchResultCard({ titulo, partido, badges }: {
           // caja reserva esa forma y la tarjeta deja de saltar de alto según la
           // foto de cada partido.
           //
-          // `contain` y no `cover` a propósito: las fotos ANTERIORES a ese
-          // cambio tienen otras proporciones, y `cover` las recortaría para
-          // llenar la caja — una foto vertical vieja quedaría en una franja
-          // delgada, cortando cabezas. Con `contain` la nueva llena la caja
-          // exacta (sin franjas, porque ya viene 16:9) y la vieja se ve
-          // completa con algo de negro al lado. Se gana el alto parejo sin
-          // estropear lo que ya está subido.
-          <div style={{ borderRadius: 6, overflow: 'hidden', aspectRatio: '16 / 9', background: '#000' }}>
+          // Las fotos ANTERIORES tienen cualquier proporción, y ahí hay que
+          // elegir: `cover` las recortaría (una vertical quedaría en una franja
+          // delgada, cortando cabezas) y `contain` las deja completas pero con
+          // dos vacíos negros enormes al lado, que se ven como un error.
+          //
+          // Salida: `contain` sobre un fondo hecho con la MISMA foto ampliada y
+          // desenfocada. No se recorta nada, el hueco deja de leerse como un
+          // error, y para una foto que ya viene 16:9 el fondo no se ve nunca
+          // porque la de adelante lo tapa entero. El admin puede arreglar las
+          // viejas de verdad con "✂️ Reencuadrar" en el historial.
+          <div style={{ position: 'relative', borderRadius: 6, overflow: 'hidden', aspectRatio: '16 / 9', background: '#000' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={p.foto_url}
+              alt=""
+              aria-hidden="true"
+              style={{
+                position: 'absolute', inset: 0, width: '100%', height: '100%',
+                objectFit: 'cover', filter: 'blur(24px) brightness(0.45)',
+                // Sin esto se ven los bordes del desenfoque contra el marco.
+                transform: 'scale(1.15)',
+              }}
+            />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={p.foto_url}
               alt="Foto del partido"
-              style={{ width: '100%', height: '100%', display: 'block', objectFit: 'contain' }}
+              style={{ position: 'relative', width: '100%', height: '100%', display: 'block', objectFit: 'contain' }}
             />
           </div>
         )}

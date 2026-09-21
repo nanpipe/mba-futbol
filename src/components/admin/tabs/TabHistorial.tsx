@@ -282,6 +282,32 @@ export function TabHistorial({ active }: Props) {
     setRemovingId(null)
   }
 
+  /**
+   * Reencuadrar una foto YA subida, sin volver a buscarla en el carrete.
+   *
+   * Las fotos anteriores al recorte obligatorio tienen cualquier proporción, y
+   * una vertical dentro de la caja 16:9 queda con dos franjas negras enormes.
+   * Esto la baja del storage, la mete al mismo recortador y sube el resultado.
+   *
+   * Se baja con `fetch` y no dibujando la <img> directo: una imagen de otro
+   * origen pintada en un canvas lo "contamina" y `toBlob` revienta. El bucket
+   * es público y responde con CORS abierto, así que el blob llega como dato
+   * local y el canvas queda limpio.
+   */
+  const reencuadrar = async (partidoId: string, url: string) => {
+    setUploadingFoto(true)
+    try {
+      const res = await fetch(url, { cache: 'reload' })
+      if (!res.ok) throw new Error(String(res.status))
+      const blob = await res.blob()
+      setPorRecortar({ partidoId, file: new File([blob], 'actual.jpg', { type: blob.type || 'image/jpeg' }) })
+    } catch {
+      showFlash('No se pudo abrir la foto actual. Vuelve a subirla desde el carrete.')
+    } finally {
+      setUploadingFoto(false)
+    }
+  }
+
   const handleFotoUpload = async (partidoId: string, file: File) => {
     setUploadingFoto(true)
     try {
@@ -611,14 +637,18 @@ export function TabHistorial({ active }: Props) {
                     <div>
                       <SectionHeader title="FOTO DEL PARTIDO" color="var(--text-muted)" />
                       {p.foto_url && (
-                        <div style={{ marginBottom: 10, borderRadius: 4, overflow: 'hidden', maxWidth: 340 }}>
+                        // Se muestra con la misma caja 16:9 que el home, para
+                        // que el admin vea aquí mismo si esta foto necesita
+                        // reencuadre en vez de enterarse en la pantalla de todos.
+                        <div style={{ marginBottom: 10, borderRadius: 4, overflow: 'hidden', maxWidth: 340, aspectRatio: '16 / 9', background: '#000' }}>
                           <img
                             src={p.foto_url!}
                             alt="Foto del partido"
-                            style={{ width: '100%', display: 'block', maxHeight: 200, objectFit: 'cover' }}
+                            style={{ width: '100%', height: '100%', display: 'block', objectFit: 'contain' }}
                           />
                         </div>
                       )}
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                       <label style={{
                         display: 'inline-block', padding: '8px 16px', fontSize: 12, cursor: uploadingFoto ? 'wait' : 'pointer',
                         border: '1px solid var(--border)', borderRadius: 3, background: 'var(--bg-card)',
@@ -638,6 +668,23 @@ export function TabHistorial({ active }: Props) {
                           }}
                         />
                       </label>
+                      {p.foto_url && (
+                        <button
+                          onClick={() => reencuadrar(p.id, p.foto_url!)}
+                          disabled={uploadingFoto}
+                          style={{
+                            padding: '8px 16px', fontSize: 12,
+                            cursor: uploadingFoto ? 'wait' : 'pointer',
+                            border: '1px solid var(--border)', borderRadius: 3,
+                            background: 'var(--bg-card)',
+                            color: uploadingFoto ? 'var(--text-dim)' : 'var(--text)',
+                            fontFamily: 'DM Mono, monospace', letterSpacing: '0.05em',
+                          }}
+                        >
+                          ✂️ Reencuadrar
+                        </button>
+                      )}
+                      </div>
                       <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 6 }}>
                         Se muestra en el dashboard cuando cierran las evaluaciones.
                       </div>

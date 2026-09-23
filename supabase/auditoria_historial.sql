@@ -89,16 +89,31 @@ ORDER BY p.fecha DESC LIMIT 30;
 
 
 -- ── 6. Cómo se vería la ficha de un jugador ────────────────────────────────
--- Cambia el username. Esto es exactamente lo que mostraría la cabecera de la
--- pantalla nueva al filtrar por una persona.
+-- Esto es exactamente lo que muestra la cabecera de /historial al filtrar por
+-- una persona, y tiene que dar EL MISMO número que la app.
+--
+-- OJO con el denominador. La primera versión de esta consulta dividía entre
+-- los JUGADOS y la app divide entre los DECIDIDOS, así que danielb3 salía con
+-- 50.0% aquí y 58.3% en pantalla. Es el porcentaje sobre los partidos de los
+-- que se sabe el resultado: los que no tienen equipos guardados no se pueden
+-- contar como derrota, y meterlos en el denominador baja el número de todos
+-- sin que nadie haya perdido nada. Si se cambia aquí, cambiar también
+-- `fichaDeEventos` en src/lib/historial.ts, o vuelven a discrepar.
 SELECT
   pr.username,
   count(*) FILTER (WHERE r.motivos ? 'jugó')    AS jugados,
   count(*) FILTER (WHERE r.motivos ? 'ganó')    AS ganados,
   count(*) FILTER (WHERE r.motivos ? 'perdió')  AS perdidos,
   count(*) FILTER (WHERE r.motivos ? 'empató')  AS empatados,
+  -- Jugó, pero sin equipos guardados: no se puede saber si ganó.
+  count(*) FILTER (WHERE r.motivos ? 'jugó'
+                     AND NOT (r.motivos ? 'ganó')
+                     AND NOT (r.motivos ? 'perdió')
+                     AND NOT (r.motivos ? 'empató'))  AS sin_datos,
   round(100.0 * count(*) FILTER (WHERE r.motivos ? 'ganó')
-        / NULLIF(count(*) FILTER (WHERE r.motivos ? 'jugó'), 0), 1) AS pct_victorias
+        / NULLIF(count(*) FILTER (WHERE r.motivos ? 'ganó'
+                                    OR r.motivos ? 'perdió'
+                                    OR r.motivos ? 'empató'), 0), 1) AS pct_victorias
 FROM public.rating_events r
 JOIN public.profiles pr ON pr.id = r.player_id
 GROUP BY pr.username

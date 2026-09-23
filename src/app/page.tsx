@@ -9,7 +9,7 @@ import { PlayerAvatar } from '@/components/PlayerAvatar'
 import { colorLabel } from '@/lib/design'
 import { useClub } from '@/hooks/useClub'
 import { EvaluationCTA } from '@/components/EvaluationCTA'
-import { MatchResultCard } from '@/components/MatchResultCard'
+import { MatchResultCard, type MatchBadge } from '@/components/MatchResultCard'
 import { useInstallState, InstallInterstitial, InstallNagModal, InstallBanner } from '@/components/InstallGate'
 import { MisInvitados } from '@/components/MisInvitados'
 import { AlineacionVoto } from '@/components/AlineacionVoto'
@@ -37,12 +37,10 @@ interface Partido {
   puntos_morado?: number | null
 }
 
-interface Badge {
-  badge_id: string
-  badge_emoji: string
-  badge_nombre: string
-  profiles: { username: string } | null
-}
+// Era una copia de MatchBadge que ya se había quedado sin `votos` ni
+// `avatar_url`: el home cargaba los datos y la tarjeta no los veía. Se usa el
+// tipo de la tarjeta, que es quien manda.
+type Badge = MatchBadge
 
 interface EquipoJugador {
   id: string
@@ -265,13 +263,28 @@ export default function HomePage() {
             .eq('estado', 'confirmado'),
           supabase
             .from('player_badges')
-            .select('badge_id, badge_emoji, badge_nombre, votos, profiles!player_badges_player_id_fkey(username)')
+            .select('badge_id, badge_emoji, badge_nombre, votos, player_id, profiles!player_badges_player_id_fkey(username, avatar_url)')
             .eq('partido_id', ultimo.id),
         ])
+
+        // Color del equipo de cada premiado, para el punto de la tarjeta. Es
+        // un solo partido, así que una consulta basta.
+        const { data: eqj } = await supabase
+          .from('equipo_jugadores')
+          .select('player_id, equipos!inner(partido_id, color)')
+          .eq('equipos.partido_id', ultimo.id)
+        const color = new Map<string, string>()
+        for (const f of (eqj ?? []) as unknown as { player_id: string; equipos: { color: string | null } | { color: string | null }[] | null }[]) {
+          const e = Array.isArray(f.equipos) ? f.equipos[0] : f.equipos
+          if (e?.color) color.set(f.player_id, e.color)
+        }
+
         setUltimoPartido({
           partido: ultimo,
           inscripciones: (ins as unknown as Inscripcion[]) ?? [],
-          badges: (bdgs as unknown as Badge[]) ?? [],
+          badges: ((bdgs as unknown as (Badge & { player_id?: string })[]) ?? []).map(b => ({
+            ...b, equipo_color: b.player_id ? color.get(b.player_id) ?? null : null,
+          })),
         })
       }
     }

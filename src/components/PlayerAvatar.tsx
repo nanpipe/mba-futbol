@@ -1,3 +1,5 @@
+import { inicialONumero } from '@/lib/numeroCamiseta'
+
 interface PlayerAvatarProps {
   url: string | null
   username: string
@@ -5,7 +7,20 @@ interface PlayerAvatarProps {
   borderColor?: string
 }
 
+/**
+ * Foto del jugador, o su dorsal cuando no tiene.
+ *
+ * El respaldo era la inicial del username, y eso no distinguía a nadie: en el
+ * club hay cinco usernames que empiezan por "j". Como la convención es que el
+ * dorsal va al final del username (`alexis16` → 16), se pinta ese, que además
+ * es como se reconocen en la cancha. Quien no lo lleve sigue viendo su
+ * inicial (ver `lib/numeroCamiseta.ts`).
+ */
 export function PlayerAvatar({ url, username, size = 32, borderColor }: PlayerAvatarProps) {
+  const etiqueta = inicialONumero(username)
+  // El dorsal de dos cifras necesita más caja que una letra, o se sale.
+  const escala = etiqueta.length >= 2 ? 0.34 : 0.4
+
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%',
@@ -16,10 +31,11 @@ export function PlayerAvatar({ url, username, size = 32, borderColor }: PlayerAv
       flexShrink: 0,
     }}>
       {url ? (
-        <img src={url} alt={username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt={username} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       ) : (
-        <span className="display" style={{ fontSize: size * 0.4, color: 'var(--green)', lineHeight: 1 }}>
-          {username?.[0]?.toUpperCase() ?? '?'}
+        <span className="display" style={{ fontSize: size * escala, color: 'var(--green)', lineHeight: 1 }}>
+          {etiqueta}
         </span>
       )}
     </div>

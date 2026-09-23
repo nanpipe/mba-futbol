@@ -43,7 +43,30 @@ async function equiposDe(admin: Admin, clubId: string, playerId: string): Promis
 const CAMPOS_PARTIDO =
   'id, fecha, dia_semana, hora, resultado, goles_a, goles_b, tipo, lugar, ' +
   'puntos_blanco, puntos_negro, puntos_morado, foto_url, ' +
-  'player_badges(badge_id, badge_emoji, badge_nombre, votos, profiles!player_badges_player_id_fkey(username))'
+  'player_badges(badge_id, badge_emoji, badge_nombre, votos, player_id, ' +
+  'profiles!player_badges_player_id_fkey(username, avatar_url))'
+
+/**
+ * Color del equipo de cada jugador, por partido: `${partido_id}:${player_id}`.
+ *
+ * Va en UNA consulta para toda la página y no una por partido. Con 15 partidos
+ * a 14 jugadores son ~210 filas, muy por debajo del tope de PostgREST.
+ */
+async function coloresPorJugador(admin: Admin, clubId: string, partidoIds: string[]): Promise<Map<string, string>> {
+  const m = new Map<string, string>()
+  if (partidoIds.length === 0) return m
+  const { data } = await admin
+    .from('equipo_jugadores')
+    .select('player_id, equipos!inner(partido_id, color)')
+    .eq('club_id', clubId)
+    .in('equipos.partido_id', partidoIds)
+  type Fila = { player_id: string; equipos: { partido_id: string; color: string | null } | { partido_id: string; color: string | null }[] | null }
+  for (const f of (data ?? []) as Fila[]) {
+    const eq = Array.isArray(f.equipos) ? f.equipos[0] : f.equipos
+    if (eq?.partido_id && eq.color) m.set(`${eq.partido_id}:${f.player_id}`, eq.color)
+  }
+  return m
+}
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
@@ -156,13 +179,23 @@ export async function GET(req: NextRequest) {
 
   const todas = (filas ?? []) as unknown as Record<string, unknown>[]
   const hay_mas = todas.length > tam
-  const pagina = todas.slice(0, tam).map(f => {
+  const visibles = todas.slice(0, tam)
+
+  // El color de equipo de los premiados, para el punto de la tarjeta.
+  const colores = await coloresPorJugador(admin, clubId, visibles.map(f => f.id as string))
+
+  const pagina = visibles.map(f => {
     // `rating_events` viene embebido solo para filtrar; se convierte en el
     // resultado del jugador y no se devuelve crudo.
     const ev = f.rating_events as { motivos: unknown }[] | { motivos: unknown } | undefined
     const uno = Array.isArray(ev) ? ev[0] : ev
     const { rating_events: _omitido, ...resto } = f
-    return { ...resto, mi_resultado: uno ? resultadoDeMotivos(uno.motivos) : null }
+
+    const badges = ((f.player_badges ?? []) as { player_id?: string }[]).map(b => ({
+      ...b, equipo_color: colores.get(`${f.id as string}:${b.player_id ?? ''}`) ?? null,
+    }))
+
+    return { ...resto, player_badges: badges, mi_resultado: uno ? resultadoDeMotivos(uno.motivos) : null }
   })
 
   return NextResponse.json({ ok: true, partidos: pagina, ficha, cruce, hay_mas, desde_minimo })

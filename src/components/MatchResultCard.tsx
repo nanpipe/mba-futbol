@@ -1,12 +1,38 @@
 'use client'
 
+import { PlayerAvatar } from '@/components/PlayerAvatar'
+
 export interface MatchBadge {
   badge_id: string
   badge_emoji: string
   badge_nombre: string
   /** Votos con los que se ganó. null en reconocimientos anteriores al conteo guardado. */
   votos?: number | null
-  profiles: { username: string } | null
+  profiles: { username: string; avatar_url?: string | null } | null
+  /** Color del equipo en que jugó. Opcional: no toda pantalla lo carga. */
+  equipo_color?: string | null
+}
+
+// El punto de equipo NO usa el color literal: sobre fondo negro un punto negro
+// no se ve. El "negro" va gris medio con anillo claro, que sí se distingue.
+const COLOR_EQUIPO: Record<string, { fondo: string; borde: string }> = {
+  blanco: { fondo: '#e5e5e5', borde: 'rgba(0,0,0,0.35)' },
+  negro:  { fondo: '#4a4a4a', borde: 'rgba(255,255,255,0.55)' },
+  morado: { fondo: '#a78bfa', borde: 'rgba(255,255,255,0.25)' },
+}
+
+function PuntoEquipo({ color }: { color?: string | null }) {
+  const c = color ? COLOR_EQUIPO[color] : undefined
+  if (!c) return null
+  return (
+    <span
+      title={`Equipo ${color}`}
+      style={{
+        width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+        background: c.fondo, border: `1px solid ${c.borde}`,
+      }}
+    />
+  )
 }
 
 export interface MatchResult {
@@ -47,18 +73,23 @@ export function MatchResultCard({ titulo, partido, badges, marca }: {
   // Un empate son DOS filas en player_badges, una por ganador. Sin agrupar, la
   // tarjeta repetía la categoría ("La más perrota" dos veces con nombres
   // distintos) y parecía un error de conteo. Agrupadas se lee lo que es.
+  type Ganador = { username: string; avatar_url: string | null; color: string | null }
   const categorias = (() => {
-    const porId = new Map<string, { badge_id: string; emoji: string; nombre: string; votos: number | null; ganadores: string[] }>()
+    const porId = new Map<string, { badge_id: string; emoji: string; nombre: string; votos: number | null; ganadores: Ganador[] }>()
     for (const b of badges) {
+      const g: Ganador = {
+        username: b.profiles?.username ?? '?',
+        avatar_url: b.profiles?.avatar_url ?? null,
+        color: b.equipo_color ?? null,
+      }
       const prev = porId.get(b.badge_id)
-      const quien = b.profiles?.username ?? '?'
-      if (prev) prev.ganadores.push(quien)
+      if (prev) prev.ganadores.push(g)
       else porId.set(b.badge_id, {
         badge_id: b.badge_id, emoji: b.badge_emoji, nombre: b.badge_nombre,
-        votos: b.votos ?? null, ganadores: [quien],
+        votos: b.votos ?? null, ganadores: [g],
       })
     }
-    for (const c of porId.values()) c.ganadores.sort()
+    for (const c of porId.values()) c.ganadores.sort((x, y) => x.username.localeCompare(y.username))
     return [...porId.values()]
   })()
   const esMinitorneo = p.tipo === 'minitorneo'
@@ -152,33 +183,45 @@ export function MatchResultCard({ titulo, partido, badges, marca }: {
           }
           return null
         })()}
+        {/* Los reconocimientos van en rejilla y no en una fila por categoría.
+            Con cinco reconocimientos la lista medía 282 px y empujaba el resto
+            del partido fuera de pantalla; así mide 126 px, medido en Chromium
+            a 360, 390 y 430 px de ancho. El `auto-fill` decide solo cuántas
+            columnas caben, así que en un celular angosto baja a una.
+
+            Se conserva el nombre de la categoría a propósito: "La más
+            perrota", "El salao" y "Tronco" son el chiste del grupo, y una
+            versión solo-emoji bajaba a 53 px pero volvía la tarjeta una
+            adivinanza. */}
         {categorias.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {categorias.map(c => (
-              <div key={c.badge_id} style={{
-                display: 'flex', alignItems: 'center', gap: 12,
-                padding: '10px 14px', background: 'var(--bg-card)',
-                border: '1px solid var(--border)', borderRadius: 4,
-              }}>
-                <span style={{ fontSize: 22, flexShrink: 0 }}>{c.emoji}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 1 }}>
-                    {c.nombre}
-                    {typeof c.votos === 'number' && (
-                      <span style={{ color: 'var(--text-dim)' }}>
-                        {' '}· {c.votos} voto{c.votos !== 1 ? 's' : ''}{c.ganadores.length > 1 ? ' c/u' : ''}
-                      </span>
-                    )}
-                    {c.ganadores.length > 1 && (
-                      <span style={{ color: 'var(--amber)' }}> · EMPATE</span>
-                    )}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 6 }}>
+            {categorias.map(c => {
+              const primero = c.ganadores[0]
+              const mas = c.ganadores.length - 1
+              const titulo = `${c.nombre}${typeof c.votos === 'number' ? ` · ${c.votos} voto${c.votos !== 1 ? 's' : ''}${mas ? ' c/u' : ''}` : ''}` +
+                (mas ? ` · EMPATE: ${c.ganadores.map(g => g.username).join(', ')}` : '')
+              return (
+                <div key={c.badge_id} title={titulo} style={{
+                  display: 'flex', alignItems: 'center', gap: 7, minWidth: 0,
+                  padding: '6px 8px', background: 'var(--bg-card)',
+                  border: '1px solid var(--border)', borderRadius: 4,
+                }}>
+                  <span style={{ fontSize: 16, flexShrink: 0 }}>{c.emoji}</span>
+                  <PlayerAvatar url={primero.avatar_url} username={primero.username} size={22} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="mono" style={{ fontSize: 11, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {primero.username}
+                      {mas > 0 && <span style={{ color: 'var(--amber)' }}> +{mas}</span>}
+                    </div>
+                    <div className="mono" style={{ fontSize: 8, color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {c.nombre}
+                      {typeof c.votos === 'number' && ` · ${c.votos}`}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {c.ganadores.join(' y ')}
-                  </div>
+                  <PuntoEquipo color={primero.color} />
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

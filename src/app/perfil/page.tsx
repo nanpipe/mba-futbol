@@ -236,31 +236,40 @@ export default function PerfilPage() {
       } catch (bgErr) {
         console.warn('BG removal failed, uploading without it:', bgErr)
         // Convert compressed blob → PNG via canvas so upload contentType matches
-        uploadBlob = await new Promise<Blob>((resolve, reject) => {
-          const img = new Image()
-          img.onload = () => {
-            const canvas = document.createElement('canvas')
-            canvas.width = img.naturalWidth
-            canvas.height = img.naturalHeight
-            canvas.getContext('2d')!.drawImage(img, 0, 0)
-            canvas.toBlob(b => b ? resolve(b) : reject(new Error('canvas toBlob failed')), 'image/png')
-          }
-          img.onerror = reject
-          img.src = URL.createObjectURL(compressed)
-        })
+        uploadBlob = compressed
       }
 
-      // 3. Upload to Supabase Storage
+      // 3. Dejarlo del tamaño en que de verdad se ve.
+      //
+      // Hasta aquí el avatar venía a 800 px y en PNG con transparencia: ~700 KB
+      // por jugador para pintarlo del tamaño de una moneda. Con 38 miembros eso
+      // era la mitad del storage del plan gratis, y en la lista del panel se
+      // veía: los avatares quedaban a medio cargar. Ahora sale cuadrado, a
+      // 256 px y en WebP (~15 KB), conservando la transparencia del quitafondos.
+      setAvatarStatus('Optimizando...')
+      const { comprimirAvatar } = await import('@/lib/imagen')
+      const avatar = await comprimirAvatar(uploadBlob)
+
+      // 4. Upload to Supabase Storage
+      //
+      // Se escribe SOBRE el mismo objeto a propósito, aunque ahora el contenido
+      // sea WebP y el nombre diga .png: el navegador tiene permiso de insert y
+      // update sobre su propia carpeta, pero NO de delete. Subirlo como
+      // `avatar.webp` dejaría el `.png` viejo ocupando espacio para siempre, y
+      // con 38 miembros son ~26 MB que nadie podría borrar desde la app. Lo que
+      // manda es el content-type, no la extensión; la URL lleva `?t=` para
+      // romper la caché, que ya estaba resuelto abajo.
       setAvatarStatus('Subiendo...')
+      const ruta = `${user.id}/avatar.png`
       const { error: uploadError } = await supabase.storage.from('avatars')
-        .upload(`${user.id}/avatar.png`, uploadBlob, { upsert: true, contentType: 'image/png' })
+        .upload(ruta, avatar.blob, { upsert: true, contentType: avatar.tipo })
 
       if (uploadError) {
         flash('error', 'Error subiendo imagen.')
         return
       }
 
-      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(`${user.id}/avatar.png`)
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(ruta)
       const res = await fetch('/api/perfil', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

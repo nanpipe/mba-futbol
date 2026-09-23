@@ -533,6 +533,15 @@ export default function HomePage() {
             minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>{club.nombre}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
+            {/* El historial vivía SOLO dentro de la tarjeta del último
+                partido, y esa tarjeta no se pinta si no hay partido reciente
+                con foto o reconocimientos, o si ya es día de partido. En esos
+                días no había NINGUNA forma de entrar al historial. Aquí está
+                siempre. */}
+            <Link href="/historial" className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.08em', textDecoration: 'none' }} title="Historial">
+              <span aria-hidden="true">📋</span>
+              <span className="nav-hide-sm"> HISTORIAL</span>
+            </Link>
             {(profile?.role === 'admin' || profile?.role === 'superadmin') && (
               <Link href="/admin" className="mono" style={{ fontSize: 12, color: 'var(--amber)', letterSpacing: '0.08em', textDecoration: 'none' }}>
                 ADMIN ↗
@@ -545,22 +554,10 @@ export default function HomePage() {
             )}
             {/* Profile avatar + username → /perfil */}
             <Link href="/perfil" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: '50%',
-                background: profile?.avatar_url ? 'transparent' : '#0f2d1a',
-                border: '1px solid var(--border)',
-                overflow: 'hidden',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0,
-              }}>
-                {profile?.avatar_url ? (
-                  <img src={profile.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <span className="display" style={{ fontSize: 12, color: 'var(--green)', lineHeight: 1 }}>
-                    {profile?.username?.[0]?.toUpperCase() ?? '?'}
-                  </span>
-                )}
-              </div>
+              {/* Era una tercera copia a mano del avatar, con su propio
+                  respaldo por inicial y sin manejo de error. Se usa el
+                  componente, que ya pinta el dorsal y aguanta una foto rota. */}
+              <PlayerAvatar url={profile?.avatar_url ?? null} username={profile?.username ?? ''} size={28} />
               <span className="mono nav-hide-sm" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{profile?.username}</span>
             </Link>
             <button onClick={cerrarSesion} className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 11 }}>Salir</button>

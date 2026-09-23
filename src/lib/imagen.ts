@@ -23,6 +23,18 @@ export const FOTO_RATIO = 16 / 9
 export const FOTO_ANCHO_MAX = 1280
 export const FOTO_CALIDAD = 0.82
 
+/**
+ * Lado del avatar guardado.
+ *
+ * Se ve como máximo a 56 px (la ficha del jugador); en la lista de miembros,
+ * a 32. Con DPR 3 eso son 168 píxeles físicos, así que 256 sobra y deja
+ * margen. Antes se guardaban a 800 px en PNG con transparencia: cerca de
+ * 700 KB por jugador para pintarlos del tamaño de una moneda, y con 38
+ * miembros eso es la mitad del storage del plan gratis.
+ */
+export const AVATAR_LADO = 256
+export const AVATAR_CALIDAD = 0.85
+
 /** Región de la imagen original que se conserva, en píxeles de la original. */
 export interface AreaRecorte {
   x: number
@@ -142,4 +154,41 @@ export async function recortarYComprimir(
   if (!blob) throw new Error('No se pudo comprimir la imagen')
 
   return { blob, tipo: blob.type || 'image/jpeg', ancho, alto }
+}
+
+/**
+ * Deja el avatar cuadrado, chico y en WebP.
+ *
+ * Recorta al cuadrado más grande centrado (una foto de cuerpo entero se
+ * quedaba deformada o con franjas dentro del círculo), escala a `lado` y
+ * comprime. **Conserva la transparencia**, que es lo que deja el quitafondos:
+ * WebP soporta alpha, JPEG no — por eso, si el navegador no supiera escribir
+ * WebP, el respaldo es PNG y no JPEG, que rellenaría el fondo de negro.
+ *
+ * Nunca agranda: una foto ya chica se queda como está.
+ */
+export async function comprimirAvatar(
+  file: Blob,
+  lado = AVATAR_LADO,
+  calidad = AVATAR_CALIDAD
+): Promise<FotoProcesada> {
+  const img = await decodificar(file)
+  const corte = Math.min(img.width, img.height)
+  const destino = Math.max(1, Math.min(corte, Math.round(lado)))
+
+  const canvas = document.createElement('canvas')
+  canvas.width = destino
+  canvas.height = destino
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('El navegador no permite procesar la imagen')
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(img, (img.width - corte) / 2, (img.height - corte) / 2, corte, corte, 0, 0, destino, destino)
+  if ('close' in img && typeof img.close === 'function') img.close()
+
+  let blob = await aBlob(canvas, 'image/webp', calidad)
+  if (!blob || blob.type !== 'image/webp') blob = await aBlob(canvas, 'image/png', 1)
+  if (!blob) throw new Error('No se pudo comprimir la imagen')
+
+  return { blob, tipo: blob.type || 'image/png', ancho: destino, alto: destino }
 }

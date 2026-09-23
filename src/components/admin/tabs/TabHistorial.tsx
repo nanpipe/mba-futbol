@@ -110,16 +110,21 @@ function ListaJugadores({ inscripciones, equipoDe }: {
             <div className="mono" style={{ fontSize: 9, letterSpacing: '0.12em', color, marginBottom: 6 }}>
               {titulo} · {lista.length}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 5 }}>
+            {/* `flex` y no `grid`: con una rejilla de columnas iguales, en
+                pantalla ancha cada nombre se estiraba hasta ocupar un cuarto
+                de la fila — mucho espacio vacío alrededor de un texto de diez
+                caracteres. Así cada ficha mide lo que mide su nombre y se
+                empaquetan a la izquierda. */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
               {lista.map(ins => (
                 <div key={ins.id} style={{
-                  display: 'flex', alignItems: 'center', gap: 7, minWidth: 0,
-                  padding: '5px 8px', background: 'var(--bg-card)',
-                  border: '1px solid var(--border)', borderRadius: 3,
+                  display: 'flex', alignItems: 'center', gap: 7,
+                  padding: '5px 10px 5px 6px', background: 'var(--bg-card)',
+                  border: '1px solid var(--border)', borderRadius: 999,
                   opacity: clave === 'espera' ? 0.65 : 1,
                 }}>
                   <PlayerAvatar url={ins.profiles.avatar_url ?? null} username={ins.profiles.username} size={20} />
-                  <span className="mono" style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span className="mono" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
                     {ins.profiles.username}
                   </span>
                 </div>
@@ -174,6 +179,9 @@ export function TabHistorial({ active }: Props) {
   // REMOVER, que llenaba la lista de botones rojos para una acción que casi
   // nunca se usa.
   const [modo, setModo] = useState<'agregar' | 'remover'>('agregar')
+  // Partido cuyo marcador se está editando. Con resultado ya guardado el
+  // formulario permanece escondido: se muestra el dato y un "editar" discreto.
+  const [editandoResultado, setEditandoResultado] = useState<string | null>(null)
   const [uploadingFoto, setUploadingFoto] = useState(false)
   // Foto elegida esperando encuadre. Solo se sube lo que sale del recortador.
   const [porRecortar, setPorRecortar] = useState<{ partidoId: string; file: File } | null>(null)
@@ -246,12 +254,8 @@ export function TabHistorial({ active }: Props) {
     setLoadingIns(false)
   }, [supabase])
 
-  const handleExpand = (id: string, p: HistorialPartido) => {
-    if (expandedId === id) { setExpandedId(null); return }
-    setExpandedId(id)
-    setAddPlayerId('')
-    cargarInscripciones(id)
-    // Pre-fill result form
+  /** Deja el formulario con lo que ya está guardado. */
+  const prefillResultado = (p: HistorialPartido) => {
     if (p.tipo === 'minitorneo') {
       setPtsBlancos(p.puntos_blanco != null ? String(p.puntos_blanco) : '')
       setPtsNegros(p.puntos_negro != null ? String(p.puntos_negro) : '')
@@ -260,6 +264,16 @@ export function TabHistorial({ active }: Props) {
       setGolesA(p.goles_a != null ? String(p.goles_a) : '')
       setGolesB(p.goles_b != null ? String(p.goles_b) : '')
     }
+  }
+
+  const handleExpand = (id: string, p: HistorialPartido) => {
+    if (expandedId === id) { setExpandedId(null); return }
+    setExpandedId(id)
+    setAddPlayerId('')
+    // Abrir otro partido no debe dejar abierto el editor del anterior.
+    setEditandoResultado(null)
+    cargarInscripciones(id)
+    prefillResultado(p)
   }
 
   const handleConfirmar = async (partido_id: string) => {
@@ -672,8 +686,38 @@ export function TabHistorial({ active }: Props) {
                       </div>
                     )}
 
-                    {/* ── Score entry ── */}
+                    {/* ── Score entry ──
+                        Con el marcador ya guardado, el formulario completo
+                        —dos campos grandes y un botón verde— pedía clic para
+                        algo que ya está hecho. Se muestra el dato y un enlace
+                        gris de "editar"; el formulario aparece solo si se
+                        toca. Sin resultado, el formulario sale directo: ahí
+                        sí es la acción que toca. */}
                     <div>
+                      {score && editandoResultado !== p.id ? (
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+                          <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
+                            RESULTADO
+                          </div>
+                          <div className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                            {esMinitorneo
+                              ? `B${p.puntos_blanco} · N${p.puntos_negro} · M${p.puntos_morado}`
+                              : `🤍 ${p.goles_a} – ${p.goles_b} 🖤`}
+                          </div>
+                          <button
+                            onClick={() => { prefillResultado(p); setEditandoResultado(p.id) }}
+                            className="mono"
+                            style={{
+                              fontSize: 10, color: 'var(--text-dim)', background: 'none',
+                              border: 'none', cursor: 'pointer', textDecoration: 'underline',
+                              padding: 0, letterSpacing: '0.06em',
+                            }}
+                          >
+                            editar
+                          </button>
+                        </div>
+                      ) : (
+                      <>
                       <SectionHeader title={score ? 'EDITAR RESULTADO' : 'REGISTRAR RESULTADO'} color="var(--text-muted)" />
                       {esMinitorneo ? (
                         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
@@ -729,6 +773,8 @@ export function TabHistorial({ active }: Props) {
                           </button>
                         </div>
                       )}
+                      </>
+                      )}
                     </div>
 
                     {/* ── Foto del partido ── */}
@@ -738,7 +784,11 @@ export function TabHistorial({ active }: Props) {
                         // Se muestra con la misma caja 16:9 que el home, para
                         // que el admin vea aquí mismo si esta foto necesita
                         // reencuadre en vez de enterarse en la pantalla de todos.
-                        <div style={{ marginBottom: 10, borderRadius: 4, overflow: 'hidden', maxWidth: 340, aspectRatio: '16 / 9', background: '#000' }}>
+                        // Sin tope de ancho: la foto es lo único de esta
+                        // pantalla que gana con el espacio, y estaba capada a
+                        // 340 px mientras la lista de nombres se estiraba a
+                        // lo ancho completo.
+                        <div style={{ marginBottom: 10, borderRadius: 4, overflow: 'hidden', aspectRatio: '16 / 9', background: '#000' }}>
                           <img
                             src={p.foto_url!}
                             alt="Foto del partido"

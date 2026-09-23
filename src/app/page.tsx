@@ -15,6 +15,7 @@ import { MisInvitados } from '@/components/MisInvitados'
 import { AlineacionVoto } from '@/components/AlineacionVoto'
 import { esHoraDePartido, fechaColombia } from '@/lib/promoHora'
 import { CierrePartidoCard } from '@/components/admin/CierrePartidoCard'
+import { AvisoFoto } from '@/components/AvisoFoto'
 
 interface Partido {
   id: string
@@ -122,6 +123,7 @@ export default function HomePage() {
   const [ultimoPartido, setUltimoPartido] = useState<{ partido: Partido; inscripciones: Inscripcion[]; badges: Badge[] } | null>(null)
   const [misEquipos, setMisEquipos] = useState<{ equipos: Equipo[]; miEquipo: Equipo | null; partido_id: string } | null>(null)
   const [partidosAbiertos, setPartidosAbiertos] = useState<Partido[]>([])
+  const [partidosJugados, setPartidosJugados] = useState(0)
   const partidoSelIdRef = useRef<string | null>(null)
   const abreEnRef = useRef<Date | null>(null)
   const [pushPermission, setPushPermission] = useState<NotificationPermission | null>(null)
@@ -237,6 +239,16 @@ export default function HomePage() {
   const cargarDatos = useCallback(async (u: User) => {
     const { data: prof } = await supabase.from('profiles').select('username, role, baneado, avatar_url').eq('id', u.id).single()
     setProfile(prof)
+
+    // Cuántos partidos lleva jugados: es lo que decide el tono del aviso de la
+    // foto de perfil. Solo hace falta el número, así que va con `head: true` y
+    // no trae filas.
+    supabase
+      .from('inscripciones')
+      .select('id', { count: 'exact', head: true })
+      .eq('player_id', u.id)
+      .eq('estado', 'confirmado')
+      .then(({ count }) => setPartidosJugados(count ?? 0))
 
     // partidos.fecha is a Colombia date. The UTC date rolls over at 7 PM
     // Colombia — exactly kickoff — which is what made tonight's match vanish
@@ -569,6 +581,10 @@ export default function HomePage() {
       />
 
       <div className="container" style={{ paddingTop: 48 }}>
+        {/* Molesta hasta que suba la foto. No se puede cerrar: quien lo cierra
+            una vez no lo vuelve a ver y nunca la sube. */}
+        <AvisoFoto tieneFoto={Boolean(profile?.avatar_url)} partidosJugados={partidosJugados} />
+
         {/* Header */}
         <Header club={club} />
 

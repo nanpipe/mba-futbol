@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { MatchResultCard, type MatchBadge, type MatchResult } from '@/components/MatchResultCard'
-import { RESULTADOS, type Resultado, type Relacion, type Ficha } from '@/lib/historial'
+import { RESULTADOS, MESES, rangoDeMes, mesesDelAnio, type Resultado, type Relacion, type Ficha } from '@/lib/historial'
 
 interface PartidoHistorial extends MatchResult {
   id: string
@@ -74,6 +74,7 @@ export default function HistorialPage() {
   const [relacion, setRelacion] = useState<Relacion | ''>('')
   const [resultado, setResultado] = useState<Resultado | ''>('')
   const [anio, setAnio] = useState('')
+  const [mes, setMes] = useState('')
 
   const [datos, setDatos] = useState<Respuesta | null>(null)
   const [extra, setExtra] = useState<PartidoHistorial[]>([])
@@ -99,9 +100,14 @@ export default function HistorialPage() {
     if (jugador && rival) q.set('rival', rival)
     if (jugador && rival && relacion) q.set('relacion', relacion)
     if (jugador && resultado) q.set('resultado', resultado)
-    if (anio) { q.set('desde', `${anio}-01-01`); q.set('hasta', `${anio}-12-31`) }
+    if (anio) {
+      // Con mes elegido la ventana es ese mes; si no, el año entero.
+      const r = mes ? rangoDeMes(Number(anio), Number(mes)) : null
+      q.set('desde', r ? r.desde : `${anio}-01-01`)
+      q.set('hasta', r ? r.hasta : `${anio}-12-31`)
+    }
     return q.toString()
-  }, [jugador, rival, relacion, resultado, anio])
+  }, [jugador, rival, relacion, resultado, anio, mes])
 
   // Cambiar cualquier filtro reinicia la paginación: mezclar páginas de
   // filtros distintos mostraría partidos que ya no corresponden.
@@ -145,6 +151,11 @@ export default function HistorialPage() {
     return out
   }, [datos?.desde_minimo])
 
+  const meses = useMemo(
+    () => (anio ? mesesDelAnio(Number(anio), datos?.desde_minimo ?? null) : []),
+    [anio, datos?.desde_minimo]
+  )
+
   const lista = datos ? [...datos.partidos, ...extra] : []
   const nombre = jugadores.find(j => j.id === jugador)?.username ?? ''
   const nombreRival = jugadores.find(j => j.id === rival)?.username ?? ''
@@ -173,10 +184,24 @@ export default function HistorialPage() {
               <option value="">Todo el club</option>
               {jugadores.map(j => <option key={j.id} value={j.id}>{j.username}</option>)}
             </select>
-            <select value={anio} onChange={e => setAnio(e.target.value)} style={{ ...selectStyle, flex: '0 1 110px' }} aria-label="Año">
+            <select
+              value={anio}
+              onChange={e => { setAnio(e.target.value); setMes('') }}
+              style={{ ...selectStyle, flex: '0 1 100px' }}
+              aria-label="Año"
+            >
               <option value="">Siempre</option>
               {anios.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
+            {/* El mes solo existe dentro de un año. La lista se recorta sola
+                por el primer partido del club y por el mes de hoy, así que se
+                alimenta sin que nadie la mantenga. */}
+            {anio && (
+              <select value={mes} onChange={e => setMes(e.target.value)} style={{ ...selectStyle, flex: '0 1 130px' }} aria-label="Mes">
+                <option value="">Todo el año</option>
+                {meses.map(m => <option key={m} value={m}>{MESES[m - 1]}</option>)}
+              </select>
+            )}
           </div>
 
           {/* El resultado solo existe con jugador: un partido no lo gana el
@@ -224,7 +249,7 @@ export default function HistorialPage() {
             <div className="mono" style={{ fontSize: 9, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 8 }}>
               {nombre.toUpperCase()}
               {nombreRival && ` VS ${nombreRival.toUpperCase()}`}
-              {anio && ` · ${anio}`}
+              {anio && ` · ${mes ? `${MESES[Number(mes) - 1]} ` : ''}${anio}`}
             </div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
               <div>

@@ -141,3 +141,47 @@ export function tamanoPagina(raw: string | null): number {
 
 const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/
 export const esFecha = (v: string | null): v is string => typeof v === 'string' && FECHA_RE.test(v)
+
+export const MESES = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+] as const
+
+/**
+ * Primer y último día de un mes, como fechas `YYYY-MM-DD`.
+ *
+ * Se calcula con `Date.UTC(anio, mes, 0)` —el día 0 del mes siguiente— en vez
+ * de una tabla de 30/31: así los bisiestos salen solos y febrero no necesita
+ * un caso aparte. En UTC y no en hora local porque `partidos.fecha` es un DATE
+ * sin zona, y construirlo en local correría un día según dónde esté el server.
+ */
+export function rangoDeMes(anio: number, mes: number): { desde: string; hasta: string } | null {
+  if (!Number.isInteger(anio) || !Number.isInteger(mes)) return null
+  if (anio < 1970 || anio > 3000 || mes < 1 || mes > 12) return null
+  const dd = (n: number) => String(n).padStart(2, '0')
+  const ultimo = new Date(Date.UTC(anio, mes, 0)).getUTCDate()
+  return { desde: `${anio}-${dd(mes)}-01`, hasta: `${anio}-${dd(mes)}-${dd(ultimo)}` }
+}
+
+/**
+ * Qué meses ofrecer para un año, sin consultar nada.
+ *
+ * Se recorta por los dos lados: no tiene sentido ofrecer meses anteriores al
+ * primer partido del club, ni meses que todavía no han llegado. Como el corte
+ * de arriba sale de la fecha de hoy, la lista **se alimenta sola** cada vez que
+ * pasa un mes; no hay nada que mantener.
+ */
+export function mesesDelAnio(anio: number, primerPartido: string | null, hoy: Date = new Date()): number[] {
+  const anioHoy = hoy.getUTCFullYear()
+  const mesHoy = hoy.getUTCMonth() + 1
+  if (anio > anioHoy) return []
+  let desde = 1
+  if (primerPartido && primerPartido.slice(0, 4) === String(anio)) {
+    const m = Number(primerPartido.slice(5, 7))
+    if (m >= 1 && m <= 12) desde = m
+  }
+  const hasta = anio === anioHoy ? mesHoy : 12
+  const out: number[] = []
+  for (let m = desde; m <= hasta; m++) out.push(m)
+  return out
+}

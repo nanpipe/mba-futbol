@@ -533,15 +533,6 @@ export default function HomePage() {
             minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>{club.nombre}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
-            {/* El historial vivía SOLO dentro de la tarjeta del último
-                partido, y esa tarjeta no se pinta si no hay partido reciente
-                con foto o reconocimientos, o si ya es día de partido. En esos
-                días no había NINGUNA forma de entrar al historial. Aquí está
-                siempre. */}
-            <Link href="/historial" className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.08em', textDecoration: 'none' }} title="Historial">
-              <span aria-hidden="true">📋</span>
-              <span className="nav-hide-sm"> HISTORIAL</span>
-            </Link>
             {(profile?.role === 'admin' || profile?.role === 'superadmin') && (
               <Link href="/admin" className="mono" style={{ fontSize: 12, color: 'var(--amber)', letterSpacing: '0.08em', textDecoration: 'none' }}>
                 ADMIN ↗
@@ -1051,8 +1042,16 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* Version footer */}
-      <div style={{ textAlign: 'center', padding: '32px 0 16px' }}>
+      {/* Pie: historial + versión.
+          El historial va aquí y no dentro del bloque del último partido, que
+          es donde estaba: ese bloque no se pinta si no hay partido reciente
+          con foto o reconocimientos, ni el día del partido pasada la hora
+          promo, así que en esos días la pantalla era inalcanzable. El pie se
+          pinta siempre. */}
+      <div style={{ textAlign: 'center', padding: '32px 0 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+        <Link href="/historial" className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.08em', textDecoration: 'none' }}>
+          📋 VER HISTORIAL →
+        </Link>
         <span className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', opacity: 0.5 }}>
           v{process.env.NEXT_PUBLIC_APP_VERSION}
         </span>

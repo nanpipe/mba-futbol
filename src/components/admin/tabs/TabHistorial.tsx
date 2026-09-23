@@ -10,6 +10,7 @@ import { ButtonGroup } from '@/components/ButtonGroup'
 import { calcularVentanaPartido } from '@/lib/partidos'
 import { fechaColombia } from '@/lib/promoHora'
 import { RecorteFotoModal } from '@/components/admin/RecorteFotoModal'
+import { PlayerAvatar } from '@/components/PlayerAvatar'
 
 interface Props {
   active: boolean
@@ -19,7 +20,7 @@ interface InscripcionHistorial {
   id: string
   estado: string
   player_id: string
-  profiles: { username: string; id: string }
+  profiles: { username: string; id: string; avatar_url?: string | null }
 }
 
 interface PlayerBasic {
@@ -65,6 +66,72 @@ function ProgresoVotacion({ progreso, cerrada }: {
   )
 }
 
+const EQUIPO_LABEL: Record<string, { titulo: string; color: string }> = {
+  blanco: { titulo: '🤍 BLANCOS', color: '#e5e5e5' },
+  negro: { titulo: '🖤 NEGROS', color: 'var(--text-muted)' },
+  morado: { titulo: '💜 MORADOS', color: '#a78bfa' },
+}
+
+/**
+ * Quiénes jugaron, en rejilla y agrupados por equipo.
+ *
+ * Antes era una fila por persona con su propio botón REMOVER: catorce filas
+ * altas, catorce botones rojos para algo que casi nunca se hace, y el estado
+ * "confirmado" repetido catorce veces sin decir nada. Agrupado por equipo se
+ * lee de un vistazo con quién jugó cada quien, que es el dato que sí importa
+ * y que ya está guardado. Quitar y agregar viven abajo, en un solo control.
+ */
+function ListaJugadores({ inscripciones, equipoDe }: {
+  inscripciones: InscripcionHistorial[]
+  equipoDe: Record<string, string>
+}) {
+  const grupos = new Map<string, InscripcionHistorial[]>()
+  for (const ins of inscripciones) {
+    // En espera no jugó, así que va aparte aunque tuviera equipo asignado.
+    const clave = ins.estado === 'espera' ? 'espera' : (equipoDe[ins.player_id] ?? 'sin')
+    const lista = grupos.get(clave)
+    if (lista) lista.push(ins)
+    else grupos.set(clave, [ins])
+  }
+  // Orden estable: equipos primero, luego los que no quedaron asignados, y la
+  // espera al final.
+  const orden = ['blanco', 'negro', 'morado', 'sin', 'espera']
+  const claves = [...grupos.keys()].sort((a, b) => orden.indexOf(a) - orden.indexOf(b))
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {claves.map(clave => {
+        const lista = grupos.get(clave)!
+        const meta = EQUIPO_LABEL[clave]
+        const titulo = meta?.titulo ?? (clave === 'espera' ? '⏳ EN ESPERA' : 'SIN EQUIPO')
+        const color = meta?.color ?? (clave === 'espera' ? 'var(--amber)' : 'var(--text-dim)')
+        return (
+          <div key={clave}>
+            <div className="mono" style={{ fontSize: 9, letterSpacing: '0.12em', color, marginBottom: 6 }}>
+              {titulo} · {lista.length}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 5 }}>
+              {lista.map(ins => (
+                <div key={ins.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 7, minWidth: 0,
+                  padding: '5px 8px', background: 'var(--bg-card)',
+                  border: '1px solid var(--border)', borderRadius: 3,
+                  opacity: clave === 'espera' ? 0.65 : 1,
+                }}>
+                  <PlayerAvatar url={ins.profiles.avatar_url ?? null} username={ins.profiles.username} size={20} />
+                  <span className="mono" style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {ins.profiles.username}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export function TabHistorial({ active }: Props) {
   const supabase = createClient()
   const [historial, setHistorial] = useState<HistorialPartido[]>([])
@@ -99,6 +166,14 @@ export function TabHistorial({ active }: Props) {
   // cliente ya no puede leer votos_reconocimiento ni player_thumbs.
   const [progreso, setProgreso] = useState<Record<string, { votaron: number; total: number }>>({})
   const [removingId, setRemovingId] = useState<string | null>(null)
+  // player_id → color del equipo en que jugó, del partido abierto. Se muestra
+  // en vez del estado suelto: saber con quién jugó cada quien es más útil que
+  // repetir "confirmado" catorce veces.
+  const [equipoDe, setEquipoDe] = useState<Record<string, string>>({})
+  // El selector de abajo hace las dos cosas. Antes cada fila llevaba su propio
+  // REMOVER, que llenaba la lista de botones rojos para una acción que casi
+  // nunca se usa.
+  const [modo, setModo] = useState<'agregar' | 'remover'>('agregar')
   const [uploadingFoto, setUploadingFoto] = useState(false)
   // Foto elegida esperando encuadre. Solo se sube lo que sale del recortador.
   const [porRecortar, setPorRecortar] = useState<{ partidoId: string; file: File } | null>(null)
@@ -149,12 +224,24 @@ export function TabHistorial({ active }: Props) {
 
   const cargarInscripciones = useCallback(async (partidoId: string) => {
     setLoadingIns(true)
-    const { data } = await supabase
-      .from('inscripciones')
-      .select('id, estado, player_id, profiles!player_id(username, id)')
-      .eq('partido_id', partidoId)
-      .order('estado')
-      .order('posicion_espera', { ascending: true, nullsFirst: false })
+    const [{ data }, { data: eqj }] = await Promise.all([
+      supabase
+        .from('inscripciones')
+        .select('id, estado, player_id, profiles!player_id(username, id, avatar_url)')
+        .eq('partido_id', partidoId)
+        .order('estado')
+        .order('posicion_espera', { ascending: true, nullsFirst: false }),
+      supabase
+        .from('equipo_jugadores')
+        .select('player_id, equipos!inner(partido_id, color)')
+        .eq('equipos.partido_id', partidoId),
+    ])
+    const porJugador: Record<string, string> = {}
+    for (const f of (eqj ?? []) as unknown as { player_id: string; equipos: { color: string | null } | { color: string | null }[] | null }[]) {
+      const e = Array.isArray(f.equipos) ? f.equipos[0] : f.equipos
+      if (e?.color) porJugador[f.player_id] = e.color
+    }
+    setEquipoDe(porJugador)
     setInscripciones((data as unknown as InscripcionHistorial[]) ?? [])
     setLoadingIns(false)
   }, [supabase])
@@ -481,78 +568,89 @@ export function TabHistorial({ active }: Props) {
                       ) : inscripciones.length === 0 ? (
                         <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>Sin inscritos registrados.</div>
                       ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {inscripciones.map(ins => (
-                            <div key={ins.id} style={{
-                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                              padding: '8px 12px',
-                              background: ins.estado === 'espera' ? 'var(--bg)' : 'var(--bg-card)',
-                              border: `1px solid ${ins.estado === 'espera' ? '#1a2a1a' : 'var(--border)'}`,
-                              borderRadius: 3,
-                            }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                                <span className={`badge ${ins.estado === 'confirmado' ? 'badge-green' : 'badge-amber'}`} style={{ fontSize: 10, flexShrink: 0 }}>
-                                  {ins.estado === 'confirmado' ? '✓' : '⏳'}
-                                </span>
-                                <span style={{ fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ins.profiles.username}</span>
-                              </div>
-                              <button
-                                onClick={() => handleRemover(ins, p.id)}
-                                disabled={removingId === ins.id}
-                                className="mono"
-                                style={{ fontSize: 11, color: removingId === ins.id ? 'var(--text-dim)' : 'var(--red)', background: 'none', border: 'none', cursor: 'pointer' }}
-                              >
-                                {removingId === ins.id ? '...' : 'REMOVER'}
-                              </button>
-                            </div>
-                          ))}
-                        </div>
+                        <ListaJugadores inscripciones={inscripciones} equipoDe={equipoDe} />
                       )}
 
-                      {/* Add player */}
-                      <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                        <div style={{ flex: 1, minWidth: 160 }}>
-                          <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>AGREGAR JUGADOR</div>
-                          <select
-                            value={addPlayerId}
-                            onChange={e => setAddPlayerId(e.target.value)}
-                            style={{ width: '100%', padding: '8px 10px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text)', fontSize: 13 }}
+                      {/* Agregar / remover — un solo control, abajo.
+                          Cada fila tenía su REMOVER: catorce botones rojos
+                          para algo que casi nunca se hace, y fácil de tocar
+                          sin querer al desplazar en el celular. */}
+                      <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                        <ButtonGroup gap={4}>
+                          {(['agregar', 'remover'] as const).map(m => (
+                            <button
+                              key={m}
+                              onClick={() => { setModo(m); setAddPlayerId('') }}
+                              className="mono"
+                              style={{
+                                padding: '6px 12px', fontSize: 11, border: '1px solid',
+                                borderColor: modo === m ? (m === 'agregar' ? '#16a34a' : '#7f1d1d') : 'var(--border)',
+                                background: modo === m ? (m === 'agregar' ? '#0f2d1a' : '#2a0f0f') : 'none',
+                                color: modo === m ? (m === 'agregar' ? 'var(--green)' : 'var(--red)') : 'var(--text-dim)',
+                                borderRadius: 3, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase',
+                              }}
+                            >
+                              {m === 'agregar' ? '+ Agregar' : '− Remover'}
+                            </button>
+                          ))}
+                        </ButtonGroup>
+
+                        <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                          <div style={{ flex: 1, minWidth: 160 }}>
+                            <select
+                              value={addPlayerId}
+                              onChange={e => setAddPlayerId(e.target.value)}
+                              style={{ width: '100%', padding: '8px 10px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text)', fontSize: 13 }}
+                              aria-label={modo === 'agregar' ? 'Jugador a agregar' : 'Jugador a remover'}
+                            >
+                              <option value="">— Seleccionar —</option>
+                              {(modo === 'agregar'
+                                ? availablePlayers.map(pl => ({ id: pl.id, username: pl.username }))
+                                : inscripciones.map(i => ({ id: i.player_id, username: i.profiles.username }))
+                              ).map(pl => (
+                                <option key={pl.id} value={pl.id}>{pl.username}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {modo === 'agregar' && (
+                            <ButtonGroup gap={4}>
+                              {(['confirmado', 'espera'] as const).map(e => (
+                                <button
+                                  key={e}
+                                  onClick={() => setAddEstado(e)}
+                                  className="mono"
+                                  style={{
+                                    padding: '7px 10px', fontSize: 11, border: '1px solid',
+                                    borderColor: addEstado === e ? (e === 'confirmado' ? '#16a34a' : '#92400e') : 'var(--border)',
+                                    background: addEstado === e ? (e === 'confirmado' ? '#0f2d1a' : '#1a1000') : 'none',
+                                    color: addEstado === e ? (e === 'confirmado' ? 'var(--green)' : 'var(--amber)') : 'var(--text-muted)',
+                                    borderRadius: 3, cursor: 'pointer', letterSpacing: '0.05em', textTransform: 'uppercase',
+                                  }}
+                                >
+                                  {e}
+                                </button>
+                              ))}
+                            </ButtonGroup>
+                          )}
+
+                          <button
+                            onClick={() => {
+                              if (modo === 'agregar') { handleAgregar(p.id); return }
+                              const ins = inscripciones.find(i => i.player_id === addPlayerId)
+                              if (ins) handleRemover(ins, p.id)
+                            }}
+                            disabled={!addPlayerId || savingAdd || removingId !== null}
+                            className="btn btn-ghost"
+                            style={{
+                              fontSize: 12, padding: '8px 14px',
+                              color: modo === 'agregar' ? 'var(--green)' : 'var(--red)',
+                              borderColor: modo === 'agregar' ? '#16a34a' : '#7f1d1d',
+                            }}
                           >
-                            <option value="">— Seleccionar —</option>
-                            {availablePlayers.map(pl => (
-                              <option key={pl.id} value={pl.id}>{pl.username}</option>
-                            ))}
-                          </select>
+                            {savingAdd || removingId ? '...' : modo === 'agregar' ? '+ Agregar' : '− Remover'}
+                          </button>
                         </div>
-                        <div>
-                          <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>ESTADO</div>
-                          <ButtonGroup gap={4}>
-                            {(['confirmado', 'espera'] as const).map(e => (
-                              <button
-                                key={e}
-                                onClick={() => setAddEstado(e)}
-                                className="mono"
-                                style={{
-                                  padding: '7px 10px', fontSize: 11, border: '1px solid',
-                                  borderColor: addEstado === e ? (e === 'confirmado' ? '#16a34a' : '#92400e') : 'var(--border)',
-                                  background: addEstado === e ? (e === 'confirmado' ? '#0f2d1a' : '#1a1000') : 'none',
-                                  color: addEstado === e ? (e === 'confirmado' ? 'var(--green)' : 'var(--amber)') : 'var(--text-muted)',
-                                  borderRadius: 3, cursor: 'pointer', letterSpacing: '0.05em', textTransform: 'uppercase',
-                                }}
-                              >
-                                {e}
-                              </button>
-                            ))}
-                          </ButtonGroup>
-                        </div>
-                        <button
-                          onClick={() => handleAgregar(p.id)}
-                          disabled={!addPlayerId || savingAdd}
-                          className="btn btn-ghost"
-                          style={{ fontSize: 12, padding: '8px 14px', color: 'var(--green)', borderColor: '#16a34a' }}
-                        >
-                          {savingAdd ? '...' : '+ Agregar'}
-                        </button>
                       </div>
                     </div>
 

@@ -105,8 +105,15 @@ export async function GET(req: NextRequest) {
   if (resultado && !jugador) return NextResponse.json({ error: 'El resultado necesita un jugador' }, { status: 400 })
   if (rival && !jugador) return NextResponse.json({ error: 'El rival necesita un jugador' }, { status: 400 })
 
+  const hoy = new Date().toISOString().split('T')[0]
+
+  // Fecha del primer partido del club: la UI arma con esto la lista de años y
+  // de meses, en vez de inventarse un rango que puede no existir.
+  const { data: primeroRows } = await admin
+    .from('partidos').select('fecha').eq('club_id', clubId).order('fecha', { ascending: true }).limit(1)
+  const desde_minimo = ((primeroRows ?? []) as { fecha: string }[])[0]?.fecha ?? null
+
   // ── Cruce "con / contra": qué partidos entran ────────────────────────────
-  // Se resuelve antes de tocar `partidos` porque acota la lista de ids.
   let idsPermitidos: string[] | null = null
   let cruce: { con: number; contra: number } | null = null
   if (jugador && rival) {
@@ -116,20 +123,33 @@ export async function GET(req: NextRequest) {
       equiposDe(admin, clubId, rival),
     ])
     const c = cruzarEquipos(mios, suyos)
-    cruce = { con: c.con.length, contra: c.contra.length }
-    idsPermitidos = relacion === 'contra' ? c.contra : relacion === 'con' ? c.con : [...c.con, ...c.contra]
+
+    // El cruce TIENE que respetar el mismo filtro de fechas que todo lo demás.
+    // Sin esto, con el año 2026 puesto la ficha decía "8 jugados" (solo 2026)
+    // mientras el pie decía "Juntos 9 · En contra 2" contando todos los años:
+    // dos números contradictorios en la misma tarjeta.
+    //
+    // Se filtra consultando `partidos` por los ids candidatos y no leyendo el
+    // calendario entero: el cruce son a lo sumo los partidos que jugó una
+    // persona, así que la consulta queda acotada por más que crezca el club.
+    const candidatos = [...c.con, ...c.contra]
+    let validos = new Set(candidatos)
+    if (candidatos.length > 0) {
+      let qv = admin.from('partidos').select('id').eq('club_id', clubId).in('id', candidatos).lt('fecha', hoy)
+      if (desde) qv = qv.gte('fecha', desde)
+      if (hasta) qv = qv.lte('fecha', hasta)
+      const { data: vRows } = await qv
+      validos = new Set(((vRows ?? []) as { id: string }[]).map(r => r.id))
+    }
+    const con = c.con.filter(id => validos.has(id))
+    const contra = c.contra.filter(id => validos.has(id))
+
+    cruce = { con: con.length, contra: contra.length }
+    idsPermitidos = relacion === 'contra' ? contra : relacion === 'con' ? con : [...con, ...contra]
     if (idsPermitidos.length === 0) {
-      return NextResponse.json({ ok: true, partidos: [], ficha: null, cruce, hay_mas: false, desde_minimo: null })
+      return NextResponse.json({ ok: true, partidos: [], ficha: null, cruce, hay_mas: false, desde_minimo })
     }
   }
-
-  const hoy = new Date().toISOString().split('T')[0]
-
-  // Fecha del primer partido del club: la UI arma con esto la lista de años,
-  // en vez de inventarse un rango que puede no existir.
-  const { data: primeroRows } = await admin
-    .from('partidos').select('fecha').eq('club_id', clubId).order('fecha', { ascending: true }).limit(1)
-  const desde_minimo = ((primeroRows ?? []) as { fecha: string }[])[0]?.fecha ?? null
 
   // ── La ficha: conteo sobre TODO el filtro, no sobre la página ────────────
   // Se pide aparte y sin paginar porque son pocas filas (una por partido del

@@ -110,10 +110,19 @@ SELECT
                      AND NOT (r.motivos ? 'ganó')
                      AND NOT (r.motivos ? 'perdió')
                      AND NOT (r.motivos ? 'empató'))  AS sin_datos,
-  round(100.0 * count(*) FILTER (WHERE r.motivos ? 'ganó')
-        / NULLIF(count(*) FILTER (WHERE r.motivos ? 'ganó'
-                                    OR r.motivos ? 'perdió'
-                                    OR r.motivos ? 'empató'), 0), 1) AS pct_victorias
+  -- La app NO publica el porcentaje con menos de 5 partidos decididos
+  -- (MIN_DECIDIDOS_PCT en src/lib/historial.ts): un 0-1-2 sale como "0.0%" y
+  -- en una pantalla que ve todo el club eso marca a alguien como el peor del
+  -- grupo por tres partidos. Aquí se deja en NULL igual, para que las dos
+  -- vistas digan lo mismo.
+  CASE WHEN count(*) FILTER (WHERE r.motivos ? 'ganó'
+                               OR r.motivos ? 'perdió'
+                               OR r.motivos ? 'empató') >= 5
+    THEN round(100.0 * count(*) FILTER (WHERE r.motivos ? 'ganó')
+          / NULLIF(count(*) FILTER (WHERE r.motivos ? 'ganó'
+                                      OR r.motivos ? 'perdió'
+                                      OR r.motivos ? 'empató'), 0), 1)
+  END AS pct_victorias
 FROM public.rating_events r
 JOIN public.profiles pr ON pr.id = r.player_id
 GROUP BY pr.username

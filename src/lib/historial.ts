@@ -45,6 +45,19 @@ export function jugoSegunMotivos(motivos: unknown): boolean {
   return Array.isArray(motivos) && motivos.includes('jugó')
 }
 
+/**
+ * Partidos decididos mínimos para publicar un porcentaje.
+ *
+ * Con menos, el número dice más del azar que de la persona: un 0-1-2 sale como
+ * "0.0%" y en una pantalla que ve todo el club eso marca a alguien como el
+ * peor del grupo por tres partidos. Aun con 20 decididos el margen de error
+ * ronda ±10 puntos, así que el porcentaje nunca es un ranking; el piso solo
+ * evita los casos en que es directamente ruido.
+ *
+ * Los conteos G-P-E se muestran siempre: son el dato crudo y no engañan.
+ */
+export const MIN_DECIDIDOS_PCT = 5
+
 export interface Ficha {
   jugados: number
   ganados: number
@@ -52,12 +65,20 @@ export interface Ficha {
   empatados: number
   /** Jugó, pero no se guardaron equipos: no se puede saber si ganó. */
   sin_datos: number
-  /** Sobre los partidos DECIDIDOS, no sobre los jugados. null si no hay ninguno. */
+  /** Partidos con resultado conocido: el denominador del porcentaje. */
+  decididos: number
+  /**
+   * Sobre los partidos DECIDIDOS, no sobre los jugados.
+   * null si no hay ninguno, o si son menos de `MIN_DECIDIDOS_PCT`.
+   */
   pct_victorias: number | null
 }
 
 export function fichaDeEventos(eventos: { motivos: unknown }[]): Ficha {
-  const f: Ficha = { jugados: 0, ganados: 0, perdidos: 0, empatados: 0, sin_datos: 0, pct_victorias: null }
+  const f: Ficha = {
+    jugados: 0, ganados: 0, perdidos: 0, empatados: 0,
+    sin_datos: 0, decididos: 0, pct_victorias: null,
+  }
   for (const e of eventos) {
     if (!jugoSegunMotivos(e.motivos)) continue   // ausencias y faltas no son historial de juego
     f.jugados++
@@ -67,8 +88,10 @@ export function fichaDeEventos(eventos: { motivos: unknown }[]): Ficha {
     else if (r === 'empató') f.empatados++
     else f.sin_datos++
   }
-  const decididos = f.ganados + f.perdidos + f.empatados
-  f.pct_victorias = decididos > 0 ? Math.round((f.ganados / decididos) * 1000) / 10 : null
+  f.decididos = f.ganados + f.perdidos + f.empatados
+  f.pct_victorias = f.decididos >= MIN_DECIDIDOS_PCT
+    ? Math.round((f.ganados / f.decididos) * 1000) / 10
+    : null
   return f
 }
 

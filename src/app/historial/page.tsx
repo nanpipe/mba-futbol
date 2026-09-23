@@ -238,11 +238,18 @@ export default function HistorialPage() {
                 <span style={{ color: 'var(--text-muted)' }}> · </span>
                 <span style={{ color: COLOR['empató'] }}>{f.empatados}E</span>
               </div>
-              {f.pct_victorias !== null && (
+              {f.pct_victorias !== null ? (
                 <div className="display" style={{ fontSize: 18, color: 'var(--green)', marginLeft: 'auto' }}>
                   {f.pct_victorias}%
                 </div>
-              )}
+              ) : f.decididos > 0 ? (
+                // Con tres partidos, un 0-1-2 saldría como "0.0%" y marcaría a
+                // alguien como el peor del club por pura mala suerte. Los
+                // conteos de arriba siguen ahí: son el dato sin interpretar.
+                <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 'auto', textAlign: 'right' }}>
+                  pocos partidos<br />para un %
+                </div>
+              ) : null}
             </div>
 
             {/* Honestidad sobre la cobertura: no se disimulan los partidos en

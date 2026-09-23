@@ -192,3 +192,23 @@ export async function comprimirAvatar(
 
   return { blob, tipo: blob.type || 'image/png', ancho: destino, alto: destino }
 }
+
+/**
+ * Por debajo de esto un avatar ya está optimizado y no se vuelve a tocar.
+ *
+ * Reencodar es con pérdida: pasar otra vez por el canvas a un archivo que ya
+ * está en 256 px WebP solo le quita calidad sin ahorrar nada. El umbral va
+ * holgado sobre los ~20 KB que produce `comprimirAvatar`, para que un avatar
+ * con más detalle —que sale más pesado siendo igual de correcto— tampoco entre
+ * en un segundo ciclo. Es lo que hace que la recompresión masiva se pueda
+ * repetir sin degradar nada.
+ */
+export const AVATAR_YA_OPTIMIZADO = 60 * 1024
+
+/** ¿Vale la pena recomprimir este avatar, o ya está bien? */
+export function necesitaRecompresion(bytes: number, tipo?: string | null): boolean {
+  if (!Number.isFinite(bytes) || bytes <= 0) return false
+  if (bytes > AVATAR_YA_OPTIMIZADO) return true
+  // Chico pero todavía PNG: pasarlo a WebP puede bajarlo bastante más.
+  return tipo === 'image/png'
+}

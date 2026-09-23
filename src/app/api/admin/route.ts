@@ -233,6 +233,20 @@ export async function GET(req: NextRequest) {
   // Va por el servidor porque el cliente ya no puede leer votos_reconocimiento
   // ni player_thumbs: esas tablas quedaron sin políticas para que los votos sean
   // anónimos de verdad (20260917_votos_sin_politicas / _thumbs_).
+  // Los jugadores con foto de perfil, para la recompresión de avatares.
+  // Solo superadmin: la lista en sí es inocua, pero la operación que viene
+  // después reescribe el archivo de otra persona.
+  if (accion === 'avatares') {
+    if (adminUser.role !== 'superadmin') return NextResponse.json({ error: 'Solo superadmin' }, { status: 403 })
+    const { data } = await admin
+      .from('profiles')
+      .select('id, username, avatar_url')
+      .eq('club_id', clubId)
+      .not('avatar_url', 'is', null)
+      .order('username')
+    return NextResponse.json({ ok: true, jugadores: data ?? [] })
+  }
+
   if (accion === 'progreso_votaciones') {
     const desde = fechaColombia(new Date(Date.now() - 120 * 86400000))
     const { data: partidos } = await admin

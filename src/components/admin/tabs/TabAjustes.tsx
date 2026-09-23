@@ -83,6 +83,79 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
   const [cronResult, setCronResult] = useState<{ ok: boolean; msg: string } | null>(null)
   const [recalculando, setRecalculando] = useState(false)
   const [recalculoResult, setRecalculoResult] = useState<{ ok: boolean; msg: string } | null>(null)
+  const [avatarsRunning, setAvatarsRunning] = useState(false)
+  const [avatarsResult, setAvatarsResult] = useState<{ ok: boolean; msg: string } | null>(null)
+
+  /**
+   * Recomprime los avatares que ya estaban subidos.
+   *
+   * La compresión la hace ESTE navegador, con la misma `comprimirAvatar` que
+   * usa el perfil: en el servidor no hay canvas, y una segunda implementación
+   * del redimensionado se separaría de la primera al primer cambio. El
+   * servidor solo valida y escribe con la service key, que es lo único que el
+   * navegador no puede hacer sobre la carpeta de otra persona.
+   *
+   * De a uno y no en paralelo: son 38 descargas y 38 subidas desde un celular,
+   * y saturar la conexión solo haría que fallen unos cuantos. Es reanudable
+   * por naturaleza — volver a darle salta los que ya están listos.
+   */
+  const recomprimirAvatares = async () => {
+    setAvatarsRunning(true)
+    setAvatarsResult({ ok: true, msg: 'Buscando avatares…' })
+    try {
+      const { comprimirAvatar, necesitaRecompresion } = await import('@/lib/imagen')
+      const res = await fetch('/api/admin?accion=avatares')
+      const d = await res.json()
+      if (!res.ok) { setAvatarsResult({ ok: false, msg: d.error ?? 'No se pudo leer la lista' }); return }
+
+      const jugadores = (d.jugadores ?? []) as { id: string; username: string; avatar_url: string }[]
+      let hechos = 0, saltados = 0, antes = 0, despues = 0
+      const fallos: string[] = []
+
+      for (let i = 0; i < jugadores.length; i++) {
+        const j = jugadores[i]
+        setAvatarsResult({ ok: true, msg: `Procesando ${i + 1} de ${jugadores.length}… (${j.username})` })
+        try {
+          // `cache: 'reload'` salta la caché del navegador y del service
+          // worker: si no, se recomprimiría la copia vieja una y otra vez.
+          const r = await fetch(j.avatar_url, { cache: 'reload' })
+          if (!r.ok) throw new Error(String(r.status))
+          const original = await r.blob()
+          if (!necesitaRecompresion(original.size, original.type)) { saltados++; continue }
+
+          const nuevo = await comprimirAvatar(original)
+          // Si el resultado no es más chico, dejarlo como está: reencodar es
+          // con pérdida y no tiene sentido pagarla sin ganar nada.
+          if (nuevo.blob.size >= original.size) { saltados++; continue }
+
+          const form = new FormData()
+          form.append('player_id', j.id)
+          form.append('file', nuevo.blob, 'avatar.webp')
+          const up = await fetch('/api/admin/avatar', { method: 'POST', body: form })
+          if (!up.ok) {
+            const e = await up.json().catch(() => ({}))
+            throw new Error(e.error ?? String(up.status))
+          }
+          antes += original.size; despues += nuevo.blob.size; hechos++
+        } catch (e) {
+          fallos.push(`${j.username}: ${e instanceof Error ? e.message : 'error'}`)
+        }
+      }
+
+      const kb = (n: number) => `${(n / 1024).toFixed(0)} KB`
+      const resumen = [
+        `${hechos} recomprimidos, ${saltados} ya estaban bien.`,
+        hechos > 0 ? `${kb(antes)} → ${kb(despues)} (${(antes / despues).toFixed(1)}× menos)` : '',
+        fallos.length ? `\nNo se pudo con ${fallos.length}:\n${fallos.join('\n')}` : '',
+        '\nVuelve a darle cuando quieras: salta los que ya están listos.',
+      ].filter(Boolean).join('\n')
+      setAvatarsResult({ ok: fallos.length === 0, msg: resumen })
+    } catch (e) {
+      setAvatarsResult({ ok: false, msg: e instanceof Error ? e.message : 'Error inesperado' })
+    } finally {
+      setAvatarsRunning(false)
+    }
+  }
 
   const cargarSettings = useCallback(async () => {
     setSettingsLoading(true)
@@ -532,6 +605,46 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
                   color: recalculoResult.ok ? 'var(--green)' : 'var(--red, #f87171)',
                 }}>
                   {recalculoResult.msg}
+                </div>
+              )}
+            </Card>
+          )}
+
+          {/* Recomprimir avatares — superadmin */}
+          {isSuperAdmin && (
+            <Card padding="20px 24px">
+              <SectionHeader title="RECOMPRIMIR AVATARES" icon="🗜️" color="#a78bfa" />
+              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+                Las fotos de perfil viejas se guardaron a 800 px en PNG: cerca de
+                500 KB cada una, para verse del tamaño de una moneda. Abrir la
+                lista de jugadores baja varios MB y por eso los avatares salen a
+                medias en datos móviles. Esto las deja en 256 px WebP, unas 25
+                veces más livianas.
+                <br /><br />
+                Se puede repetir sin daño: salta las que ya están optimizadas.
+                Nunca borra nada — escribe sobre el mismo archivo.
+                <br /><br />
+                <span style={{ color: 'var(--amber)' }}>
+                  Recomprimir es con pérdida y no tiene vuelta atrás: el original
+                  de 800 px no se recupera. A ese tamaño no se nota, pero conviene
+                  saberlo. Deja esta pantalla abierta hasta que termine — el
+                  trabajo lo hace este navegador.
+                </span>
+              </div>
+              <button
+                onClick={recomprimirAvatares}
+                disabled={avatarsRunning}
+                className="btn"
+                style={{ fontSize: 12, borderColor: '#a78bfa', color: '#a78bfa' }}
+              >
+                {avatarsRunning ? 'Procesando...' : '🗜️ Recomprimir avatares'}
+              </button>
+              {avatarsResult && (
+                <div className="mono" style={{
+                  fontSize: 10, marginTop: 12, lineHeight: 1.7, whiteSpace: 'pre-wrap',
+                  color: avatarsResult.ok ? 'var(--green)' : 'var(--amber)',
+                }}>
+                  {avatarsResult.msg}
                 </div>
               )}
             </Card>

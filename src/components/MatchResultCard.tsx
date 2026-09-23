@@ -36,10 +36,12 @@ function formatHora12(hora?: string | null): string {
  * Result block for a finished match: photo, winner (normal score or minitorneo
  * points) and badge winners. Used on the home page (last match) and /historial.
  */
-export function MatchResultCard({ titulo, partido, badges }: {
+export function MatchResultCard({ titulo, partido, badges, marca }: {
   titulo: string
   partido: MatchResult
   badges: MatchBadge[]
+  /** Distintivo opcional junto al título (el historial pone ahí GANÓ/PERDIÓ). */
+  marca?: React.ReactNode
 }) {
   const p = partido
   // Un empate son DOS filas en player_badges, una por ganador. Sin agrupar, la
@@ -64,8 +66,9 @@ export function MatchResultCard({ titulo, partido, badges }: {
 
   return (
     <div className="fade-in">
-      <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 4 }}>
-        {titulo}
+      <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span>{titulo}</span>
+        {marca}
       </div>
       <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 16 }}>
         {new Date(p.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })}
@@ -94,6 +97,8 @@ export function MatchResultCard({ titulo, partido, badges }: {
               src={p.foto_url}
               alt=""
               aria-hidden="true"
+              loading="lazy"
+              decoding="async"
               style={{
                 position: 'absolute', inset: 0, width: '100%', height: '100%',
                 objectFit: 'cover', filter: 'blur(24px) brightness(0.45)',
@@ -105,6 +110,8 @@ export function MatchResultCard({ titulo, partido, badges }: {
             <img
               src={p.foto_url}
               alt="Foto del partido"
+              loading="lazy"
+              decoding="async"
               style={{ position: 'relative', width: '100%', height: '100%', display: 'block', objectFit: 'contain' }}
             />
           </div>

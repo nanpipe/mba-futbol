@@ -2,7 +2,7 @@
 
 Varias sesiones de Claude trabajan este repo (local en Windows y cloud). **GitHub `main` es lo único que comparten.** Esta conversación, `.env.local`, las ramas locales y la memoria de cada sesión no viajan. Si algo importa, va aquí.
 
-Última actualización: 2026-09-21 (cloud — recorte 16:9 + WebP, y limpieza de storage corregida; sin migraciones pendientes).
+Última actualización: 2026-09-23 (cloud — historial con filtros; sin migraciones pendientes).
 
 ---
 
@@ -226,6 +226,14 @@ Medido en producción: **storage 56 MB de 1 GB (5,5%), creciendo 119 MB/año →
   - **La tarjeta usa `contain`, no `cover`**, dentro de una caja 16:9. Las fotos nuevas la llenan exacta; las viejas, con otra proporción, se ven completas. **`cover` está probado y descartado**: se renderizó una foto vertical real del club y recortaba a la altura del pecho — se perdían todas las caras. Eso no se ve leyendo el CSS, hay que mirarlo.
   - **Fondo desenfocado detrás** (2026-09-21): `contain` a secas dejaba dos vacíos negros enormes en las fotos verticales y parecía un error. Ahora la misma foto va detrás con `object-fit: cover`, `blur(24px) brightness(.45)` y `scale(1.15)` (el escalado evita que se vean los bordes del desenfoque). Una foto que ya viene 16:9 tapa el fondo entera, así que solo se nota en las viejas.
   - **"✂️ Reencuadrar"** en Admin → Historial, para arreglar de verdad una foto ya subida sin buscarla otra vez en el carrete: baja la actual con `fetch`, la mete al mismo recortador y sube el resultado. Se baja con `fetch` y no dibujando la `<img>`: una imagen de otro origen pintada en canvas lo contamina y `toBlob` revienta. El bucket es público y responde con CORS abierto. La vista previa del historial usa la misma caja 16:9 que el home, para que el admin vea ahí si hace falta reencuadrar.
+- **Historial con filtros** (`/historial`, `api/historial`, `lib/historial.ts`, desde 2026-09-23): selector de jugador, año, resultado (ganó/perdió/empató) y comparación con otro jugador (juntos / en contra). El botón de entrada sigue donde estaba.
+  - **Los datos salen de `rating_events`, no de una tabla nueva.** Ya es una fila por jugador y por partido, con `motivos` guardando `'jugó'`, `'ganó'`, `'perdió'`, `'empató'`, `'ausente'`. Es además **la misma fuente con la que se calculó el rating**: si el historial se construyera aparte, podría decir "ganaste 28" mientras el rating salió de otra cosa, y habría dos verdades.
+  - **Todo el filtrado es de servidor.** La ficha ("28G-14P-5E") cuenta sobre TODO el filtro, no sobre la página cargada. Filtrar en el cliente lo paginado daría el mismo error que el "2 de 14 votaron".
+  - **`rating_events.created_at` NO sirve para ordenar cronológicamente**: es cuándo se escribió el evento, y tras el recálculo completo son casi todos el mismo instante. Se ordena por `partidos.fecha`, y por eso la consulta va desde `partidos` con `rating_events!inner` embebido — PostgREST no ordena la tabla principal por una columna embebida.
+  - **Lo que no se puede saber se dice, no se disimula.** Quién ganó exige que hayan quedado guardados los equipos; donde no, el evento quedó solo con `'jugó'`. Eso se cuenta en `ficha.sin_datos` y el porcentaje se calcula **sobre los partidos decididos**, no sobre los jugados. Un 60% diluido por desconocidos sería un número falso. Herramienta para medir la cobertura: `supabase/auditoria_historial.sql`.
+  - **Filtrar por resultado sin jugador no significa nada** (un partido no lo gana el club, lo gana un equipo): la UI no lo ofrece y el API lo rechaza con 400.
+  - Sin migraciones: todas las tablas ya existían.
+  - Las fotos de la lista van con `loading="lazy"`: 15 partidos con foto son ~1 MB de descarga, y el plan gratis da 5 GB/mes (ver §5.8).
 - **Empates en reconocimientos:** un empate arriba **se lo llevan todos los del tope**, no se desempata. Elegir "el primero" era una moneda al aire con cara de criterio. En la base eso son dos filas en `player_badges`, una por ganador, y la tarjeta del partido las repetía como si fueran dos categorías distintas ("La más perrota" dos veces, con nombres y votos distintos) — se leía como un error de conteo. Desde 2026-09-20 `MatchResultCard` agrupa por `badge_id` y lo dice: "hernan14 y danielb3 · 3 votos c/u · EMPATE". **El comportamiento no cambió, solo dejó de parecer un bug.**
 - **Evaluaciones:** se abren una sola vez (`evaluaciones_ya_abiertas`) y se cierran solas a los 2 días.
 - **Timezone:** todo en Colombia (UTC−5).

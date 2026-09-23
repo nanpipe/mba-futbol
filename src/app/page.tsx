@@ -490,9 +490,6 @@ export default function HomePage() {
           partido={p}
           badges={ultimoPartido.badges}
         />
-        <Link href="/historial" className="mono" style={{ display: 'inline-block', marginTop: 12, fontSize: 11, color: 'var(--text-muted)', textDecoration: 'none', letterSpacing: '0.08em' }}>
-          Ver historial →
-        </Link>
       </div>
     )
   }

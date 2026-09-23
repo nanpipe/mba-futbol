@@ -194,31 +194,42 @@ export function MatchResultCard({ titulo, partido, badges, marca }: {
             versión solo-emoji bajaba a 53 px pero volvía la tarjeta una
             adivinanza. */}
         {categorias.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 6 }}>
+          // `minmax(215px)` y no 150: a 150 se mochaban los nombres y las
+          // categorías ("mendieta…", "Mejor Porter…"), que es justo lo que hay
+          // que leer. Con menos columnas pero enteras se lee mejor que con
+          // muchas cortadas.
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(215px, 1fr))', gap: 6 }}>
             {categorias.map(c => {
-              const primero = c.ganadores[0]
-              const mas = c.ganadores.length - 1
-              const titulo = `${c.nombre}${typeof c.votos === 'number' ? ` · ${c.votos} voto${c.votos !== 1 ? 's' : ''}${mas ? ' c/u' : ''}` : ''}` +
-                (mas ? ` · EMPATE: ${c.ganadores.map(g => g.username).join(', ')}` : '')
+              const empate = c.ganadores.length > 1
               return (
-                <div key={c.badge_id} title={titulo} style={{
-                  display: 'flex', alignItems: 'center', gap: 7, minWidth: 0,
-                  padding: '6px 8px', background: 'var(--bg-card)',
+                <div key={c.badge_id} style={{
+                  display: 'flex', alignItems: 'center', gap: 9, minWidth: 0,
+                  padding: '8px 10px', background: 'var(--bg-card)',
                   border: '1px solid var(--border)', borderRadius: 4,
                 }}>
-                  <span style={{ fontSize: 16, flexShrink: 0 }}>{c.emoji}</span>
-                  <PlayerAvatar url={primero.avatar_url} username={primero.username} size={22} />
+                  <span style={{ fontSize: 19, flexShrink: 0 }}>{c.emoji}</span>
+                  {/* En un empate se muestran TODOS los ganadores, no "+1": el
+                      empate es la gracia del asunto y esconder a uno de los dos
+                      detrás de un contador se lee como si hubiera un solo
+                      ganador. Los avatares se superponen para ocupar poco. */}
+                  <div style={{ display: 'flex', flexShrink: 0 }}>
+                    {c.ganadores.map((g, i) => (
+                      <span key={g.username} style={{ marginLeft: i ? -9 : 0, display: 'inline-flex' }}>
+                        <PlayerAvatar url={g.avatar_url} username={g.username} size={26} />
+                      </span>
+                    ))}
+                  </div>
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div className="mono" style={{ fontSize: 11, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {primero.username}
-                      {mas > 0 && <span style={{ color: 'var(--amber)' }}> +{mas}</span>}
+                    <div className="mono" style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {c.ganadores.map(g => g.username).join(' · ')}
                     </div>
-                    <div className="mono" style={{ fontSize: 8, color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div className="mono" style={{ fontSize: 9.5, color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {c.nombre}
                       {typeof c.votos === 'number' && ` · ${c.votos}`}
+                      {empate && <span style={{ color: 'var(--amber)' }}> · EMPATE</span>}
                     </div>
                   </div>
-                  <PuntoEquipo color={primero.color} />
+                  <PuntoEquipo color={c.ganadores[0].color} />
                 </div>
               )
             })}

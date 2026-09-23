@@ -254,3 +254,25 @@ export function explicarSinAsignar(d: DecisionCategoria, votantes: number, q: Qu
   }
   return `${d.votos} voto${d.votos !== 1 ? 's' : ''} y ${votantes} votante${votantes !== 1 ? 's' : ''} — se necesitan ${q.minVotos} votos o ${q.minVotantes} votantes`
 }
+
+/**
+ * Cuándo se cierran solas las votaciones de un partido.
+ *
+ * El cron cierra cuando la fecha del partido queda dos días atrás, o sea en el
+ * tic de las 00:00 del día D+2 (ver `api/cron/notificaciones`). En la práctica
+ * se vota "hasta que se acabe el día siguiente al partido", y eso no estaba
+ * escrito en ninguna parte: el admin veía el botón de cerrar y no sabía que no
+ * tenía que hacer nada.
+ *
+ * Devuelve el último día completo para votar y el día en que el cron cierra.
+ * En UTC porque `partidos.fecha` es un DATE sin zona: construirlo en local
+ * correría un día según dónde esté quien mire.
+ */
+export function cierreAutomatico(fechaPartido: string): { ultimoDia: string; cierra: string } | null {
+  if (!FECHA_RE.test(fechaPartido)) return null
+  const base = new Date(`${fechaPartido}T00:00:00Z`)
+  if (Number.isNaN(base.getTime())) return null
+  const iso = (d: Date) => d.toISOString().slice(0, 10)
+  const mas = (n: number) => new Date(base.getTime() + n * 86400000)
+  return { ultimoDia: iso(mas(1)), cierra: iso(mas(2)) }
+}

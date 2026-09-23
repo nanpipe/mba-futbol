@@ -224,6 +224,30 @@ export default function PerfilPage() {
     setAvatarPorRecortar(file)
   }
 
+  /**
+   * Abre el recortador con la foto que YA está subida.
+   *
+   * Se baja con `fetch` y no pintando la <img> en el canvas: una imagen de
+   * otro origen lo contamina y `toBlob` revienta. El bucket es público y
+   * responde con CORS abierto. `cache: 'reload'` salta la caché del
+   * navegador y del service worker, que si no devolverían la copia vieja.
+   */
+  const reencuadrarMiFoto = async (url: string) => {
+    setUploadingAvatar(true)
+    setAvatarStatus('Abriendo...')
+    try {
+      const r = await fetch(url, { cache: 'reload' })
+      if (!r.ok) throw new Error(String(r.status))
+      const blob = await r.blob()
+      setAvatarPorRecortar(new File([blob], 'actual.webp', { type: blob.type || 'image/webp' }))
+    } catch {
+      flash('error', 'No se pudo abrir tu foto. Vuelve a subirla desde el carrete.')
+    } finally {
+      setUploadingAvatar(false)
+      setAvatarStatus('')
+    }
+  }
+
   /** Lo que sale del recortador: ya viene cuadrado y a 256 px. */
   const subirAvatar = async (recortado: File) => {
     if (!user) return
@@ -353,12 +377,27 @@ export default function PerfilPage() {
             </div>
           </div>
 
-          <label style={{ cursor: uploadingAvatar ? 'not-allowed' : 'pointer' }}>
-            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={elegirAvatar} disabled={uploadingAvatar} style={{ display: 'none' }} />
-            <span className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 16px', opacity: uploadingAvatar ? 0.5 : 1 }}>
-              {uploadingAvatar ? (avatarStatus || 'Procesando...') : '📷 Cambiar foto'}
-            </span>
-          </label>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <label style={{ cursor: uploadingAvatar ? 'not-allowed' : 'pointer' }}>
+              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={elegirAvatar} disabled={uploadingAvatar} style={{ display: 'none' }} />
+              <span className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 16px', opacity: uploadingAvatar ? 0.5 : 1 }}>
+                {uploadingAvatar ? (avatarStatus || 'Procesando...') : '📷 Cambiar foto'}
+              </span>
+            </label>
+            {/* Reencuadrar la que ya está, sin volver a buscarla en el carrete:
+                el encuadre es lo que más se falla y no tiene por qué obligar a
+                subir la foto otra vez. */}
+            {profile?.avatar_url && (
+              <button
+                onClick={() => reencuadrarMiFoto(profile.avatar_url!)}
+                disabled={uploadingAvatar}
+                className="btn btn-ghost"
+                style={{ fontSize: 11, padding: '6px 16px', opacity: uploadingAvatar ? 0.5 : 1 }}
+              >
+                ✂️ Reencuadrar
+              </button>
+            )}
+          </div>
           <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', textAlign: 'center' }}>
             Se comprime y se remueve el fondo automáticamente ✨
           </div>

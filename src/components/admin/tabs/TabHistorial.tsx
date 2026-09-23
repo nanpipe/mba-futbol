@@ -9,6 +9,7 @@ import { SectionHeader } from '@/components/SectionHeader'
 import { ButtonGroup } from '@/components/ButtonGroup'
 import { calcularVentanaPartido } from '@/lib/partidos'
 import { fechaColombia } from '@/lib/promoHora'
+import { cierreAutomatico } from '@/lib/reconocimientos'
 import { RecorteFotoModal } from '@/components/admin/RecorteFotoModal'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
 
@@ -318,8 +319,31 @@ export function TabHistorial({ active }: Props) {
     setSavingResultado(false)
   }
 
+  /**
+   * Cerrar a mano casi nunca hace falta, y el admin no tenía cómo saberlo: veía
+   * el botón y asumía que si no lo tocaba, no pasaba nada. El aviso dice cuándo
+   * se cierra solo y cuánta gente falta por votar, que es lo que de verdad
+   * decide si vale la pena esperar.
+   */
   const handleCerrarVotacion = async (partido_id: string) => {
-    if (!window.confirm('¿Cerrar votación y asignar badges? Esta acción es irreversible (o usa Reabrir para deshacer).')) return
+    const p = historial.find(x => x.id === partido_id)
+    const c = p ? cierreAutomatico(p.fecha) : null
+    const dia = (f: string) =>
+      new Date(f + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })
+    const pr = progreso[partido_id]
+    const faltan = pr && pr.total > pr.votaron ? pr.total - pr.votaron : 0
+
+    const aviso = [
+      c
+        ? `Ojo: NO hace falta cerrarlas a mano.\n\nSe cierran solas el ${dia(c.cierra)} a medianoche, así que todavía queda todo el ${dia(c.ultimoDia)} para votar.`
+        : 'Ojo: las votaciones se cierran solas dos días después del partido.',
+      faltan > 0
+        ? `\nFaltan ${faltan} por votar (van ${pr!.votaron} de ${pr!.total}). Si cierras ahora, los reconocimientos se reparten solo con los votos que ya hay.`
+        : '\nYa votaron todos los que jugaron.',
+      '\n¿Cerrar de todas formas?',
+    ].join('\n')
+
+    if (!window.confirm(aviso)) return
     setSavingCerrar(true)
     const res = await fetch('/api/evaluaciones', {
       method: 'PUT',

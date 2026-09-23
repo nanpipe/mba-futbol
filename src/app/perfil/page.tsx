@@ -16,6 +16,8 @@ import { agruparBadges } from '@/lib/categorias'
 import { InvitadosGuardados } from '@/components/InvitadosGuardados'
 import { fechaColombia } from '@/lib/promoHora'
 import { AUSENCIA_MAX_DIAS } from '@/lib/ausencia'
+import { RecorteFotoModal } from '@/components/admin/RecorteFotoModal'
+import { recortarAvatar } from '@/lib/imagen'
 
 import { POSICIONES, type Posicion } from '@/lib/posiciones'
 
@@ -85,6 +87,7 @@ export default function PerfilPage() {
 
   // Avatar
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [avatarPorRecortar, setAvatarPorRecortar] = useState<File | null>(null)
   const [avatarStatus, setAvatarStatus] = useState('')
 
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
@@ -206,24 +209,29 @@ export default function PerfilPage() {
     setSavingPass(false)
   }
 
-  const subirAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  /**
+   * Elegir el archivo solo abre el recortador. Antes se subía directo y el
+   * avatar se recortaba al centro por su cuenta: si la persona salía a un
+   * lado de la foto, el círculo le cortaba media cara. Ahora ve la guía
+   * redonda y encuadra ella.
+   */
+  const elegirAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = ''   // permite reelegir la misma tras cancelar
     if (!file || !user) return
     if (!file.type.startsWith('image/')) { flash('error', 'Solo se permiten imágenes.'); return }
     if (file.size > 20 * 1024 * 1024) { flash('error', 'Máximo 20 MB.'); return }
+    setAvatarPorRecortar(file)
+  }
 
+  /** Lo que sale del recortador: ya viene cuadrado y a 256 px. */
+  const subirAvatar = async (recortado: File) => {
+    if (!user) return
+    setAvatarPorRecortar(null)
     setUploadingAvatar(true)
-    e.target.value = ''
 
     try {
-      // 1. Compress (useWebWorker: false avoids CDN web-worker CSP issues)
-      setAvatarStatus('Comprimiendo...')
-      const { default: imageCompression } = await import('browser-image-compression')
-      const compressed = await imageCompression(file, {
-        maxSizeMB: 1,
-        maxWidthOrHeight: 800,
-        useWebWorker: false,
-      })
+      const compressed = recortado
 
       // 2. Attempt background removal (optional — skip on failure)
       let uploadBlob: Blob
@@ -246,6 +254,10 @@ export default function PerfilPage() {
       // era la mitad del storage del plan gratis, y en la lista del panel se
       // veía: los avatares quedaban a medio cargar. Ahora sale cuadrado, a
       // 256 px y en WebP (~15 KB), conservando la transparencia del quitafondos.
+      // El quitafondos devuelve PNG sin comprimir, así que hay que volver a
+      // pasar por aquí aunque el recorte ya viniera en 256: si no, se sube un
+      // PNG de varios cientos de KB. Si el quitafondos falló, `uploadBlob` ya
+      // es lo que salió del recortador y esto no le quita casi nada.
       setAvatarStatus('Optimizando...')
       const { comprimirAvatar } = await import('@/lib/imagen')
       const avatar = await comprimirAvatar(uploadBlob)
@@ -342,7 +354,7 @@ export default function PerfilPage() {
           </div>
 
           <label style={{ cursor: uploadingAvatar ? 'not-allowed' : 'pointer' }}>
-            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={subirAvatar} disabled={uploadingAvatar} style={{ display: 'none' }} />
+            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={elegirAvatar} disabled={uploadingAvatar} style={{ display: 'none' }} />
             <span className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 16px', opacity: uploadingAvatar ? 0.5 : 1 }}>
               {uploadingAvatar ? (avatarStatus || 'Procesando...') : '📷 Cambiar foto'}
             </span>
@@ -520,6 +532,22 @@ export default function PerfilPage() {
           </button>
         </Section>
       </div>
+
+      {/* Guía redonda: lo que se ve dentro del círculo es exactamente lo que
+          queda. Sin esto el recorte era al centro y a quien saliera a un lado
+          de la foto le cortaba media cara. */}
+      {avatarPorRecortar && (
+        <RecorteFotoModal
+          archivo={avatarPorRecortar}
+          aspecto={1}
+          redondo
+          titulo="ENCUADRAR TU FOTO"
+          ayuda="Centra tu cara dentro del círculo. Arrastra para mover y pellizca o usa la barra para acercar."
+          procesar={recortarAvatar}
+          onCancelar={() => setAvatarPorRecortar(null)}
+          onListo={subirAvatar}
+        />
+      )}
     </div>
   )
 }

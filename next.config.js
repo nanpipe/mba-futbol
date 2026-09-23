@@ -45,9 +45,16 @@ const securityHeaders = [
   { key: 'X-DNS-Prefetch-Control', value: 'off' },
 ]
 
+// Lo que se muestra en el pie. `version` de package.json llevaba en 0.1.0
+// desde siempre porque nadie la sube a mano, así que no decía nada sobre qué
+// está desplegado. El hash del commit lo pone Vercel en cada build y no hay
+// que acordarse de nada. En local no existe, y ahí sí sirve la versión.
+const commit = process.env.VERCEL_GIT_COMMIT_SHA
+const APP_VERSION = commit ? commit.slice(0, 7) : `${version}-dev`
+
 const nextConfig = {
   env: {
-    NEXT_PUBLIC_APP_VERSION: version,
+    NEXT_PUBLIC_APP_VERSION: APP_VERSION,
   },
   async headers() {
     return [

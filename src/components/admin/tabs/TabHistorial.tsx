@@ -178,7 +178,10 @@ export function TabHistorial({ active }: Props) {
   // El selector de abajo hace las dos cosas. Antes cada fila llevaba su propio
   // REMOVER, que llenaba la lista de botones rojos para una acción que casi
   // nunca se usa.
-  const [modo, setModo] = useState<'agregar' | 'remover'>('agregar')
+  // null = plegado. Los dos botones arrancan en gris y el selector no existe
+  // hasta que se toca uno: es una acción ocasional, no tiene por qué ocupar
+  // sitio ni pedir atención cada vez que se abre un partido.
+  const [modo, setModo] = useState<'agregar' | 'remover' | null>(null)
   // Partido cuyo marcador se está editando. Con resultado ya guardado el
   // formulario permanece escondido: se muestra el dato y un "editar" discreto.
   const [editandoResultado, setEditandoResultado] = useState<string | null>(null)
@@ -500,7 +503,9 @@ export function TabHistorial({ active }: Props) {
                   }}
                 >
                   <div>
-                    <div className="display" style={{ fontSize: 20, letterSpacing: '0.05em' }}>
+                    {/* En verde: es lo que separa un partido del siguiente en
+                        una lista larga, y en gris se perdía entre el resto. */}
+                    <div className="display" style={{ fontSize: 20, letterSpacing: '0.05em', color: 'var(--green)' }}>
                       {p.dia_semana.toUpperCase()}
                       {esMinitorneo && <span style={{ fontSize: 12, marginLeft: 6, verticalAlign: 'middle' }}>🟣</span>}
                       <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 10 }}>
@@ -571,6 +576,70 @@ export function TabHistorial({ active }: Props) {
                 {isExpanded && (
                   <div style={{ borderTop: '1px solid var(--border)', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
+                    {/* La foto va PRIMERO: es lo que el admin quiere ver al
+                        abrir un partido, y estaba de últimas, debajo de los
+                        nombres y del marcador. */}
+                    {/* ── Foto del partido ── */}
+                    <div>
+                      <SectionHeader title="FOTO DEL PARTIDO" color="var(--text-muted)" />
+                      {p.foto_url && (
+                        // Se muestra con la misma caja 16:9 que el home, para
+                        // que el admin vea aquí mismo si esta foto necesita
+                        // reencuadre en vez de enterarse en la pantalla de todos.
+                        // Sin tope de ancho: la foto es lo único de esta
+                        // pantalla que gana con el espacio, y estaba capada a
+                        // 340 px mientras la lista de nombres se estiraba a
+                        // lo ancho completo.
+                        <div style={{ marginBottom: 10, borderRadius: 4, overflow: 'hidden', aspectRatio: '16 / 9', background: '#000' }}>
+                          <img
+                            src={p.foto_url!}
+                            alt="Foto del partido"
+                            style={{ width: '100%', height: '100%', display: 'block', objectFit: 'contain' }}
+                          />
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <label style={{
+                        display: 'inline-block', padding: '8px 16px', fontSize: 12, cursor: uploadingFoto ? 'wait' : 'pointer',
+                        border: '1px solid var(--border)', borderRadius: 3, background: 'var(--bg-card)',
+                        color: uploadingFoto ? 'var(--text-dim)' : 'var(--text)',
+                        fontFamily: 'DM Mono, monospace', letterSpacing: '0.05em',
+                      }}>
+                        {uploadingFoto ? 'Subiendo...' : p.foto_url ? '📷 Cambiar foto' : '📷 Subir foto'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          disabled={uploadingFoto}
+                          onChange={e => {
+                            const f = e.target.files?.[0]
+                            e.target.value = ''   // permite reelegir la misma tras cancelar
+                            if (f) setPorRecortar({ partidoId: p.id, file: f })
+                          }}
+                        />
+                      </label>
+                      {p.foto_url && (
+                        <button
+                          onClick={() => reencuadrar(p.id, p.foto_url!)}
+                          disabled={uploadingFoto}
+                          style={{
+                            padding: '8px 16px', fontSize: 12,
+                            cursor: uploadingFoto ? 'wait' : 'pointer',
+                            border: '1px solid var(--border)', borderRadius: 3,
+                            background: 'var(--bg-card)',
+                            color: uploadingFoto ? 'var(--text-dim)' : 'var(--text)',
+                            fontFamily: 'DM Mono, monospace', letterSpacing: '0.05em',
+                          }}
+                        >
+                          ✂️ Reencuadrar
+                        </button>
+                      )}
+                      </div>
+                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 6 }}>
+                        Se muestra en el dashboard cuando cierran las evaluaciones.
+                      </div>
+                    </div>
+
                     {/* ── Player list ── */}
                     <div>
                       <SectionHeader
@@ -594,7 +663,8 @@ export function TabHistorial({ active }: Props) {
                           {(['agregar', 'remover'] as const).map(m => (
                             <button
                               key={m}
-                              onClick={() => { setModo(m); setAddPlayerId('') }}
+                              // Volver a tocar el modo activo lo pliega.
+                              onClick={() => { setModo(modo === m ? null : m); setAddPlayerId('') }}
                               className="mono"
                               style={{
                                 padding: '6px 12px', fontSize: 11, border: '1px solid',
@@ -609,6 +679,7 @@ export function TabHistorial({ active }: Props) {
                           ))}
                         </ButtonGroup>
 
+                        {modo !== null && (
                         <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                           <div style={{ flex: 1, minWidth: 160 }}>
                             <select
@@ -665,6 +736,7 @@ export function TabHistorial({ active }: Props) {
                             {savingAdd || removingId ? '...' : modo === 'agregar' ? '+ Agregar' : '− Remover'}
                           </button>
                         </div>
+                        )}
                       </div>
                     </div>
 
@@ -777,66 +849,6 @@ export function TabHistorial({ active }: Props) {
                       )}
                     </div>
 
-                    {/* ── Foto del partido ── */}
-                    <div>
-                      <SectionHeader title="FOTO DEL PARTIDO" color="var(--text-muted)" />
-                      {p.foto_url && (
-                        // Se muestra con la misma caja 16:9 que el home, para
-                        // que el admin vea aquí mismo si esta foto necesita
-                        // reencuadre en vez de enterarse en la pantalla de todos.
-                        // Sin tope de ancho: la foto es lo único de esta
-                        // pantalla que gana con el espacio, y estaba capada a
-                        // 340 px mientras la lista de nombres se estiraba a
-                        // lo ancho completo.
-                        <div style={{ marginBottom: 10, borderRadius: 4, overflow: 'hidden', aspectRatio: '16 / 9', background: '#000' }}>
-                          <img
-                            src={p.foto_url!}
-                            alt="Foto del partido"
-                            style={{ width: '100%', height: '100%', display: 'block', objectFit: 'contain' }}
-                          />
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <label style={{
-                        display: 'inline-block', padding: '8px 16px', fontSize: 12, cursor: uploadingFoto ? 'wait' : 'pointer',
-                        border: '1px solid var(--border)', borderRadius: 3, background: 'var(--bg-card)',
-                        color: uploadingFoto ? 'var(--text-dim)' : 'var(--text)',
-                        fontFamily: 'DM Mono, monospace', letterSpacing: '0.05em',
-                      }}>
-                        {uploadingFoto ? 'Subiendo...' : p.foto_url ? '📷 Cambiar foto' : '📷 Subir foto'}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          style={{ display: 'none' }}
-                          disabled={uploadingFoto}
-                          onChange={e => {
-                            const f = e.target.files?.[0]
-                            e.target.value = ''   // permite reelegir la misma tras cancelar
-                            if (f) setPorRecortar({ partidoId: p.id, file: f })
-                          }}
-                        />
-                      </label>
-                      {p.foto_url && (
-                        <button
-                          onClick={() => reencuadrar(p.id, p.foto_url!)}
-                          disabled={uploadingFoto}
-                          style={{
-                            padding: '8px 16px', fontSize: 12,
-                            cursor: uploadingFoto ? 'wait' : 'pointer',
-                            border: '1px solid var(--border)', borderRadius: 3,
-                            background: 'var(--bg-card)',
-                            color: uploadingFoto ? 'var(--text-dim)' : 'var(--text)',
-                            fontFamily: 'DM Mono, monospace', letterSpacing: '0.05em',
-                          }}
-                        >
-                          ✂️ Reencuadrar
-                        </button>
-                      )}
-                      </div>
-                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 6 }}>
-                        Se muestra en el dashboard cuando cierran las evaluaciones.
-                      </div>
-                    </div>
 
                     {/* ── Evaluaciones ── */}
                     <div>

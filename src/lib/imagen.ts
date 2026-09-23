@@ -129,7 +129,15 @@ function aBlob(canvas: HTMLCanvasElement, tipo: string, calidad: number): Promis
 export async function recortarYComprimir(
   file: Blob,
   area: AreaRecorte,
-  { ratio = FOTO_RATIO, anchoMax = FOTO_ANCHO_MAX, calidad = FOTO_CALIDAD } = {}
+  {
+    ratio = FOTO_RATIO,
+    anchoMax = FOTO_ANCHO_MAX,
+    calidad = FOTO_CALIDAD,
+    // Con qué salir si el navegador no sabe escribir WebP. Para la foto del
+    // partido, JPEG. Para un avatar, PNG: JPEG no tiene canal alpha y
+    // rellenaría de negro el fondo que el quitafondos quitó.
+    respaldo = 'image/jpeg' as 'image/jpeg' | 'image/png',
+  } = {}
 ): Promise<FotoProcesada> {
   const img = await decodificar(file)
   const { ancho, alto } = tamanoSalida(area.width, ratio, anchoMax)
@@ -149,11 +157,11 @@ export async function recortarYComprimir(
   // Chrome devuelve un PNG silenciosamente si no sabe escribir el tipo pedido,
   // así que no basta con que blob exista: hay que mirar qué tipo salió.
   if (!blob || blob.type !== 'image/webp') {
-    blob = await aBlob(canvas, 'image/jpeg', 0.85)
+    blob = await aBlob(canvas, respaldo, respaldo === 'image/png' ? 1 : 0.85)
   }
   if (!blob) throw new Error('No se pudo comprimir la imagen')
 
-  return { blob, tipo: blob.type || 'image/jpeg', ancho, alto }
+  return { blob, tipo: blob.type || respaldo, ancho, alto }
 }
 
 /**
@@ -211,4 +219,19 @@ export function necesitaRecompresion(bytes: number, tipo?: string | null): boole
   if (bytes > AVATAR_YA_OPTIMIZADO) return true
   // Chico pero todavía PNG: pasarlo a WebP puede bajarlo bastante más.
   return tipo === 'image/png'
+}
+
+/**
+ * Recorta el avatar al cuadrado que eligió la persona y lo deja listo.
+ *
+ * Es `recortarYComprimir` con la configuración del avatar: relación 1:1, 256
+ * px y respaldo PNG para no perder la transparencia del quitafondos. Se
+ * separa `comprimirAvatar` (que recorta al centro por su cuenta) porque aquí
+ * el encuadre lo decide quien sube la foto — que es el punto: que la cara
+ * quede dentro del círculo.
+ */
+export function recortarAvatar(file: Blob, area: AreaRecorte): Promise<FotoProcesada> {
+  return recortarYComprimir(file, area, {
+    ratio: 1, anchoMax: AVATAR_LADO, calidad: AVATAR_CALIDAD, respaldo: 'image/png',
+  })
 }

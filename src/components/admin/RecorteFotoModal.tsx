@@ -19,10 +19,25 @@ import {
  * Todo pasa en el celular del admin: lo que sale de aquí ya va recortado,
  * reducido a 1280 px y en WebP. El servidor nunca ve los 4 MB originales.
  */
-export function RecorteFotoModal({ archivo, onCancelar, onListo }: {
+export function RecorteFotoModal({
+  archivo, onCancelar, onListo,
+  aspecto = FOTO_RATIO,
+  redondo = false,
+  titulo = 'ENCUADRAR FOTO · 16:9',
+  ayuda,
+  procesar,
+}: {
   archivo: File
   onCancelar: () => void
   onListo: (foto: File) => void
+  /** Relación del recorte. 1 para un avatar. */
+  aspecto?: number
+  /** Guía circular en vez de rectangular: lo que se ve es lo que queda. */
+  redondo?: boolean
+  titulo?: string
+  ayuda?: React.ReactNode
+  /** Cómo convertir el recorte. Por defecto, la foto del partido. */
+  procesar?: (file: Blob, area: AreaRecorte) => Promise<FotoProcesada>
 }) {
   const [src, setSrc] = useState<string | null>(null)
   const [crop, setCrop] = useState({ x: 0, y: 0 })
@@ -46,7 +61,9 @@ export function RecorteFotoModal({ archivo, onCancelar, onListo }: {
     setProcesando(true)
     setError(null)
     try {
-      const r: FotoProcesada = await recortarYComprimir(archivo, area)
+      const r: FotoProcesada = procesar
+        ? await procesar(archivo, area)
+        : await recortarYComprimir(archivo, area)
       const nombre = `partido.${extensionDe(r.tipo)}`
       onListo(new File([r.blob], nombre, { type: r.tipo }))
     } catch (e) {
@@ -59,11 +76,11 @@ export function RecorteFotoModal({ archivo, onCancelar, onListo }: {
     <ModalOverlay>
       <Card style={{ width: '100%', maxWidth: 460, margin: 'auto' }} padding={18}>
         <div className="mono" style={{ fontSize: 10, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 10 }}>
-          ENCUADRAR FOTO · 16:9
+          {titulo}
         </div>
 
         <div style={{
-          position: 'relative', width: '100%', aspectRatio: '16 / 9',
+          position: 'relative', width: '100%', aspectRatio: String(aspecto),
           background: '#000', borderRadius: 4, overflow: 'hidden',
         }}>
           {src && (
@@ -71,7 +88,8 @@ export function RecorteFotoModal({ archivo, onCancelar, onListo }: {
               image={src}
               crop={crop}
               zoom={zoom}
-              aspect={FOTO_RATIO}
+              aspect={aspecto}
+              cropShape={redondo ? 'round' : 'rect'}
               onCropChange={setCrop}
               onZoomChange={setZoom}
               onCropComplete={alTerminar}
@@ -94,8 +112,8 @@ export function RecorteFotoModal({ archivo, onCancelar, onListo }: {
         </div>
 
         <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.5 }}>
-          Arrastra para mover, pellizca o usa la barra para acercar.
-          Se guarda a {FOTO_ANCHO_MAX} px, comprimida.
+          {ayuda ?? <>Arrastra para mover, pellizca o usa la barra para acercar.
+            Se guarda a {FOTO_ANCHO_MAX} px, comprimida.</>}
         </div>
 
         {error && (

@@ -15,6 +15,37 @@ import { AUSENCIA_MAX_DIAS } from '@/lib/ausencia'
 
 const fechaCorta = (f: string) => new Date(f + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })
 
+// El color del rol es la única señal de jerarquía en la lista, así que va en la
+// tarjeta entera (barra lateral + fondo) y no solo en una etiqueta de 9 px.
+const COLOR_ROL: Record<string, { acento: string; fondo: string; borde: string; etiqueta: string | null }> = {
+  superadmin: { acento: '#a78bfa', fondo: '#150b26', borde: '#3f2370', etiqueta: 'SUPERADMIN' },
+  admin:      { acento: '#fbbf24', fondo: '#1c1503', borde: '#4d3a10', etiqueta: 'ADMIN' },
+  player:     { acento: '#4ade80', fondo: 'var(--bg-card)', borde: 'var(--border)', etiqueta: null },
+}
+const colorDeRol = (role: string) => COLOR_ROL[role] ?? COLOR_ROL.player
+
+type Filtro = 'uniforme' | 'push'
+
+function ChipFiltro({ activo, onClick, color, children }: {
+  activo: boolean; onClick: () => void; color?: string; children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="mono"
+      style={{
+        padding: '6px 12px', fontSize: 11, cursor: 'pointer', borderRadius: 3,
+        letterSpacing: '0.06em', whiteSpace: 'nowrap',
+        border: `1px solid ${activo ? (color ?? 'var(--green)') : 'var(--border)'}`,
+        background: activo ? 'var(--bg-elevated)' : 'transparent',
+        color: activo ? (color ?? 'var(--green)') : 'var(--text-dim)',
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
 interface Props {
   players: Player[]
   playerIdsWithPush: Set<string>
@@ -37,13 +68,42 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
   const roleOrder = (role: string) => role === 'superadmin' ? 0 : role === 'admin' ? 1 : 2
 
   const baneados = players.filter(p => p.baneado && !isPrivileged(p.role))
-  const activos = players
-    .filter(p => p.aprobado && !p.baneado)
+
+  // ── Filtros y orden de la lista de activos ────────────────────────────────
+  // Con 37 miembros la lista no se recorre, se busca. Los filtros son los tres
+  // datos por los que un admin abre esta pantalla: quién tiene uniforme, a
+  // quién le llegan las notificaciones, y quién está arriba en puntaje.
+  const [filtros, setFiltros] = useState<Set<Filtro>>(new Set())
+  const [porPuntaje, setPorPuntaje] = useState(false)
+  const alternarFiltro = (f: Filtro) => setFiltros(prev => {
+    const s = new Set(prev)
+    if (s.has(f)) s.delete(f); else s.add(f)
+    return s
+  })
+
+  const todosActivos = players.filter(p => p.aprobado && !p.baneado)
+  const conUniforme = todosActivos.filter(p => p.uniform).length
+  const conPush = todosActivos.filter(p => playerIdsWithPush.has(p.id)).length
+
+  const activos = todosActivos
+    .filter(p => !filtros.has('uniforme') || p.uniform)
+    .filter(p => !filtros.has('push') || playerIdsWithPush.has(p.id))
     .sort((a, b) => {
+      // Por puntaje el rol no manda: la pregunta es quién juega mejor, y un
+      // admin en la mitad de la tabla debe salir en la mitad de la tabla.
+      if (porPuntaje) {
+        const d = (b.habilidad ?? 3) - (a.habilidad ?? 3)
+        if (d !== 0) return d
+        return a.username.localeCompare(b.username)
+      }
       const ro = roleOrder(a.role) - roleOrder(b.role)
       if (ro !== 0) return ro
       return a.username.localeCompare(b.username)
     })
+
+  // Qué tarjeta está abierta. Una sola: abrir otra cierra la anterior, si no la
+  // lista se llena de botones y se pierde la ventaja de haberlos quitado.
+  const [abiertoId, setAbiertoId] = useState<string | null>(null)
 
   const toggleUniforme = async () => {
     if (!editModal) return
@@ -164,63 +224,109 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
         {/* ACTIVOS */}
         <div>
           <SectionHeader title="MIEMBROS ACTIVOS" count={activos.length} color="var(--text-muted)" />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+            {usarUniforme && (
+              <ChipFiltro activo={filtros.has('uniforme')} onClick={() => alternarFiltro('uniforme')}>
+                👕 UNIFORME {conUniforme}
+              </ChipFiltro>
+            )}
+            <ChipFiltro activo={filtros.has('push')} color="var(--amber)" onClick={() => alternarFiltro('push')}>
+              🔔 AVISOS {conPush}
+            </ChipFiltro>
+            <ChipFiltro activo={porPuntaje} color="#a78bfa" onClick={() => setPorPuntaje(v => !v)}>
+              ★ MAYOR PUNTAJE
+            </ChipFiltro>
+            {(filtros.size > 0 || porPuntaje) && (
+              <button
+                onClick={() => { setFiltros(new Set()); setPorPuntaje(false) }}
+                className="mono"
+                style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 3, border: 'none', background: 'none', color: 'var(--text-dim)' }}
+              >
+                limpiar
+              </button>
+            )}
+          </div>
+
+          {activos.length === 0 && (
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', padding: '16px 0' }}>
+              Nadie cumple con esos filtros.
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             {activos.map(p => {
               const hasPush = playerIdsWithPush.has(p.id)
+              const c = colorDeRol(p.role)
+              const abierto = abiertoId === p.id
               return (
                 <div key={p.id} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '10px 14px', background: 'var(--bg-card)',
-                  border: '1px solid var(--border)', borderRadius: 3, gap: 10,
+                  background: c.fondo, border: `1px solid ${abierto ? c.acento : c.borde}`,
+                  borderLeft: `4px solid ${c.acento}`, borderRadius: 4, overflow: 'hidden',
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                      <PlayerAvatar url={p.avatar_url} username={p.username} size={32} />
-                      <span
-                        className="mono"
-                        title={ratingTierStyle(p.habilidad ?? 3).label}
-                        style={{ fontSize: 9, color: 'var(--text-muted)', lineHeight: 1 }}
-                      >
-                        ★{formatRating(p.habilidad)}
-                      </span>
-                    </div>
-                    <div style={{ minWidth: 0 }}>
+                  {/* La fila entera es el botón: sin "Ver" y "Editar" en cada
+                      renglón cabe un avatar del doble de tamaño, que es lo que
+                      de verdad identifica a alguien de un vistazo. */}
+                  <button
+                    onClick={() => setAbiertoId(abierto ? null : p.id)}
+                    aria-expanded={abierto}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '10px 12px', background: 'none', border: 'none',
+                      cursor: 'pointer', textAlign: 'left', color: 'var(--text)',
+                    }}
+                  >
+                    <PlayerAvatar url={p.avatar_url} username={p.username} size={52} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 14, fontWeight: 500 }}>{p.username}</span>
-                        {p.role === 'superadmin' && (
-                          <span className="mono" style={{ fontSize: 9, color: '#a78bfa', letterSpacing: '0.1em', background: '#1a0a2e', border: '1px solid #7c3aed', padding: '2px 5px', borderRadius: 2 }}>SUPERADMIN</span>
-                        )}
-                        {p.role === 'admin' && (
-                          <span className="mono" style={{ fontSize: 9, color: 'var(--amber)', letterSpacing: '0.1em', background: '#2d1f00', border: '1px solid #92400e', padding: '2px 5px', borderRadius: 2 }}>ADMIN</span>
-                        )}
-                        {usarUniforme && p.uniform && !isPrivileged(p.role) && (
-                          <span title="Tiene uniforme" style={{ fontSize: 13, lineHeight: 1 }}>👕</span>
-                        )}
-                        {!isPrivileged(p.role) && (
-                          <span
-                            title={hasPush ? 'Notificaciones activadas' : 'Sin notificaciones'}
-                            style={{ fontSize: 13, opacity: hasPush ? 1 : 0.3, lineHeight: 1 }}
-                          >
-                            {hasPush ? '🔔' : '🔕'}
+                        <span style={{ fontSize: 16, fontWeight: 500 }}>{p.username}</span>
+                        {c.etiqueta && (
+                          <span className="mono" style={{
+                            fontSize: 9, color: c.acento, letterSpacing: '0.1em',
+                            border: `1px solid ${c.acento}`, padding: '2px 5px', borderRadius: 2,
+                          }}>
+                            {c.etiqueta}
                           </span>
                         )}
-                        {ausenteActiva(p) && (
-                          <span className="mono" style={{ fontSize: 9, color: '#7dd3fc', letterSpacing: '0.1em', background: '#082f49', border: '1px solid #0369a1', padding: '2px 5px', borderRadius: 2 }}>
-                            ✈️ AUSENTE · {fechaCorta(p.ausente_hasta!)}
-                          </span>
-                        )}
+                        {/* La campana solo cuando SÍ tiene avisos. El 🔕 en
+                            treinta y siete filas era ruido: lo normal no
+                            necesita ícono, lo excepcional sí. */}
+                        {hasPush && <span title="Notificaciones activadas" style={{ fontSize: 13, lineHeight: 1 }}>🔔</span>}
                       </div>
+                      <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
+                        ★{formatRating(p.habilidad)}
+                        <span style={{ color: 'var(--text-dim)', marginLeft: 6 }}>
+                          {ratingTierStyle(p.habilidad ?? 3).label}
+                        </span>
+                      </div>
+                      {ausenteActiva(p) && (
+                        <div className="mono" style={{
+                          fontSize: 9, color: '#7dd3fc', letterSpacing: '0.1em', marginTop: 5,
+                          background: '#082f49', border: '1px solid #0369a1',
+                          padding: '2px 5px', borderRadius: 2, display: 'inline-block',
+                        }}>
+                          ✈️ AUSENTE · {fechaCorta(p.ausente_hasta!)}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-                    <button onClick={() => setPerfilId(p.id)} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 14px' }}>
-                      Ver
-                    </button>
-                    {/* También para admins: adentro solo les aparece la ausencia. */}
-                    <button onClick={() => abrirEdit(p)} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 14px' }}>
-                      Editar
-                    </button>
-                  </div>
+                    <span className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', flexShrink: 0 }}>
+                      {abierto ? '▲' : '▼'}
+                    </span>
+                  </button>
+
+                  {abierto && (
+                    <div style={{ padding: '0 12px 12px' }}>
+                      {/* Solo "Ver". Editar vive adentro de la ficha: es donde
+                          se ve a quién se le va a cambiar algo. */}
+                      <button
+                        onClick={() => setPerfilId(p.id)}
+                        className="btn btn-ghost"
+                        style={{ width: '100%', justifyContent: 'center', fontSize: 12, padding: '9px' }}
+                      >
+                        Ver ficha de {p.username}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -412,8 +518,19 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
         </ModalOverlay>
       )}
 
-      {/* Ficha del jugador — solo lectura */}
-      {perfilId && <PerfilJugadorModal playerId={perfilId} onClose={() => setPerfilId(null)} />}
+      {/* Ficha del jugador — solo lectura, con la puerta a editar */}
+      {perfilId && (
+        <PerfilJugadorModal
+          playerId={perfilId}
+          onClose={() => setPerfilId(null)}
+          onEditar={() => {
+            const p = players.find(j => j.id === perfilId)
+            if (!p) return
+            setPerfilId(null)
+            abrirEdit(p)
+          }}
+        />
+      )}
     </>
   )
 }

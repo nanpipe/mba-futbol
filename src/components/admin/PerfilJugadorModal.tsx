@@ -75,7 +75,14 @@ function Bloque({ titulo, children }: { titulo: string; children: React.ReactNod
  * rating lo resume. Lo que se muestra es dónde está parado hoy — si viene
  * seguido, si desapareció y hace cuánto, y si ya le está costando rating.
  */
-export function PerfilJugadorModal({ playerId, onClose }: { playerId: string; onClose: () => void }) {
+export function PerfilJugadorModal({ playerId, onClose, onEditar }: {
+  playerId: string
+  onClose: () => void
+  /** Abre el modal de editar con este jugador. La lista ya no tiene botón de
+      editar por fila: se entra por acá, que es donde se ve a quién se le va a
+      cambiar algo. */
+  onEditar?: () => void
+}) {
   const [data, setData] = useState<PerfilData | null>(null)
   const [error, setError] = useState('')
 
@@ -243,15 +250,32 @@ export function PerfilJugadorModal({ playerId, onClose }: { playerId: string; on
               </div>
             )}
 
-            <button onClick={onClose} className="btn btn-ghost" style={{ width: '100%', marginTop: 22, justifyContent: 'center' }}>
-              Cerrar
-            </button>
+            <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
+              {onEditar && (
+                <button onClick={onEditar} className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center' }}>
+                  Editar
+                </button>
+              )}
+              <button onClick={onClose} className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center' }}>
+                Cerrar
+              </button>
+            </div>
           </>
         )}
+        {/* Editar también acá: la lista ya no tiene botón de editar por fila,
+            así que una ficha que no carga dejaría al admin sin ninguna forma
+            de llegar a editar a ese jugador. */}
         {(error || !data) && (
-          <button onClick={onClose} className="btn btn-ghost" style={{ width: '100%', marginTop: 18, justifyContent: 'center' }}>
-            Cerrar
-          </button>
+          <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+            {onEditar && (
+              <button onClick={onEditar} className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center' }}>
+                Editar
+              </button>
+            )}
+            <button onClick={onClose} className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center' }}>
+              Cerrar
+            </button>
+          </div>
         )}
       </Card>
     </ModalOverlay>

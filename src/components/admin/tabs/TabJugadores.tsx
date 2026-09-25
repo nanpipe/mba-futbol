@@ -12,17 +12,9 @@ import type { Player, AdminAction } from '@/types/admin'
 import { ratingTierStyle, formatRating } from '@/lib/tier'
 import { fechaColombia } from '@/lib/promoHora'
 import { AUSENCIA_MAX_DIAS } from '@/lib/ausencia'
+import { colorDeRol } from '@/lib/roles'
 
 const fechaCorta = (f: string) => new Date(f + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })
-
-// El color del rol es la única señal de jerarquía en la lista, así que va en la
-// tarjeta entera (barra lateral + fondo) y no solo en una etiqueta de 9 px.
-const COLOR_ROL: Record<string, { acento: string; fondo: string; borde: string; etiqueta: string | null }> = {
-  superadmin: { acento: '#a78bfa', fondo: '#150b26', borde: '#3f2370', etiqueta: 'SUPERADMIN' },
-  admin:      { acento: '#fbbf24', fondo: '#1c1503', borde: '#4d3a10', etiqueta: 'ADMIN' },
-  player:     { acento: '#4ade80', fondo: 'var(--bg-card)', borde: 'var(--border)', etiqueta: null },
-}
-const colorDeRol = (role: string) => COLOR_ROL[role] ?? COLOR_ROL.player
 
 type Filtro = 'uniforme' | 'push'
 
@@ -280,14 +272,6 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 16, fontWeight: 500 }}>{p.username}</span>
-                        {c.etiqueta && (
-                          <span className="mono" style={{
-                            fontSize: 9, color: c.acento, letterSpacing: '0.1em',
-                            border: `1px solid ${c.acento}`, padding: '2px 5px', borderRadius: 2,
-                          }}>
-                            {c.etiqueta}
-                          </span>
-                        )}
                         {/* La campana solo cuando SÍ tiene avisos. El 🔕 en
                             treinta y siete filas era ruido: lo normal no
                             necesita ícono, lo excepcional sí. */}

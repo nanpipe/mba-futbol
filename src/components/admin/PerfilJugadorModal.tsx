@@ -9,6 +9,7 @@ import { ratingTierStyle, formatRating } from '@/lib/tier'
 import { fechaColombia } from '@/lib/promoHora'
 import { diasDesde } from '@/lib/asistencia'
 import { agruparBadges } from '@/lib/categorias'
+import { colorDeRol } from '@/lib/roles'
 
 interface PerfilData {
   perfil: {
@@ -99,6 +100,7 @@ export function PerfilJugadorModal({ playerId, onClose, onEditar }: {
   const hoy = fechaColombia()
   const ausente = !!p?.ausente_hasta && p.ausente_hasta >= hoy
   const tier = p ? ratingTierStyle(p.habilidad ?? 3) : null
+  const rol = colorDeRol(p?.role ?? 'player')
 
   // ── Estado actual ─────────────────────────────────────────────────────────
   // Una sola frase que diga si hay algo que hacer con este jugador. El
@@ -163,9 +165,18 @@ export function PerfilJugadorModal({ playerId, onClose, onEditar }: {
                   Desde {fechaCorta(p.created_at.slice(0, 10))}
                 </div>
                 <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 6 }}>
-                  {p.role !== 'player' && (
-                    <span className="mono" style={{ fontSize: 9, color: '#a78bfa', letterSpacing: '0.1em', background: '#1a0a2e', border: '1px solid #7c3aed', padding: '2px 5px', borderRadius: 2 }}>
-                      {p.role.toUpperCase()}
+                  {/* Acá sí va escrito. En la lista el rol solo se pinta (el
+                      color de la tarjeta), y este es el lugar donde se viene a
+                      mirar el detalle. Mismos colores que allá: una tarjeta
+                      naranja que abriera una ficha morada sería peor que no
+                      tener color. */}
+                  {rol.etiqueta && (
+                    <span className="mono" style={{
+                      fontSize: 9, color: rol.acento, letterSpacing: '0.1em',
+                      background: rol.fondo, border: `1px solid ${rol.acento}`,
+                      padding: '2px 5px', borderRadius: 2,
+                    }}>
+                      {rol.etiqueta}
                     </span>
                   )}
                   {p.uniform && (

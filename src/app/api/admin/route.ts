@@ -23,6 +23,7 @@ import { recalcularRatings } from '@/lib/recalcularRatings'
 import { avisarBadgeRemovido } from '@/lib/notifyBadge'
 import { sanitizeBadges, parseBadges, BADGES_SETTING_KEY } from '@/lib/categorias'
 import { sanitizeTiers, parseTiers, TIERS_SETTING_KEY } from '@/lib/tier'
+import { leerTodo } from '@/lib/paginar'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,35 +45,6 @@ const SUPERADMIN_ONLY = new Set(['eliminar_jugador', 'editar_jugador', 'cambiar_
 const PRIVILEGED_ROLES = new Set(['admin', 'superadmin'])
 const isPrivileged = (role: string | undefined | null) => PRIVILEGED_ROLES.has(role ?? '')
 const ERR_PRIVILEGED = NextResponse.json({ error: 'No se puede aplicar esta acción a un administrador o superadmin' }, { status: 403 })
-
-/**
- * Lee una tabla entera por páginas.
- *
- * PostgREST devuelve como máximo ~1000 filas por petición y lo hace en silencio:
- * no hay error, simplemente faltan datos. Cualquier conteo hecho sobre el
- * resultado de un `.select()` sin paginar es correcto solo mientras la tabla sea
- * chica, y deja de serlo sin avisar. Usar esto siempre que se cuente sobre
- * votos, pulgares o inscripciones de varios partidos a la vez.
- *
- * Cada página debe ordenarse por una columna única (`id`): sin ORDER BY, dos
- * consultas seguidas no tienen por qué devolver las filas en el mismo orden y
- * la paginación se saltaría unas y repetiría otras.
- */
-async function leerTodo<T>(
-  pagina: (desde: number, hasta: number) => PromiseLike<{ data: unknown; error: unknown }>,
-  tam = 1000
-): Promise<T[]> {
-  const out: T[] = []
-  for (let i = 0; ; i += tam) {
-    const { data, error } = await pagina(i, i + tam - 1)
-    if (error) { console.error('[leerTodo] página', i, error); break }
-    const filas = (data ?? []) as T[]
-    out.push(...filas)
-    if (filas.length < tam) break
-    if (out.length > 200000) break  // cinturón: nunca dar vueltas sin fin
-  }
-  return out
-}
 
 // Audit-log IP. Proxy-set value only — the first x-forwarded-for entry is
 // whatever the caller chose to send.

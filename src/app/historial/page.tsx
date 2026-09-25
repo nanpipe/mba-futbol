@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import { MatchResultCard, type MatchBadge, type MatchResult } from '@/components/MatchResultCard'
+import { MatchResultCard, type MatchBadge, type MatchResult, type MovimientoPuntaje } from '@/components/MatchResultCard'
 import { RESULTADOS, MESES, rangoDeMes, mesesDelAnio, type Resultado, type Relacion, type Ficha } from '@/lib/historial'
 
 interface PartidoHistorial extends MatchResult {
@@ -12,6 +12,8 @@ interface PartidoHistorial extends MatchResult {
   player_badges: MatchBadge[]
   /** Cómo le fue al jugador filtrado. null si no hay jugador, o si no se sabe. */
   mi_resultado: Resultado | null
+  /** Cuánto subió o bajó cada quien con este partido. */
+  movimientos: MovimientoPuntaje[]
 }
 
 interface Respuesta {
@@ -68,6 +70,7 @@ function Chip({ activo, onClick, color, children }: {
 export default function HistorialPage() {
   const supabase = createClient()
 
+  const [miId, setMiId] = useState<string | null>(null)
   const [jugadores, setJugadores] = useState<Jugador[]>([])
   const [jugador, setJugador] = useState('')
   const [rival, setRival] = useState('')
@@ -86,6 +89,7 @@ export default function HistorialPage() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) { window.location.href = '/login'; return }
+      setMiId(user.id)
       supabase.from('profiles')
         .select('id, username')
         .eq('aprobado', true).eq('baneado', false)
@@ -319,6 +323,8 @@ export default function HistorialPage() {
                   titulo={`${p.tipo === 'minitorneo' ? '🏆 MINITORNEO — ' : ''}${p.dia_semana.toUpperCase()}`}
                   partido={p}
                   badges={p.player_badges ?? []}
+                  movimientos={p.movimientos}
+                  miId={miId}
                   marca={p.mi_resultado ? (
                     <span style={{ color: COLOR[p.mi_resultado], letterSpacing: '0.1em' }}>
                       {p.mi_resultado.toUpperCase()}

@@ -9,7 +9,7 @@ import { PlayerAvatar } from '@/components/PlayerAvatar'
 import { colorLabel } from '@/lib/design'
 import { useClub } from '@/hooks/useClub'
 import { EvaluationCTA } from '@/components/EvaluationCTA'
-import { MatchResultCard, type MatchBadge } from '@/components/MatchResultCard'
+import { MatchResultCard, type MatchBadge, type MovimientoPuntaje } from '@/components/MatchResultCard'
 import { useInstallState, InstallInterstitial, InstallNagModal, InstallBanner } from '@/components/InstallGate'
 import { MisInvitados } from '@/components/MisInvitados'
 import { AlineacionVoto } from '@/components/AlineacionVoto'
@@ -120,7 +120,7 @@ export default function HomePage() {
   const [misInvitados, setMisInvitados] = useState<Invitado[]>([])
   const [todosInvitados, setTodosInvitados] = useState<InvitadoPublico[]>([])
   const [countdown, setCountdown] = useState('')
-  const [ultimoPartido, setUltimoPartido] = useState<{ partido: Partido; inscripciones: Inscripcion[]; badges: Badge[] } | null>(null)
+  const [ultimoPartido, setUltimoPartido] = useState<{ partido: Partido; inscripciones: Inscripcion[]; badges: Badge[]; movimientos: MovimientoPuntaje[] } | null>(null)
   const [misEquipos, setMisEquipos] = useState<{ equipos: Equipo[]; miEquipo: Equipo | null; partido_id: string } | null>(null)
   const [partidosAbiertos, setPartidosAbiertos] = useState<Partido[]>([])
   const [partidosJugados, setPartidosJugados] = useState(0)
@@ -267,7 +267,7 @@ export default function HomePage() {
       const ahora = new Date()
       const ultimo = (recientes ?? []).find(p => ahora >= calcularVentanaPartido(p).termina)
       if (ultimo) {
-        const [{ data: ins }, { data: bdgs }] = await Promise.all([
+        const [{ data: ins }, { data: bdgs }, { data: evs }] = await Promise.all([
           supabase
             .from('inscripciones')
             .select('id, player_id, estado, posicion_espera, profiles!player_id(username)')
@@ -276,6 +276,13 @@ export default function HomePage() {
           supabase
             .from('player_badges')
             .select('badge_id, badge_emoji, badge_nombre, votos, player_id, profiles!player_badges_player_id_fkey(username, avatar_url)')
+            .eq('partido_id', ultimo.id),
+          // Cuánto subió o bajó cada quien con este partido. Existe solo desde
+          // que cerraron las votaciones; antes de eso viene vacío y la tarjeta
+          // no muestra la sección. Un partido son ~25 filas: sin paginar basta.
+          supabase
+            .from('rating_events')
+            .select('player_id, delta, motivos, profiles!rating_events_player_id_fkey(username)')
             .eq('partido_id', ultimo.id),
         ])
 
@@ -291,12 +298,29 @@ export default function HomePage() {
           if (e?.color) color.set(f.player_id, e.color)
         }
 
+        type FilaEvento = {
+          player_id: string; delta: number | string; motivos: unknown
+          profiles: { username: string } | { username: string }[] | null
+        }
+        const movimientos: MovimientoPuntaje[] = ((evs ?? []) as unknown as FilaEvento[]).flatMap(e => {
+          const perfil = Array.isArray(e.profiles) ? e.profiles[0] : e.profiles
+          if (!perfil?.username) return []
+          return [{
+            player_id: e.player_id,
+            username: perfil.username,
+            // `delta` es numeric(5,3) y PostgREST lo manda como texto.
+            delta: Number(e.delta),
+            motivos: Array.isArray(e.motivos) ? (e.motivos as string[]) : [],
+          }]
+        })
+
         setUltimoPartido({
           partido: ultimo,
           inscripciones: (ins as unknown as Inscripcion[]) ?? [],
           badges: ((bdgs as unknown as (Badge & { player_id?: string })[]) ?? []).map(b => ({
             ...b, equipo_color: b.player_id ? color.get(b.player_id) ?? null : null,
           })),
+          movimientos,
         })
       }
     }
@@ -474,7 +498,11 @@ export default function HomePage() {
   }
 
   const renderUltimoResultados = () => {
-    if (!ultimoPartido || ultimoPartido.partido.evaluaciones_abiertas || (ultimoPartido.badges.length === 0 && !ultimoPartido.partido.foto_url)) {
+    // Sin foto, sin reconocimientos y sin movimiento de puntaje la tarjeta
+    // quedaría vacía. Con cualquiera de las tres hay algo que mostrar.
+    if (!ultimoPartido || ultimoPartido.partido.evaluaciones_abiertas ||
+        (ultimoPartido.badges.length === 0 && !ultimoPartido.partido.foto_url &&
+         ultimoPartido.movimientos.length === 0)) {
       return null
     }
     // From the promo hour on match day the screen is about today's match —
@@ -489,6 +517,8 @@ export default function HomePage() {
           titulo={`ÚLTIMO PARTIDO — ${p.dia_semana.toUpperCase()}`}
           partido={p}
           badges={ultimoPartido.badges}
+          movimientos={ultimoPartido.movimientos}
+          miId={user?.id ?? null}
         />
       </div>
     )
@@ -958,8 +988,15 @@ export default function HomePage() {
                 <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 8 }}>
                   JUGADORES — {totalConfirmados} CONFIRMADOS
                 </div>
+                {/* La frase estaba sola y era justo lo que nadie entendía:
+                    "sube si ganas" no dice cuánto, ni por qué el número se
+                    movió distinto que el del vecino. Ahora lleva a /puntaje,
+                    donde están las reglas y el simulador. */}
                 <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 16, lineHeight: 1.6 }}>
-                  ⭐ Tu puntaje se gana en la cancha: sube si juegas y ganas, baja si faltas o pierdes.
+                  ⭐ Tu puntaje se gana en la cancha: sube si juegas y ganas, baja si faltas o pierdes.{' '}
+                  <Link href="/puntaje" style={{ color: 'var(--green)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                    Ver las reglas y simular →
+                  </Link>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {confirmados.map((ins, idx) => (

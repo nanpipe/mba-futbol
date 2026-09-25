@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isUUID } from '@/lib/validation'
+import { leerTodo } from '@/lib/paginar'
 import {
   fichaDeEventos, cruzarEquipos, resultadoDeMotivos,
   esResultado, esRelacion, esFecha, tamanoPagina,
@@ -64,6 +65,57 @@ async function coloresPorJugador(admin: Admin, clubId: string, partidoIds: strin
   for (const f of (data ?? []) as Fila[]) {
     const eq = Array.isArray(f.equipos) ? f.equipos[0] : f.equipos
     if (eq?.partido_id && eq.color) m.set(`${eq.partido_id}:${f.player_id}`, eq.color)
+  }
+  return m
+}
+
+interface Movimiento {
+  player_id: string
+  username: string
+  delta: number
+  motivos: string[]
+}
+
+/**
+ * Cuánto se movió el puntaje de cada jugador, por partido.
+ *
+ * Paginado y no en un `.select()` pelado: son ~25 filas por partido y la página
+ * del historial admite hasta 50 partidos (TAM_MAX), o sea 1.250 filas. Justo
+ * por encima del tope silencioso de PostgREST — sin paginar, la mitad de los
+ * partidos de la última página saldrían sin movimiento y nadie se enteraría.
+ */
+async function movimientosPorPartido(
+  admin: Admin, clubId: string, partidoIds: string[]
+): Promise<Map<string, Movimiento[]>> {
+  const m = new Map<string, Movimiento[]>()
+  if (partidoIds.length === 0) return m
+
+  type Fila = {
+    id: string; partido_id: string; player_id: string; delta: number | string; motivos: unknown
+    profiles: { username: string } | { username: string }[] | null
+  }
+  const filas = await leerTodo<Fila>((desde, hasta) =>
+    admin
+      .from('rating_events')
+      .select('id, partido_id, player_id, delta, motivos, profiles!rating_events_player_id_fkey(username)')
+      .eq('club_id', clubId)
+      .in('partido_id', partidoIds)
+      .order('id')
+      .range(desde, hasta)
+  )
+
+  for (const f of filas) {
+    const perfil = Array.isArray(f.profiles) ? f.profiles[0] : f.profiles
+    if (!perfil?.username) continue   // jugador borrado: sin nombre no hay fila que mostrar
+    const lista = m.get(f.partido_id) ?? []
+    lista.push({
+      player_id: f.player_id,
+      username: perfil.username,
+      // `delta` es numeric(5,3) y PostgREST lo manda como texto.
+      delta: Number(f.delta),
+      motivos: Array.isArray(f.motivos) ? (f.motivos as string[]) : [],
+    })
+    m.set(f.partido_id, lista)
   }
   return m
 }
@@ -201,8 +253,12 @@ export async function GET(req: NextRequest) {
   const hay_mas = todas.length > tam
   const visibles = todas.slice(0, tam)
 
-  // El color de equipo de los premiados, para el punto de la tarjeta.
-  const colores = await coloresPorJugador(admin, clubId, visibles.map(f => f.id as string))
+  const idsVisibles = visibles.map(f => f.id as string)
+  const [colores, movimientos] = await Promise.all([
+    // El color de equipo de los premiados, para el punto de la tarjeta.
+    coloresPorJugador(admin, clubId, idsVisibles),
+    movimientosPorPartido(admin, clubId, idsVisibles),
+  ])
 
   const pagina = visibles.map(f => {
     // `rating_events` viene embebido solo para filtrar; se convierte en el
@@ -215,7 +271,12 @@ export async function GET(req: NextRequest) {
       ...b, equipo_color: colores.get(`${f.id as string}:${b.player_id ?? ''}`) ?? null,
     }))
 
-    return { ...resto, player_badges: badges, mi_resultado: uno ? resultadoDeMotivos(uno.motivos) : null }
+    return {
+      ...resto,
+      player_badges: badges,
+      mi_resultado: uno ? resultadoDeMotivos(uno.motivos) : null,
+      movimientos: movimientos.get(f.id as string) ?? [],
+    }
   })
 
   return NextResponse.json({ ok: true, partidos: pagina, ficha, cruce, hay_mas, desde_minimo })

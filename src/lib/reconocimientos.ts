@@ -129,19 +129,10 @@ export function thumbsPasoDeSettings(settings: Record<string, unknown>): number 
   return recoNumber(settings, 'reco_thumbs_paso')
 }
 
-/**
- * Escalones que mueven los pulgares de un jugador en un partido.
- * Cada lado por separado, y solo por grupos completos: con paso 3, dos 👍 no
- * mueven nada y cuatro mueven uno.
- */
-export function escalonesPorPulgares(
-  likes: number,
-  dislikes: number,
-  paso: number
-): { arriba: number; abajo: number } {
-  const p = Math.max(1, paso)
-  return { arriba: Math.floor(likes / p), abajo: Math.floor(dislikes / p) }
-}
+// El cálculo vive en lib/puntaje junto al resto de la fórmula, para que el
+// simulador y el servidor no puedan quedar con dos versiones distintas. Se
+// reexporta acá porque es donde se configura el paso.
+export { escalonesPorPulgares } from '@/lib/puntaje'
 
 /** Arma el quórum a partir de un mapa de settings ya leído. */
 export function quorumDeSettings(settings: Record<string, unknown>): Quorum {

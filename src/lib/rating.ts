@@ -1,8 +1,12 @@
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { getClubBadges } from '@/lib/categorias'
-import { getThumbsPaso, getCastigoNoVotar, castigaEnFecha, getQuorum, escalonesPorPulgares } from '@/lib/reconocimientos'
+import { getThumbsPaso, getCastigoNoVotar, castigaEnFecha, getQuorum } from '@/lib/reconocimientos'
 import { ausenteEn, type Ausencia } from '@/lib/ausencia'
 import { getFaltasGap, rachaDeFaltas, type PartidoRacha } from '@/lib/faltas'
+import {
+  calcularPuntaje, clampRating, round3,
+  BASE_RATING, type Resultado, type SenalesPartido,
+} from '@/lib/puntaje'
 
 // ── Player rating (v2) ───────────────────────────────────────────────────────
 // Stateful 1–5 rating stored on profiles.habilidad. Everyone starts at 3.0 and
@@ -56,20 +60,9 @@ import { getFaltasGap, rachaDeFaltas, type PartidoRacha } from '@/lib/faltas'
 // reconocimientos tienen un sesgo menor por venir 5 positivos y 3 negativos de
 // fábrica, configurable por club.
 
-const STEP = 0.02
-// El tope decide cuántas señales de un mismo partido alcanzan a contar, porque
-// el neto se recorta a ±CAP. Con 0.05 eran 2.5 escalones y jugar + ganar ya se
-// comía 2: al MVP del equipo ganador el reconocimiento le sumaba medio escalón
-// y el segundo, nada. Con 0.075 (3.75) caben jugar + ganar + un reconocimiento
-// + un escalón de pulgares, que es un partidazo, y sigue sin haber forma de
-// saltar medio punto en una fecha.
-const CAP_NORMAL = 0.075
-// El minitorneo reparte más señales (tres equipos, más reconocimientos), así
-// que su tope va al doble.
-const CAP_MINI = 0.15
-const MIN_RATING = 1.0
-const MAX_RATING = 5.0
-const BASE_RATING = 3.0
+// La aritmética (STEP, topes, motivos) vive en lib/puntaje: la comparte el
+// simulador de /puntaje, que es lo único que garantiza que la pantalla que le
+// explica las reglas a la gente diga lo mismo que hace el servidor.
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -81,10 +74,6 @@ async function badgeSigns(admin: Admin, clubId: string): Promise<{ pos: Set<stri
     neg: new Set(badges.filter(b => b.signo === 'negativo').map(b => b.id)),
   }
 }
-
-const round3 = (n: number) => Math.round(n * 1000) / 1000
-const clampRating = (n: number) => Math.max(MIN_RATING, Math.min(MAX_RATING, n))
-const clampDelta = (n: number, cap: number) => Math.max(-cap, Math.min(cap, n))
 
 type Team = { nombre: string; color: string }
 type Outcome = 'win' | 'draw' | 'loss' | null
@@ -263,8 +252,6 @@ export async function applyMatchRatings(
     if (p.aprobado && !p.baneado) eligible.push(p.id)
   }
 
-  const cap = esMini ? CAP_MINI : CAP_NORMAL
-
   const outcome = (team: Team | undefined): Outcome => {
     if (!team) return null
     if (esMini) {
@@ -287,62 +274,43 @@ export async function applyMatchRatings(
   const events: RatingEventRow[] = []
   const updates: { id: string; rating: number }[] = []
 
+  const reglas = { thumbsPaso, faltasGap, castigaNoVotar }
+  const RESULTADO: Record<Exclude<Outcome, null>, Resultado> = {
+    win: 'ganó', loss: 'perdió', draw: 'empató',
+  }
+
   for (const id of eligible) {
     if (espera.has(id)) continue // exento
 
-    let raw = 0
-    const motivos: string[] = []
+    const jugo = confirmados.has(id)
+    // Marked away by an admin: no penalty for not signing up. Only matters when
+    // they didn't play — a confirmed player takes the `jugo` branch.
+    const ausente = !jugo && ausenteEn(ausenciaById.get(id), partido.fecha as string)
 
-    if (confirmados.has(id)) {
-      // Jugar no suma por sí solo: queda en el ledger como señal de presencia y
-      // con delta 0. Ver la nota sobre la deriva en la cabecera.
-      motivos.push('jugó')
+    // Faltó. Solo resta si ya viene una racha: la primera y la segunda falta
+    // seguidas son gratis (con gap 3), y el que no puede los viernes nunca
+    // acumula porque el martes que juega le corta la cuenta.
+    const rachaFaltas = jugo || ausente ? 0 : rachaDeFaltas({
+      partidos: ventana,
+      estadoPorPartido: estadoPorJugador.get(id) ?? new Map(),
+      ausenteEnFecha: fecha => ausenteEn(ausenciaById.get(id), fecha),
+      desdeFecha: desdeById.get(id) ?? '1970-01-01',
+    })
 
-      const res = outcome(teamByPlayer.get(id))
-      if (res === 'win') { raw += STEP; motivos.push('ganó') }
-      else if (res === 'loss') { raw -= STEP; motivos.push('perdió') }
-      else if (res === 'draw') { motivos.push('empató') }
-
-      const pos = badgePos.get(id) ?? 0
-      const neg = badgeNeg.get(id) ?? 0
-      if (pos) { raw += STEP * pos; motivos.push(`reconocimiento+ ×${pos}`) }
-      if (neg) { raw -= STEP * neg; motivos.push(`reconocimiento- ×${neg}`) }
-
-      if (castigaNoVotar && !votaron.has(id)) {
-        raw -= STEP
-        motivos.push('no votó')  // la votación además se quedó sin quórum
-      }
-
-      const up = likes.get(id) ?? 0
-      const down = dislikes.get(id) ?? 0
-      const pasos = escalonesPorPulgares(up, down, thumbsPaso)
-      if (pasos.arriba) { raw += STEP * pasos.arriba; motivos.push(`👍 ${up} (×${pasos.arriba})`) }
-      if (pasos.abajo)  { raw -= STEP * pasos.abajo;  motivos.push(`👎 ${down} (×${pasos.abajo})`) }
-    } else if (ausenteEn(ausenciaById.get(id), partido.fecha as string)) {
-      // Marked away by an admin: no penalty for not signing up. Only reachable
-      // when they didn't play — a confirmed player takes the branch above.
-      motivos.push('ausente')
-    } else {
-      // Faltó. Solo resta si ya viene una racha: la primera y la segunda falta
-      // seguidas son gratis (con gap 3), y el que no puede los viernes nunca
-      // acumula porque el martes que juega le corta la cuenta.
-      const racha = rachaDeFaltas({
-        partidos: ventana,
-        estadoPorPartido: estadoPorJugador.get(id) ?? new Map(),
-        ausenteEnFecha: fecha => ausenteEn(ausenciaById.get(id), fecha),
-        desdeFecha: desdeById.get(id) ?? '1970-01-01',
-      })
-      if (racha >= faltasGap) {
-        raw -= STEP
-        motivos.push(`inactivo (${racha} faltas seguidas)`)
-      } else {
-        // Se guarda el evento con delta 0: queda el rastro de que faltó y de
-        // cuánto le falta para que empiece a costar.
-        motivos.push(`no jugó (${racha}/${faltasGap})`)
-      }
+    const res = jugo ? outcome(teamByPlayer.get(id)) : null
+    const senales: SenalesPartido = {
+      jugo,
+      resultado: res ? RESULTADO[res] : null,
+      recoPos: badgePos.get(id) ?? 0,
+      recoNeg: badgeNeg.get(id) ?? 0,
+      likes: likes.get(id) ?? 0,
+      dislikes: dislikes.get(id) ?? 0,
+      voto: votaron.has(id),   // si castiga o no lo decide `reglas`
+      ausente,
+      rachaFaltas,
     }
 
-    const delta = round3(clampDelta(raw, cap))
+    const { delta, motivos } = calcularPuntaje(senales, reglas, esMini)
     const old = ratingById.get(id) ?? BASE_RATING
     const rating_after = clampRating(round3(old + delta))
 

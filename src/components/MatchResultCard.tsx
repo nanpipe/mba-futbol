@@ -1,6 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
+import { formatDelta, explicarMotivo } from '@/lib/puntaje'
 
 export interface MatchBadge {
   badge_id: string
@@ -35,6 +37,100 @@ function PuntoEquipo({ color }: { color?: string | null }) {
   )
 }
 
+/** Lo que se movió el puntaje de un jugador en este partido (rating_events). */
+export interface MovimientoPuntaje {
+  player_id: string
+  username: string
+  delta: number
+  motivos: string[]
+}
+
+/**
+ * Quién subió y quién bajó con este partido.
+ *
+ * Existe porque el puntaje se movía en silencio: la gente veía su número
+ * distinto el jueves y no tenía forma de saber por qué. Acá queda el renglón
+ * exacto — "ganó, 🏆 MVP, 4 👍" — al lado de la cifra.
+ *
+ * Va plegado: son 14 jugadores por partido y el historial muestra 15 partidos
+ * seguidos. Plegado se ve lo único que casi todos vienen a mirar, que es lo
+ * propio, y el resto queda a un toque.
+ */
+function MovimientoDelPartido({ movimientos, miId }: {
+  movimientos: MovimientoPuntaje[]
+  miId?: string | null
+}) {
+  const [abierto, setAbierto] = useState(false)
+
+  // Los que jugaron salen todos, aunque hayan quedado en 0.00 (empatar y no
+  // ganar nada ES el resultado, y esconderlo parecería que faltan datos). De
+  // los que no jugaron solo salen los que perdieron algo por inactividad: los
+  // demás son el club entero con un 0.00 al lado.
+  const filas = movimientos
+    .filter(m => m.motivos.includes('jugó') || m.delta !== 0)
+    .sort((a, b) => b.delta - a.delta || a.username.localeCompare(b.username))
+
+  if (filas.length === 0) return null
+  const mio = miId ? filas.find(m => m.player_id === miId) : undefined
+
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+      <button
+        onClick={() => setAbierto(a => !a)}
+        className="mono"
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+          padding: '10px 12px', background: 'var(--bg-card)', border: 'none',
+          color: 'var(--text-muted)', fontSize: 10, letterSpacing: '0.12em',
+          cursor: 'pointer', textAlign: 'left',
+        }}
+      >
+        <span style={{ flex: 1, minWidth: 0 }}>PUNTAJE DEL PARTIDO</span>
+        {mio && (
+          <span style={{ letterSpacing: 0, fontSize: 11 }}>
+            <span style={{ color: 'var(--text-dim)' }}>TÚ </span>
+            <span style={{ color: color(mio.delta) }}>{formatDelta(mio.delta)}</span>
+          </span>
+        )}
+        <span style={{ color: 'var(--text-dim)', fontSize: 9 }}>{abierto ? '▲' : '▼'}</span>
+      </button>
+
+      {abierto && (
+        <div style={{ borderTop: '1px solid var(--border)' }}>
+          {filas.map(m => (
+            <div
+              key={m.player_id}
+              style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 12px',
+                background: m.player_id === miId ? 'var(--bg-elevated)' : 'transparent',
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="mono" style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {m.username}
+                </div>
+                <div className="mono" style={{ fontSize: 9.5, color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.5 }}>
+                  {m.motivos.map(explicarMotivo).join(' · ')}
+                </div>
+              </div>
+              <span className="mono" style={{ fontSize: 12, color: color(m.delta), flexShrink: 0 }}>
+                {formatDelta(m.delta)}
+              </span>
+            </div>
+          ))}
+          <div className="mono" style={{ fontSize: 10, padding: '10px 12px', borderTop: '1px solid var(--border)' }}>
+            <a href="/puntaje" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
+              ¿Cómo se calcula? Simula tu puntaje →
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const color = (n: number) => (n > 0 ? 'var(--green)' : n < 0 ? '#f87171' : 'var(--text-dim)')
+
 export interface MatchResult {
   fecha: string
   dia_semana: string
@@ -62,12 +158,16 @@ function formatHora12(hora?: string | null): string {
  * Result block for a finished match: photo, winner (normal score or minitorneo
  * points) and badge winners. Used on the home page (last match) and /historial.
  */
-export function MatchResultCard({ titulo, partido, badges, marca }: {
+export function MatchResultCard({ titulo, partido, badges, marca, movimientos, miId }: {
   titulo: string
   partido: MatchResult
   badges: MatchBadge[]
   /** Distintivo opcional junto al título (el historial pone ahí GANÓ/PERDIÓ). */
   marca?: React.ReactNode
+  /** Cuánto subió o bajó cada quien. Vacío mientras las votaciones no cierren. */
+  movimientos?: MovimientoPuntaje[]
+  /** Para resaltar la fila propia. */
+  miId?: string | null
 }) {
   const p = partido
   // Un empate son DOS filas en player_badges, una por ganador. Sin agrupar, la
@@ -234,6 +334,9 @@ export function MatchResultCard({ titulo, partido, badges, marca }: {
               )
             })}
           </div>
+        )}
+        {movimientos && movimientos.length > 0 && (
+          <MovimientoDelPartido movimientos={movimientos} miId={miId} />
         )}
       </div>
     </div>

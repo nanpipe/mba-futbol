@@ -24,6 +24,10 @@ import { avisarBadgeRemovido } from '@/lib/notifyBadge'
 import { sanitizeBadges, parseBadges, BADGES_SETTING_KEY } from '@/lib/categorias'
 import { sanitizeTiers, parseTiers, TIERS_SETTING_KEY } from '@/lib/tier'
 import { leerTodo } from '@/lib/paginar'
+import {
+  RECURRENCIA_KEY, parsePlantillas, diaDeFecha, nombreDia, DIAS_SEMANA, MAX_PLANTILLAS,
+} from '@/lib/recurrencia'
+import { randomUUID } from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
@@ -658,90 +662,121 @@ export async function POST(req: NextRequest) {
 
   // ── Crear partido ──────────────────────────────────────────────────────────
   if (accion === 'crear_partido') {
-    const { fecha, hora, cupos_total, hora_apertura, dias_antes_apertura, tipo, notif_apertura_at, notif_recordatorio_at, lugar, repetir_semanas } = body
+    const { fecha, hora, cupos_total, hora_apertura, dias_antes_apertura, tipo, notif_apertura_at, notif_recordatorio_at, lugar, repetir_semanal } = body
 
     if (!isDate(fecha)) return NextResponse.json({ error: 'Fecha inválida' }, { status: 400 })
     if (!isIntInRange(cupos_total, 2, 30)) return NextResponse.json({ error: 'Cupos debe ser entre 2 y 30' }, { status: 400 })
     if (!isIntInRange(dias_antes_apertura, 0, 14)) return NextResponse.json({ error: 'Días antes debe ser entre 0 y 14' }, { status: 400 })
 
-    // Repeticiones semanales. 0 = solo este, que es lo de siempre. El tope de 26
-    // es medio año: más que eso no es "programar la temporada", es llenar el
-    // calendario de partidos que nadie va a mirar y que igual hay que borrar.
-    const repeticiones = repetir_semanas === undefined || repetir_semanas === null || repetir_semanas === ''
-      ? 0
-      : Number(repetir_semanas)
-    if (!Number.isInteger(repeticiones) || repeticiones < 0 || repeticiones > 26) {
-      return NextResponse.json({ error: 'Repetir: entre 0 y 26 semanas' }, { status: 400 })
-    }
+    // Repetir cada semana. Ya NO crea N partidos de una: guarda una plantilla
+    // y el cron va creando de a uno, manteniendo unos pocos por delante (ver
+    // lib/recurrencia). Crear ocho de golpe funcionaba, pero dejaba el
+    // calendario con ocho tarjetas de partidos a mes y medio vista.
+    const repetirSemanal = repetir_semanal === true || repetir_semanal === 'true'
 
     const tipoPartido = tipo === 'minitorneo' ? 'minitorneo' : 'normal'
-    const date = new Date((fecha as string) + 'T12:00:00')
-    const dias = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
-    const dia_semana = dias[date.getDay()]
+    const dia_semana = DIAS_SEMANA[diaDeFecha(fecha as string)]
+    const horaFinal = isString(hora, 4, 8) ? (hora as string) : '19:00:00'
+    const aperturaFinal = isString(hora_apertura, 4, 8) ? (hora_apertura as string) : '10:00:00'
+    const lugarFinal = isString(lugar, 1, 120) ? (lugar as string).trim() : ''
 
-    // Las fechas se suman en UTC sobre la fecha pelada. `partidos.fecha` es un
-    // DATE sin zona y Colombia no tiene horario de verano, así que sumar
-    // 7×86.400.000 ms cae siempre en el mismo día de la semana. Hacerlo con
-    // `setDate` sobre una fecha local sí se corre según dónde corra el servidor.
-    const base = new Date((fecha as string) + 'T00:00:00Z').getTime()
-    const fechas = Array.from({ length: repeticiones + 1 }, (_, i) =>
-      new Date(base + i * 7 * 86400000).toISOString().slice(0, 10)
-    )
-
-    // Las REPETICIONES no pisan lo que ya existe: repetir dos veces desde el
-    // mismo martes no puede dejar el calendario duplicado.
-    //
-    // El primero sí se crea siempre, aunque ese día ya tenga partido. El club
-    // puede programar dos en una fecha (el home ya sabe mostrar varias ventanas
-    // abiertas a la vez) y bloquearlo acá sería quitar algo que hoy se puede
-    // hacer, a cuenta de una función nueva que no tiene nada que ver.
-    let nuevas = [fechas[0]]
-    if (fechas.length > 1) {
-      const { data: yaHay } = await admin
-        .from('partidos').select('fecha').eq('club_id', clubId).in('fecha', fechas.slice(1))
-      const ocupadas = new Set(((yaHay ?? []) as { fecha: string }[]).map(r => r.fecha))
-      nuevas = nuevas.concat(fechas.slice(1).filter(f => !ocupadas.has(f)))
-    }
-
-    const comun = {
-      club_id: clubId,
-      dia_semana,
-      hora: isString(hora, 4, 8) ? (hora as string) : '19:00:00',
-      cupos_total: parseInt(String(cupos_total), 10),
-      hora_apertura: isString(hora_apertura, 4, 8) ? (hora_apertura as string) : '10:00:00',
-      dias_antes_apertura: parseInt(String(dias_antes_apertura), 10),
-      inscripcion_abierta: false,
-      tipo: tipoPartido,
-      ...(isString(lugar, 1, 120) ? { lugar: (lugar as string).trim() } : {}),
-    }
-
-    const { error } = await admin.from('partidos').insert(
-      nuevas.map((f, i) => ({
-        ...comun,
-        fecha: f,
-        // Las horas de aviso puestas a mano valen SOLO para el primero: son un
-        // instante fijo, y copiarlas a las repeticiones haría que todas avisaran
-        // el mismo día. Las copias usan la hora automática, que es relativa a
-        // la fecha de cada partido (ver lib/notifHorario).
-        ...(i === 0 && notif_apertura_at ? { notif_apertura_at } : {}),
-        ...(i === 0 && notif_recordatorio_at ? { notif_recordatorio_at } : {}),
-      }))
-    )
+    const { error } = await admin
+      .from('partidos')
+      .insert({
+        club_id: clubId,
+        fecha: fecha as string,
+        dia_semana,
+        hora: horaFinal,
+        cupos_total: parseInt(String(cupos_total), 10),
+        hora_apertura: aperturaFinal,
+        dias_antes_apertura: parseInt(String(dias_antes_apertura), 10),
+        inscripcion_abierta: false,
+        tipo: tipoPartido,
+        ...(lugarFinal ? { lugar: lugarFinal } : {}),
+        ...(notif_apertura_at ? { notif_apertura_at } : {}),
+        ...(notif_recordatorio_at ? { notif_recordatorio_at } : {}),
+      })
 
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+
+    let extra = ''
+    if (repetirSemanal) {
+      const { data: filaRec } = await admin
+        .from('app_settings').select('value').eq('club_id', clubId).eq('key', RECURRENCIA_KEY).maybeSingle()
+      const plantillas = parsePlantillas((filaRec as { value?: unknown } | null)?.value)
+
+      if (plantillas.some(pl => pl.dia === diaDeFecha(fecha as string))) {
+        extra = ` ${nombreDia(diaDeFecha(fecha as string))} ya se repetían solos.`
+      } else if (plantillas.length >= MAX_PLANTILLAS) {
+        extra = ` No se pudo guardar la repetición: ya hay ${MAX_PLANTILLAS} activas.`
+      } else {
+        const plantilla = {
+          id: randomUUID(),
+          dia: diaDeFecha(fecha as string),
+          hora: horaFinal,
+          hora_apertura: aperturaFinal,
+          dias_antes: parseInt(String(dias_antes_apertura), 10),
+          cupos: parseInt(String(cupos_total), 10),
+          tipo: tipoPartido,
+          lugar: lugarFinal,
+          desde: fecha as string,
+          creado_hasta: fecha as string,
+        }
+        const { error: errRec } = await admin.from('app_settings').upsert({
+          club_id: clubId,
+          key: RECURRENCIA_KEY,
+          value: [...plantillas, plantilla],
+          updated_at: new Date().toISOString(),
+          updated_by: adminUser.id,
+        }, { onConflict: 'club_id,key' })
+        extra = errRec
+          ? ' (el partido quedó creado, pero no se pudo guardar la repetición)'
+          : ` A partir de ahora ${nombreDia(plantilla.dia)} se crean solos.`
+        if (errRec) console.error('[crear_partido] recurrencia', errRec)
+      }
+    }
+
     await logActivity({
       user_id: adminUser.id, username: adminUser.username, accion: 'crear_partido',
-      detalles: { fecha, dia_semana, hora, cupos_total, tipo: tipoPartido, creados: nuevas.length, repetir_semanas: repeticiones },
+      detalles: { fecha, dia_semana, hora: horaFinal, cupos_total, tipo: tipoPartido, repetir_semanal: repetirSemanal },
       ip,
     })
 
     const etiqueta = tipoPartido === 'minitorneo' ? '🟣 Minitorneo' : 'Partido'
-    const saltadas = fechas.length - nuevas.length
-    const mensaje = nuevas.length === 1
-      ? `${etiqueta} del ${dia_semana} ${nuevas[0]} creado.`
-      : `${nuevas.length} partidos creados: todos los ${dia_semana} hasta el ${nuevas[nuevas.length - 1]}.` +
-        (saltadas > 0 ? ` (${saltadas} ya existían y se dejaron como estaban.)` : '')
-    return NextResponse.json({ ok: true, mensaje })
+    return NextResponse.json({ ok: true, mensaje: `${etiqueta} del ${dia_semana} ${fecha} creado.${extra}` })
+  }
+
+  // ── Dejar de repetir ───────────────────────────────────────────────────────
+  // Borra la plantilla de ese día. Los partidos ya creados NO se tocan: están
+  // en el calendario, puede haber gente inscrita, y "dejar de repetir" quiere
+  // decir "no crees más", no "borra los que hay".
+  if (accion === 'detener_recurrencia') {
+    const { dia } = body
+    const d = Number(dia)
+    if (!Number.isInteger(d) || d < 0 || d > 6) {
+      return NextResponse.json({ error: 'Día inválido' }, { status: 400 })
+    }
+
+    const { data: filaRec } = await admin
+      .from('app_settings').select('value').eq('club_id', clubId).eq('key', RECURRENCIA_KEY).maybeSingle()
+    const plantillas = parsePlantillas((filaRec as { value?: unknown } | null)?.value)
+    const quedan = plantillas.filter(pl => pl.dia !== d)
+
+    if (quedan.length === plantillas.length) {
+      return NextResponse.json({ error: `${nombreDia(d)} no se estaban repitiendo.` }, { status: 400 })
+    }
+
+    const { error } = await admin.from('app_settings').upsert({
+      club_id: clubId,
+      key: RECURRENCIA_KEY,
+      value: quedan,
+      updated_at: new Date().toISOString(),
+      updated_by: adminUser.id,
+    }, { onConflict: 'club_id,key' })
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'detener_recurrencia', detalles: { dia: d }, ip })
+    return NextResponse.json({ ok: true, mensaje: `${nombreDia(d)} ya no se crean solos. Los que están en el calendario se quedan.` })
   }
 
   // ── Actualizar tiempos de notificación de un partido ───────────────────────

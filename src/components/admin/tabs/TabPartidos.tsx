@@ -14,6 +14,9 @@ import {
   programaApertura, programaRecordatorio, fechaHoraCO, fechaHoraCortaCO,
   type ProgramaNotif,
 } from '@/lib/notifHorario'
+import {
+  parsePlantillas, plantillaDe, nombreDia, diaDeFecha, DIAS_SEMANA, SEMANAS_ADELANTE,
+} from '@/lib/recurrencia'
 
 /** Venue selector: saved list + "Otro…" free text. */
 function LugarPicker({ ubicaciones, value, custom, onValue, onCustom }: {
@@ -57,36 +60,18 @@ const fechaCortaPartido = (fecha: string) => {
   return m ? `${Number(m[3])} ${MESES_CORTOS[Number(m[2]) - 1]}` : fecha
 }
 
-const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
-
 /**
  * "9 partidos, todos los martes, hasta el 24 nov."
  *
  * Se calcula igual que en el servidor (sumando días en UTC sobre la fecha
  * pelada) para que lo que promete el formulario sea lo que termina creándose.
  */
-function resumenRepeticion(fecha: string, semanas: number, ocupadas: Set<string>): string {
+function resumenRepeticion(fecha: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return 'Elige primero la fecha del primero.'
-  const n = Math.max(0, Math.min(26, Math.floor(semanas)))
-  const base = new Date(fecha + 'T00:00:00Z')
-  if (Number.isNaN(base.getTime())) return ''
-  const dia = DIAS_SEMANA[base.getUTCDay()]
-  const fechas = Array.from({ length: n + 1 }, (_, i) =>
-    new Date(base.getTime() + i * 7 * 86400000).toISOString().slice(0, 10))
-  if (n === 0) return `Solo el ${dia} ${fechaCortaPartido(fecha)}.`
-
-  // Las repeticiones saltan las fechas que ya tienen partido, así que no hay
-  // que borrar nada antes: se puede repetir sobre un calendario a medio hacer.
-  const saltadas = fechas.slice(1).filter(f => ocupadas.has(f)).length
-  const creados = n + 1 - saltadas
-  return `${creados} partido${creados !== 1 ? 's' : ''} nuevo${creados !== 1 ? 's' : ''}: ` +
-    `todos los ${dia}, del ${fechaCortaPartido(fecha)} ` +
-    `al ${fechaCortaPartido(fechas[fechas.length - 1])}.` +
-    (saltadas > 0
-      ? saltadas === 1
-        ? ' 1 fecha ya tiene partido y se deja como está.'
-        : ` ${saltadas} fechas ya tienen partido y se dejan como están.`
-      : '')
+  const d = diaDeFecha(fecha)
+  return `Se crea este y, de ahí en adelante, ${nombreDia(d)} ` +
+    `se crean solos. Siempre habrá ${SEMANAS_ADELANTE} ${DIAS_SEMANA[d]} por delante en el calendario, ` +
+    'no más. Se puede parar cuando quieras desde la tarjeta del partido.'
 }
 
 /** "automático" vs "a mano": el admin necesita saber si él puso esa hora. */
@@ -127,12 +112,16 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
 
   // Game-config defaults (per club, superadmin-set; falls back to GAME_CONFIG defs)
   const [gameCfg, setGameCfg] = useState<Record<string, unknown>>({})
-  useEffect(() => {
+  const cargarSettings = useCallback(() => {
     fetch('/api/admin?accion=settings')
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d?.settings) setGameCfg(d.settings) })
       .catch(err => console.error('[TabPartidos] settings fetch failed:', err))
   }, [])
+  useEffect(() => { cargarSettings() }, [cargarSettings])
+
+  // Qué días se repiten solos. Lo que decide el 🔁 de cada tarjeta.
+  const plantillas = parsePlantillas(gameCfg['partidos_recurrentes'])
   // Venues: one per line in settings, first = default
   const ubicaciones = String(gameCfg['ubicaciones'] ?? 'Maracaná, Cali').split('\n').map(s => s.trim()).filter(Boolean)
   const defLugar = () => ubicaciones[0] ?? 'Maracaná, Cali'
@@ -155,7 +144,6 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
   const [nuevoLugar, setNuevoLugar] = useState('')
   const [lugarCustom, setLugarCustom] = useState(false)
   const [repetirSemanal, setRepetirSemanal] = useState(false)
-  const [repetirSemanas, setRepetirSemanas] = useState('8')
   const [notifAperturaAt, setNotifAperturaAt] = useState('')
   const [notifRecordatorioAt, setNotifRecordatorioAt] = useState('')
 
@@ -292,12 +280,12 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
       notif_recordatorio_at: notifRecordatorioAt ? new Date(notifRecordatorioAt).toISOString() : '',
       // Como el resto del formulario, va en texto: `AdminAction` manda
       // string | boolean y el servidor lo pasa a número al validarlo.
-      repetir_semanas: repetirSemanal ? String(Math.max(0, Math.min(26, Number(repetirSemanas) || 0))) : '0',
+      repetir_semanal: repetirSemanal,
     })
     setCrearModal(false)
     setNuevaFecha('')
     setRepetirSemanal(false)
-    setRepetirSemanas('8')
+    cargarSettings()
     setNuevaHora(defHora())
     setNuevosCupos(defCupos())
     setNuevaHoraApertura(defHoraApertura())
@@ -348,6 +336,17 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
       setEditPartidoModal(null)
       await onPartidoChanged()
     }
+  }
+
+  /**
+   * Deja de crear los partidos de ese día. Los que ya están en el calendario
+   * NO se tocan: puede haber gente inscrita, y "dejar de repetir" quiere decir
+   * "no crees más", no "borra los que hay".
+   */
+  const detenerRecurrencia = async (dia: number) => {
+    if (!window.confirm(`¿Dejar de crear ${nombreDia(dia)} automáticamente?\n\nLos partidos que ya están en el calendario se quedan.`)) return
+    const ok = await accionAdmin('detener_recurrencia', { dia: String(dia) })
+    if (ok) cargarSettings()
   }
 
   const eliminarPartido = async (partidoId: string) => {
@@ -593,6 +592,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                   + invRows.filter((r: { estado: string }) => r.estado === 'confirmado').length
                 espera = rows.filter((r: { estado: string }) => r.estado === 'espera').length
               }
+              const serie = plantillaDe(p, plantillas)
               const apertura = programaApertura(p, p.notif_apertura_at)
               const recordatorio = programaRecordatorio(p, p.notif_recordatorio_at)
 
@@ -619,6 +619,11 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                       <div className="display" style={{ fontSize: 18, letterSpacing: '0.05em', color: abierto ? 'var(--green)' : 'var(--text)' }}>
                         {p.dia_semana.toUpperCase()}
                         {p.tipo === 'minitorneo' && <span style={{ fontSize: 12, marginLeft: 6, verticalAlign: 'middle' }}>🟣</span>}
+                        {/* Este día se repite solo: el siguiente ya está (o va
+                            a estar) creado sin que nadie lo toque. */}
+                        {serie && (
+                          <span title={`Se repite ${nombreDia(serie.dia)}`} style={{ fontSize: 12, marginLeft: 6, verticalAlign: 'middle' }}>🔁</span>
+                        )}
                       </div>
                       <div className="mono" style={{
                         fontSize: 11, color: 'var(--text-muted)',
@@ -676,6 +681,28 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                         </button>
                       </div>
 
+                      {serie && (
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+                          padding: '10px 12px', background: 'var(--bg-card)',
+                          border: '1px solid var(--border)', borderRadius: 4,
+                        }}>
+                          <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1, minWidth: 200, lineHeight: 1.6 }}>
+                            🔁 {nombreDia(serie.dia)} se crean solos.<br />
+                            <span style={{ color: 'var(--text-dim)' }}>
+                              Siempre hay {SEMANAS_ADELANTE} por delante.
+                            </span>
+                          </span>
+                          <button
+                            onClick={() => detenerRecurrencia(serie.dia)}
+                            className="btn btn-ghost mono"
+                            style={{ fontSize: 11, padding: '7px 12px', color: 'var(--amber)', whiteSpace: 'nowrap' }}
+                          >
+                            Dejar de repetir
+                          </button>
+                        </div>
+                      )}
+
                       {/* Cuándo salen los dos avisos. Sin override el partido NO
                           se queda sin aviso: sale a la hora calculada, y eso es
                           lo que hay que mostrar. */}
@@ -698,7 +725,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                               type="datetime-local"
                               value={editNotifAperturaAt}
                               onChange={e => setEditNotifAperturaAt(e.target.value)}
-                              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 3, padding: '6px 8px', fontFamily: 'DM Mono, monospace', fontSize: 12 }}
+                              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 3, padding: '6px 8px', fontFamily: 'DM Mono, monospace', fontSize: 16 }}
                             />
                           </div>
                           <div>
@@ -707,7 +734,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                               type="datetime-local"
                               value={editNotifRecordatorioAt}
                               onChange={e => setEditNotifRecordatorioAt(e.target.value)}
-                              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 3, padding: '6px 8px', fontFamily: 'DM Mono, monospace', fontSize: 12 }}
+                              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 3, padding: '6px 8px', fontFamily: 'DM Mono, monospace', fontSize: 16 }}
                             />
                           </div>
                           <div style={{ display: 'flex', gap: 8 }}>
@@ -750,7 +777,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
             <select
               value={swapPlayerId}
               onChange={e => setSwapPlayerId(e.target.value)}
-              style={{ width: '100%', marginBottom: 20, padding: '10px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text)', fontSize: 14 }}
+              style={{ width: '100%', marginBottom: 20, padding: '10px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text)', fontSize: 16 }}
             >
               <option value="">— Selecciona jugador —</option>
               {inscripciones.filter(i => i.estado === 'confirmado').map(i => (
@@ -795,7 +822,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
               <select
                 value={agregarPlayerId}
                 onChange={e => setAgregarPlayerId(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text)', fontSize: 14 }}
+                style={{ width: '100%', padding: '10px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text)', fontSize: 16 }}
               >
                 <option value="">— Selecciona jugador —</option>
                 {players
@@ -930,18 +957,8 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                   <span className="mono" style={{ fontSize: 12, color: 'var(--text)' }}>🔁 Repetir cada semana</span>
                 </label>
                 {repetirSemanal && (
-                  <div style={{ marginTop: 12 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <input
-                        type="number" min="1" max="26" value={repetirSemanas}
-                        onChange={e => setRepetirSemanas(e.target.value)}
-                        style={{ width: 80 }}
-                      />
-                      <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>semanas más</span>
-                    </div>
-                    <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 8, lineHeight: 1.6 }}>
-                      {resumenRepeticion(nuevaFecha, Number(repetirSemanas) || 0, fechasOcupadas)}
-                    </div>
+                  <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 10, lineHeight: 1.7 }}>
+                    {resumenRepeticion(nuevaFecha)}
                   </div>
                 )}
               </div>

@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPush, isDeadPushError } from '@/lib/push'
 import { calcularVentanaPartido, MIN_CONFIRMADOS_AUTO_JUGADO } from '@/lib/partidos'
 import { programaApertura, programaRecordatorio } from '@/lib/notifHorario'
+import { RECURRENCIA_KEY, parsePlantillas, fechasPorCrear, DIAS_SEMANA } from '@/lib/recurrencia'
 import { abrirEvaluaciones, contarConfirmados } from '@/lib/partidoCierre'
 import { ausenteEn, type Ausencia } from '@/lib/ausencia'
 import { logActivity } from '@/lib/activityLog'
@@ -123,6 +124,7 @@ export async function GET(req: NextRequest) {
     cupos: 0,
     invitados: 0,
     borradores: 0,
+    recurrentes: 0,
     liberados: 0,
     cierres: 0,
   }
@@ -130,6 +132,76 @@ export async function GET(req: NextRequest) {
   const settingsCache = new Map<string, Settings>()
   const playerIdsCache = new Map<string, JugadorClub[]>()
   const clubNombreCache = new Map<string, string>()
+
+  // ── Partidos que se repiten cada semana ──────────────────────────────────
+  // Se mantiene una ventana corta de partidos creados por delante (ver
+  // lib/recurrencia). Va en try/catch a propósito: si algo falla acá, las
+  // notificaciones del resto del cron tienen que salir igual.
+  try {
+    const { data: filasRec } = await admin
+      .from('app_settings').select('club_id, value').eq('key', RECURRENCIA_KEY)
+
+    for (const fila of (filasRec ?? []) as { club_id: string; value: unknown }[]) {
+      const plantillas = parsePlantillas(fila.value)
+      if (plantillas.length === 0) continue
+
+      // Las fechas que ya tienen partido en este club, de hoy en adelante: con
+      // eso se cuenta cuántos de la serie quedan vivos y se saltan repetidas.
+      const { data: existentes } = await admin
+        .from('partidos').select('fecha').eq('club_id', fila.club_id).gte('fecha', hoyCol)
+      const ocupadas = new Set(((existentes ?? []) as { fecha: string }[]).map(r => r.fecha))
+
+      const porCrear: Record<string, unknown>[] = []
+      const actualizadas = plantillas.map(pl => {
+        const fechas = fechasPorCrear(pl, hoyCol, ocupadas)
+        if (fechas.length === 0) return pl
+        for (const f of fechas) {
+          porCrear.push({
+            club_id: fila.club_id,
+            fecha: f,
+            dia_semana: DIAS_SEMANA[pl.dia],
+            hora: pl.hora,
+            cupos_total: pl.cupos,
+            hora_apertura: pl.hora_apertura,
+            dias_antes_apertura: pl.dias_antes,
+            inscripcion_abierta: false,
+            tipo: pl.tipo,
+            ...(pl.lugar ? { lugar: pl.lugar } : {}),
+          })
+          // Se marca ocupada de una: dos plantillas del mismo día no pueden
+          // crear el mismo partido dos veces en la misma pasada.
+          ocupadas.add(f)
+        }
+        // Avanza hasta la última generada, aunque el bucle haya saltado fechas
+        // viejas: así una serie que estuvo quieta no las revive nunca.
+        return { ...pl, creado_hasta: fechas[fechas.length - 1] }
+      })
+
+      if (porCrear.length === 0) continue
+
+      const { error: errIns } = await admin.from('partidos').insert(porCrear)
+      if (errIns) {
+        // Sin guardar `creado_hasta`: si no se creó el partido, la plantilla
+        // tiene que volver a intentarlo en la próxima pasada.
+        console.error('[cron] recurrencia insert', fila.club_id, errIns)
+        continue
+      }
+      results.recurrentes += porCrear.length
+
+      const { error: errSet } = await admin.from('app_settings').upsert({
+        club_id: fila.club_id,
+        key: RECURRENCIA_KEY,
+        value: actualizadas,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'club_id,key' })
+      // Si esto falla, los partidos quedaron creados pero `creado_hasta` sigue
+      // atrás. No se duplica nada — la próxima pasada ve esas fechas ocupadas
+      // y las salta — pero conviene verlo en los logs.
+      if (errSet) console.error('[cron] recurrencia settings', fila.club_id, errSet)
+    }
+  } catch (e) {
+    console.error('[cron] recurrencia:', e)
+  }
 
   // ── Release expired bans ─────────────────────────────────────────────────
   // fecha_liberacion was only ever stored and displayed — nothing acted on it,

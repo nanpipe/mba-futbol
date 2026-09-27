@@ -61,7 +61,14 @@ input, select, textarea {
   border: 1px solid var(--border-light);
   color: var(--text);
   font-family: 'DM Mono', monospace;
-  font-size: 14px;
+  /* 16px NO es una decisión de diseño, es un requisito de iOS.
+     Safari hace zoom sobre cualquier campo con letra de menos de 16px en
+     cuanto se toca, y no hay forma de desactivarlo (desde iOS 10 ignora
+     `maximum-scale` y `user-scalable=no` por accesibilidad). Zoom puesto, la
+     página entera queda más ancha que la pantalla: la barra de arriba se corta
+     por los DOS lados y el formulario se sale. Se vio así en el modal de
+     partido, que es el que más campos tiene. Bajar de acá lo revive. */
+  font-size: 16px;
   padding: 12px 16px;
   border-radius: 3px;
   width: 100%;

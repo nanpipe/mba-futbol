@@ -168,6 +168,28 @@ hr { border: none; border-top: 1px solid var(--border); }
   .nav-hide-sm { display: none; }
 }
 
+/* Fecha y hora en iOS: el contenido se sale de la tarjeta.
+   Safari pinta el valor dentro de un pseudo-elemento propio
+   (::-webkit-date-and-time-value) que viene centrado y con un ancho intrínseco
+   propio. Ese ancho ignora el `width: 100%` del input y empuja el formulario:
+   en el modal de partido salía barra de scroll horizontal y la fecha quedaba
+   cortada contra el borde. Se notaba antes de medir nada, porque la fecha y la
+   hora salían centradas mientras el resto de los campos iban a la izquierda.
+
+   Se arregla soltando ese ancho (min-width: 0, que sin esto vale `auto` y no
+   deja encoger) y alineando a la izquierda como los demás campos. A propósito
+   NO se usa `appearance: none`: eso lo arreglaría también, pero borra el icono
+   de calendario en Chrome de escritorio. */
+input[type="date"], input[type="time"], input[type="datetime-local"] {
+  min-width: 0;
+}
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value,
+input[type="datetime-local"]::-webkit-date-and-time-value {
+  text-align: left;
+  min-width: 0;
+}
+
 /* The base input rule targets text-like fields. Checkboxes and radios must not
    stretch: a full-width, padded checkbox shoved its own label off-screen. */
 input[type="checkbox"], input[type="radio"] {

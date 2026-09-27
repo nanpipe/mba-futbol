@@ -65,17 +65,28 @@ const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'vier
  * Se calcula igual que en el servidor (sumando días en UTC sobre la fecha
  * pelada) para que lo que promete el formulario sea lo que termina creándose.
  */
-function resumenRepeticion(fecha: string, semanas: number): string {
+function resumenRepeticion(fecha: string, semanas: number, ocupadas: Set<string>): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return 'Elige primero la fecha del primero.'
   const n = Math.max(0, Math.min(26, Math.floor(semanas)))
   const base = new Date(fecha + 'T00:00:00Z')
   if (Number.isNaN(base.getTime())) return ''
-  const ultima = new Date(base.getTime() + n * 7 * 86400000)
   const dia = DIAS_SEMANA[base.getUTCDay()]
+  const fechas = Array.from({ length: n + 1 }, (_, i) =>
+    new Date(base.getTime() + i * 7 * 86400000).toISOString().slice(0, 10))
   if (n === 0) return `Solo el ${dia} ${fechaCortaPartido(fecha)}.`
-  return `${n + 1} partidos: todos los ${dia}, del ${fechaCortaPartido(fecha)} ` +
-    `al ${fechaCortaPartido(ultima.toISOString().slice(0, 10))}. ` +
-    'Si alguna fecha ya tiene partido, se deja como está.'
+
+  // Las repeticiones saltan las fechas que ya tienen partido, así que no hay
+  // que borrar nada antes: se puede repetir sobre un calendario a medio hacer.
+  const saltadas = fechas.slice(1).filter(f => ocupadas.has(f)).length
+  const creados = n + 1 - saltadas
+  return `${creados} partido${creados !== 1 ? 's' : ''} nuevo${creados !== 1 ? 's' : ''}: ` +
+    `todos los ${dia}, del ${fechaCortaPartido(fecha)} ` +
+    `al ${fechaCortaPartido(fechas[fechas.length - 1])}.` +
+    (saltadas > 0
+      ? saltadas === 1
+        ? ' 1 fecha ya tiene partido y se deja como está.'
+        : ` ${saltadas} fechas ya tienen partido y se dejan como están.`
+      : '')
 }
 
 /** "automático" vs "a mano": el admin necesita saber si él puso esa hora. */
@@ -259,6 +270,13 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
       .then(() => onFlash('Lista copiada al portapapeles ✓'))
       .catch(() => onFlash('Error: no se pudo copiar'))
   }
+
+  // El servidor sí crea el primero aunque ese día ya tenga partido (dos
+  // partidos el mismo día es válido). Por eso hay que decirlo: si no, quien
+  // repite desde una fecha que ya está en el calendario se lleva un duplicado
+  // sin haberlo pedido.
+  const fechasOcupadas = new Set(partidos.map(x => x.fecha))
+  const primeraOcupada = !!nuevaFecha && fechasOcupadas.has(nuevaFecha)
 
   const crearPartido = async () => {
     if (!nuevaFecha) return
@@ -895,6 +913,12 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
               {/* Repetir semanal. El club juega los mismos días todas las
                   semanas y crearlos de a uno era la tarea manual que más se
                   repetía. Las fechas las calcula el servidor. */}
+              {primeraOcupada && (
+                <div className="mono" style={{ fontSize: 11, color: 'var(--amber)', lineHeight: 1.6, padding: '10px 12px', background: '#1c1503', border: '1px solid #4d3a10', borderRadius: 4 }}>
+                  ⚠️ Ya hay un partido el {fechaCortaPartido(nuevaFecha)}. Este se crea igual y quedan dos ese día.
+                </div>
+              )}
+
               <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4, padding: '12px 14px' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
                   <input
@@ -916,7 +940,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                       <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>semanas más</span>
                     </div>
                     <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 8, lineHeight: 1.6 }}>
-                      {resumenRepeticion(nuevaFecha, Number(repetirSemanas) || 0)}
+                      {resumenRepeticion(nuevaFecha, Number(repetirSemanas) || 0, fechasOcupadas)}
                     </div>
                   </div>
                 )}

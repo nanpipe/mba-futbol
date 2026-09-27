@@ -138,6 +138,22 @@ function PlayerChip({
   )
 }
 
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+
+/**
+ * "el martes 29 de septiembre" — el último día para votar, que es el del
+ * partido. Se arma a mano y no con `toLocaleDateString` porque esta pantalla se
+ * pinta en el servidor y otra vez en el navegador, y los dos escriben las
+ * fechas con espacios distintos: React lo cuenta como hydration mismatch.
+ */
+function cierreLegible(fecha: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fecha)
+  if (!m) return ''
+  const d = new Date(`${fecha}T00:00:00Z`)
+  return `el ${DIAS[d.getUTCDay()]} ${Number(m[3])} de ${MESES[Number(m[2]) - 1]}`
+}
+
 export default function EvaluarPage({ params }: { params: Promise<{ partido_id: string }> }) {
   const { partido_id } = use(params)
   const supabase = createClient()
@@ -345,7 +361,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
             <span className="display" style={{ fontSize: 18, letterSpacing: '0.08em' }}>RECONOCIMIENTOS</span>
           </div>
           {partido && (
-            <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+            <div className="mono nav-hide-sm" style={{ fontSize: 11, color: 'var(--text-dim)', flexShrink: 0, whiteSpace: 'nowrap' }}>
               {partido.dia_semana} {new Date(partido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}
             </div>
           )}
@@ -366,6 +382,24 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
             </span>
           )}
         </div>
+
+        {/* Cuándo cierra. Antes no se decía en ninguna parte: el jugador abría
+            la pantalla sin saber que tenía horas, no días, y que no votar le
+            cuesta puntaje si la votación se queda corta. */}
+        {partido && (
+          <div className="mono" style={{
+            fontSize: 11, lineHeight: 1.7, marginBottom: 24,
+            padding: '12px 14px', borderRadius: 4,
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+          }}>
+            <span style={{ color: 'var(--amber)' }}>⏰ Las votaciones cierran esta noche a medianoche</span>
+            <span style={{ color: 'var(--text-dim)' }}> ({cierreLegible(partido.fecha)}).</span>
+            <br />
+            <span style={{ color: 'var(--text-dim)' }}>
+              Si votan todos antes, se cierran en ese momento.
+            </span>
+          </div>
+        )}
 
         {mensaje && (
           <div style={{ marginBottom: 20 }}>

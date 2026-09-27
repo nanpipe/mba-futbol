@@ -10,7 +10,7 @@ import { logActivity } from '@/lib/activityLog'
 import { sendAperturaEmail, sendRecordatorioEmail, sendRecordatorioVotarEmail } from '@/lib/email'
 import { tallyAndAssign } from '@/app/api/evaluaciones/route'
 import { channelsFor } from '@/lib/notifications'
-import { quorumDeSettings } from '@/lib/reconocimientos'
+import { quorumDeSettings, HORA_RECORDATORIO_VOTAR } from '@/lib/reconocimientos'
 import { applyMatchRatings } from '@/lib/rating'
 import { notificarInvitadoConfirmado } from '@/lib/invitados'
 import { generarBorradorAuto } from '@/lib/teamDraft'
@@ -125,6 +125,7 @@ export async function GET(req: NextRequest) {
     invitados: 0,
     borradores: 0,
     recurrentes: 0,
+    cierres_votacion: 0,
     liberados: 0,
     cierres: 0,
   }
@@ -230,10 +231,7 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Auto-open/close evaluaciones ─────────────────────────────────────────
-  // 7 PM: la gente ya salió del trabajo y quedan ~5 horas de margen.
-  const HORA_RECORDATORIO_VOTAR = 19
   const ayerStr = fechaColombia(new Date(now.getTime() - 86400000))
-  const dosDiasAtrasStr = fechaColombia(new Date(now.getTime() - 2 * 86400000))
 
   // ── Match close-out: one hour after kickoff ──────────────────────────────
   // The match leaves the home screen and needs an answer to "¿se jugó?". A full
@@ -286,18 +284,54 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  /**
+   * Cierra la votación de un partido y deja todo aplicado.
+   *
+   * Los dos caminos que cierran (el plazo y el quórum completo) tienen que
+   * hacer exactamente lo mismo: repartir reconocimientos y aplicar el rating.
+   * Con dos copias, la primera vez que se toque una el otro camino empieza a
+   * dejar partidos sin puntaje aplicado y nadie se entera.
+   */
+  const cerrarVotacion = async (
+    partidoId: string, clubId: string | undefined, fecha: string, razon: 'plazo' | 'todos_votaron'
+  ) => {
+    // El update va condicionado a que siga abierta: si dos caminos coinciden en
+    // el mismo tic, solo uno reparte reconocimientos.
+    const { data: cerrado } = await admin
+      .from('partidos')
+      .update({ evaluaciones_abiertas: false })
+      .eq('id', partidoId).eq('evaluaciones_abiertas', true)
+      .select('id')
+    if (!cerrado?.length) return
+
+    const { badges_asignados } = await tallyAndAssign(admin, partidoId)
+    // Los reconocimientos quedan finales: se aplica el rating (no hace nada si
+    // el partido todavía no tiene marcador).
+    try { await applyMatchRatings(admin, partidoId) } catch (e) { console.error('[rating] cron auto_cerrar:', e) }
+    await logActivity({
+      club_id: clubId, accion: 'auto_cerrar_evaluaciones',
+      detalles: { partido_id: partidoId, fecha, razon, badges_asignados },
+    })
+    results.cierres_votacion++
+  }
+
   const { data: pasados } = await admin
     .from('partidos')
-    .select('id, club_id, fecha, jugado, evaluaciones_abiertas, evaluaciones_ya_abiertas')
-    .in('fecha', [ayerStr, dosDiasAtrasStr])
+    .select('id, club_id, fecha, hora, hora_apertura, dias_antes_apertura, jugado, evaluaciones_abiertas, evaluaciones_ya_abiertas')
+    .in('fecha', [hoyCol, ayerStr])
 
   for (const p of pasados ?? []) {
-    // Safety net only. Evaluaciones open the moment a match is marked played
-    // (by an admin, or by the close-out above); this catches a played match
-    // whose opening failed midway. It never opens an unanswered match, and
-    // `evaluaciones_ya_abiertas` keeps an admin's close final.
+    // Red de seguridad. Las votaciones abren en cuanto el partido se marca
+    // jugado (por un admin, o por el cierre de arriba); esto atrapa un partido
+    // jugado cuya apertura falló a medias. Nunca abre un partido sin responder,
+    // y `evaluaciones_ya_abiertas` mantiene final el cierre de un admin.
+    //
+    // Corre el MISMO día del partido y ya no al día siguiente: desde que la
+    // votación cierra a las 00:00 de D+1, abrirla en D+1 sería abrir algo que
+    // el bloque de abajo cierra en el tic siguiente.
     if (
-      p.fecha === ayerStr &&
+      p.fecha === hoyCol &&
+      now >= calcularVentanaPartido(p as { fecha: string; hora?: string | null }, now).termina &&
       (p as { jugado?: boolean | null }).jugado === true &&
       !(p.evaluaciones_abiertas as boolean) &&
       !(p.evaluaciones_ya_abiertas as boolean)
@@ -310,19 +344,58 @@ export async function GET(req: NextRequest) {
         console.error('[cron] abrirEvaluaciones (red de seguridad):', e)
       }
     }
-    if (p.fecha === dosDiasAtrasStr && (p.evaluaciones_abiertas as boolean)) {
-      await admin.from('partidos').update({ evaluaciones_abiertas: false }).eq('id', p.id)
-      const { badges_asignados } = await tallyAndAssign(admin, p.id)
-      // Recognitions are final — apply rating deltas (no-op without a result).
-      try { await applyMatchRatings(admin, p.id) } catch (e) { console.error('[rating] cron auto_cerrar:', e) }
-      await logActivity({ club_id: (p as { club_id?: string }).club_id, accion: 'auto_cerrar_evaluaciones', detalles: { partido_id: p.id, fecha: p.fecha, badges_asignados } })
+    // Cierre por plazo: a las 00:00 del día siguiente al partido, o sea que se
+    // vota la misma noche (ver `cierreAutomatico` en lib/reconocimientos).
+    //
+    // La ventana horaria no es decorativa. Sin ella, un admin que marque el
+    // partido como jugado al otro día abriría las votaciones y el cron se las
+    // cerraría al minuto siguiente, dejando a todo el mundo sin votar. Con el
+    // límite, después de las 6 AM el cron ya no cierra por plazo y esa votación
+    // tardía alcanza a usarse. El cron corre cada minuto, así que seis horas
+    // son de sobra para el caso normal.
+    if (p.fecha === ayerStr && horaColombia(now) < 6 && (p.evaluaciones_abiertas as boolean)) {
+      await cerrarVotacion(p.id, (p as { club_id?: string }).club_id, p.fecha, 'plazo')
     }
   }
 
-  // ── Recordatorio de votación (7 PM del día siguiente al partido) ──────────
-  // La ventana real de votación es corta: abren al cerrar el partido y el cron
-  // las cierra a las 00:00 del día D+2. O sea, se vota "hasta que se acabe el
-  // día siguiente" — y eso no está escrito en ninguna parte.
+  // ── Cierre anticipado: ya votaron todos ──────────────────────────────────
+  // Si los confirmados ya entregaron su evaluación, esperar a medianoche no
+  // agrega nada: no falta ningún voto por llegar. Se cierra de una y los
+  // reconocimientos salen esa misma noche.
+  //
+  // Solo cuenta a los inscritos confirmados: los invitados no tienen cuenta y
+  // por lo tanto no votan. Si no hay confirmados, no se cierra nada — un
+  // partido sin gente no es un partido con quórum completo.
+  // Solo el día del partido. Este bloque hace tres consultas por partido
+  // abierto y el cron corre cada minuto: acotarlo a las ~4 horas de la ventana
+  // real son ~700 consultas por partido, en vez de seguir sondeando todo el día
+  // siguiente una votación que ya debería estar cerrada.
+  for (const p of (pasados ?? []) as { id: string; club_id?: string; fecha: string; evaluaciones_abiertas: boolean }[]) {
+    if (!p.evaluaciones_abiertas || p.fecha !== hoyCol) continue
+    try {
+      const [{ data: confirmados }, { data: votos }, { data: thumbs }] = await Promise.all([
+        admin.from('inscripciones').select('player_id').eq('partido_id', p.id).eq('estado', 'confirmado'),
+        admin.from('votos_reconocimiento').select('votante_id').eq('partido_id', p.id),
+        admin.from('player_thumbs').select('votante_id').eq('partido_id', p.id),
+      ])
+      const ids = ((confirmados ?? []) as { player_id: string }[]).map(c => c.player_id)
+      if (ids.length === 0) continue
+
+      const votaron = new Set<string>()
+      for (const v of [...(votos ?? []), ...(thumbs ?? [])] as { votante_id: string }[]) votaron.add(v.votante_id)
+
+      if (ids.every(id => votaron.has(id))) {
+        await cerrarVotacion(p.id, p.club_id, p.fecha, 'todos_votaron')
+      }
+    } catch (e) {
+      console.error('[cron] cierre anticipado:', p.id, e)
+    }
+  }
+
+  // ── Recordatorio de votación (10 PM del MISMO día del partido) ────────────
+  // La ventana es corta a propósito: abren al terminar el partido (~8 PM) y el
+  // cron las cierra a las 00:00. El recordatorio sale a las 10 PM, o sea dos
+  // horas después de que abren y dos antes de que cierren.
   //
   // Solo sale si la votación TODAVÍA no llegó al quórum de votantes: si ya
   // alcanzó, los reconocimientos se van a repartir igual y nadie va a perder
@@ -336,7 +409,7 @@ export async function GET(req: NextRequest) {
       const { data: abiertos } = await admin
         .from('partidos')
         .select('id, club_id, fecha, dia_semana, notif_votar_sent')
-        .eq('fecha', ayerStr)
+        .eq('fecha', hoyCol)
         .eq('evaluaciones_abiertas', true)
 
       for (const p of (abiertos ?? []) as { id: string; club_id: string; fecha: string; dia_semana: string; notif_votar_sent: boolean }[]) {
@@ -381,7 +454,7 @@ export async function GET(req: NextRequest) {
             try {
               await sendPush(sub, {
                 title: '⏰ Te faltan tus votos',
-                body: `Evalúa el partido del ${p.dia_semana}. Tienes hasta esta noche o pierdes 0.02 de puntaje.`,
+                body: `Evalúa el partido del ${p.dia_semana}. Cierran a medianoche, o pierdes 0.02 de puntaje.`,
                 url: `/evaluar/${p.id}`,
               })
               enviadosPush++

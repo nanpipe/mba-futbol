@@ -335,11 +335,11 @@ export function TabHistorial({ active }: Props) {
 
     const aviso = [
       c
-        ? `Ojo: NO hace falta cerrarlas a mano.\n\nSe cierran solas el ${dia(c.cierra)} a medianoche, así que todavía queda todo el ${dia(c.ultimoDia)} para votar.`
-        : 'Ojo: las votaciones se cierran solas dos días después del partido.',
+        ? `Ojo: NO hace falta cerrarlas a mano.\n\nSe cierran solas a medianoche, al terminar el ${dia(c.ultimoDia)}. Y si votan todos antes, se cierran en ese momento.`
+        : 'Ojo: las votaciones se cierran solas a medianoche del día del partido.',
       faltan > 0
         ? `\nFaltan ${faltan} por votar (van ${pr!.votaron} de ${pr!.total}). Si cierras ahora, los reconocimientos se reparten solo con los votos que ya hay.`
-        : '\nYa votaron todos los que jugaron.',
+        : '\nYa votaron todos los que jugaron, así que se van a cerrar solas en un momento.',
       '\n¿Cerrar de todas formas?',
     ].join('\n')
 

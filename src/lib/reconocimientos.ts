@@ -249,21 +249,26 @@ export function explicarSinAsignar(d: DecisionCategoria, votantes: number, q: Qu
 /**
  * Cuándo se cierran solas las votaciones de un partido.
  *
- * El cron cierra cuando la fecha del partido queda dos días atrás, o sea en el
- * tic de las 00:00 del día D+2 (ver `api/cron/notificaciones`). En la práctica
- * se vota "hasta que se acabe el día siguiente al partido", y eso no estaba
- * escrito en ninguna parte: el admin veía el botón de cerrar y no sabía que no
- * tenía que hacer nada.
+ * Se vota **la misma noche del partido**: abren al terminar y el cron cierra en
+ * el tic de las 00:00 del día siguiente (ver `api/cron/notificaciones`).
  *
- * Devuelve el último día completo para votar y el día en que el cron cierra.
- * En UTC porque `partidos.fecha` es un DATE sin zona: construirlo en local
- * correría un día según dónde esté quien mire.
+ * Hasta 2026-09-28 la ventana llegaba hasta el final del día siguiente (cerraba
+ * a las 00:00 de D+2). Se acortó a petición del club: con dos días de por medio
+ * la votación "perdía la gracia" — se votaba sobre un partido que ya nadie
+ * tenía fresco. El recordatorio se movió en consecuencia a las 10 PM del mismo
+ * día, dos horas después de que abren.
+ *
+ * Devuelve el último día en que se puede votar (el del partido) y el día en que
+ * el cron cierra. En UTC porque `partidos.fecha` es un DATE sin zona:
+ * construirlo en local correría un día según dónde esté quien mire.
  */
 export function cierreAutomatico(fechaPartido: string): { ultimoDia: string; cierra: string } | null {
   if (!FECHA_RE.test(fechaPartido)) return null
   const base = new Date(`${fechaPartido}T00:00:00Z`)
   if (Number.isNaN(base.getTime())) return null
   const iso = (d: Date) => d.toISOString().slice(0, 10)
-  const mas = (n: number) => new Date(base.getTime() + n * 86400000)
-  return { ultimoDia: iso(mas(1)), cierra: iso(mas(2)) }
+  return { ultimoDia: fechaPartido, cierra: iso(new Date(base.getTime() + 86400000)) }
 }
+
+/** Hora de Colombia a la que sale el recordatorio, el mismo día del partido. */
+export const HORA_RECORDATORIO_VOTAR = 22

@@ -175,20 +175,44 @@ hr { border: none; border-top: 1px solid var(--border); }
   .nav-hide-sm { display: none; }
 }
 
-/* Fecha y hora en iOS: el contenido se sale de la tarjeta.
-   Safari pinta el valor dentro de un pseudo-elemento propio
-   (::-webkit-date-and-time-value) que viene centrado y con un ancho intrínseco
-   propio. Ese ancho ignora el `width: 100%` del input y empuja el formulario:
-   en el modal de partido salía barra de scroll horizontal y la fecha quedaba
-   cortada contra el borde. Se notaba antes de medir nada, porque la fecha y la
-   hora salían centradas mientras el resto de los campos iban a la izquierda.
+/* Un modal no puede deslizarse de lado, nunca.
+   Es un cinturón, no el arreglo: si un hijo mide más que la tarjeta hay que
+   arreglar ese hijo (ver la regla de fecha/hora abajo). Pero un formulario que
+   se desliza de lado en un teléfono se lee como que la app está rota, y basta
+   un campo nuevo con ancho propio para volver a producirlo. */
+.modal-overlay > * {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
 
-   Se arregla soltando ese ancho (min-width: 0, que sin esto vale `auto` y no
-   deja encoger) y alineando a la izquierda como los demás campos. A propósito
-   NO se usa `appearance: none`: eso lo arreglaría también, pero borra el icono
-   de calendario en Chrome de escritorio. */
+/* Fecha y hora en iOS: el campo es más ancho que la tarjeta.
+   Safari le da a estos inputs un ancho intrínseco propio (viene del
+   `-webkit-appearance` nativo) que IGNORA el `width: 100%`. En el modal de
+   partido eso dejaba barra de scroll horizontal y la fecha cortada contra el
+   borde, mientras los campos de número — que no tienen ese render nativo —
+   quedaban bien. Esa diferencia entre unos campos y otros es la pista.
+
+   `appearance: none` es lo único que suelta ese ancho. Se intentó primero solo
+   con `min-width: 0` y `text-align: left` en el pseudo-elemento del valor
+   (::-webkit-date-and-time-value) para no perder el icono de calendario de
+   Chrome de escritorio: alineó el texto pero NO quitó el desborde. Esta app se
+   usa en un teléfono; el icono de escritorio no vale una pantalla rota.
+
+   En táctil el picker se sigue abriendo al tocar el campo: `appearance` cambia
+   cómo se pinta, no lo que hace. En escritorio NO se aplica, porque ahí Chrome
+   sí pierde el icono de calendario Y deja de abrir el selector al hacer clic —
+   y en escritorio el campo nunca se desbordó. */
 input[type="date"], input[type="time"], input[type="datetime-local"] {
   min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+@media (hover: none) and (pointer: coarse) {
+  input[type="date"], input[type="time"], input[type="datetime-local"] {
+    -webkit-appearance: none;
+    appearance: none;
+  }
 }
 input[type="date"]::-webkit-date-and-time-value,
 input[type="time"]::-webkit-date-and-time-value,

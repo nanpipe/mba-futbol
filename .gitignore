@@ -30,8 +30,14 @@ Thumbs.db
 *.swp
 *.swo
 
-# Claude Code internals
-.claude/
+# Claude Code — lo personal de cada máquina fuera, lo del proyecto adentro.
+# El hook de arranque y los skills son configuración del repo: si se ignoran,
+# solo existen en el contenedor de una sesión y se pierden al terminarla.
+.claude/*
+!.claude/hooks/
+!.claude/skills/
+!.claude/settings.json
+.claude/settings.local.json
 
 # Paused invite system — parked until the domain decision (see chat)
 src/app/api/invitaciones/

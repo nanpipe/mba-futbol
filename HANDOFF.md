@@ -22,6 +22,17 @@ Varias sesiones de Claude trabajan este repo (local en Windows y cloud). **GitHu
 
 ---
 
+### Arranque automático (sesiones en la nube)
+`.claude/hooks/session-start.sh` corre solo al empezar una sesión **remota** y
+deja listo: dependencias, el bit ejecutable de `githooks/`, `playwright`, y un
+`.env.local` **falso** para poder levantar `next dev` y tomar capturas. En la
+máquina del usuario no hace nada (`CLAUDE_CODE_REMOTE`), y nunca pisa un
+`.env.local` que ya exista.
+
+Ojo: `npm install` a secas **borra** el `playwright` que instaló el hook (va con
+`--no-save`). Si se pierden las capturas, reinstalarlo con
+`npm install --no-save playwright`.
+
 ## 2. Trampas conocidas (cada una ya rompió algo)
 
 | Trampa | Regla |
@@ -40,8 +51,7 @@ Varias sesiones de Claude trabajan este repo (local en Windows y cloud). **GitHu
 | Borrar políticas RLS por nombre | Tres veces sobrevivieron políticas del dashboard que ninguna migración conocía. Borrar por barrido (`pg_policies` + `roles && ARRAY['public','anon']`), nunca por nombre. Herramienta: `supabase/auditoria_politicas.sql`. |
 | `storage.list()` corta en 100, y ese es su default | Misma familia que la de abajo, pero en el bucket: pedir la lista de una carpeta sin paginar devuelve como mucho 100 nombres, sin error. Mordió en la limpieza de fotos de partido, que borraba "todo lo que no es la vigente" sobre una lista incompleta y dejaba huérfanas vivas. Usar `listarCarpeta()` de `lib/fotosStorage.ts`. Y si una página falla, **lanzar en vez de seguir**: listar a medias y borrar "el resto" borra archivos vivos. |
 | El historial solo se alcanzaba desde la tarjeta del último partido | El enlace "Ver historial →" vivía **dentro** del bloque del último partido, y ese bloque devuelve `null` si no hay partido reciente, si las votaciones siguen abiertas, si el partido no tiene foto ni reconocimientos, o si ya es día de partido pasada la hora promo. En esos días **no había ninguna forma de entrar al historial**, y como el enlace nunca se movió nadie lo notó hasta que el historial pasó a ser una pantalla con filtros. Corregido 2026-09-23: hay un enlace fijo en el pie, junto a la versión, que se pinta siempre. Regla: una pantalla a la que solo se llega desde un bloque condicional es una pantalla que a veces no existe. |
-| iOS hace **zoom** en cualquier campo con letra < 16 px | Y con zoom puesto la página entera queda más ancha que la pantalla: la barra de arriba se corta **por los dos lados** (un desbordamiento normal corta por uno solo) y el formulario se sale. Safari lo hace al enfocar `input`, `select` y `textarea`, y desde iOS 10 **ignora `maximum-scale` y `user-scalable=no`** por accesibilidad, así que no se puede desactivar: el único arreglo es `font-size: 16px`. Está en la regla base de `globals.css`; ojo con los `style` inline que la pisan. **Chromium no lo reproduce.** Primero se diagnosticó mal como un problema de ancho del pseudo-elemento (ver fila de abajo, que también se arregló pero no era la causa). |
-| Los `input` de fecha y hora se salen del modal en iOS | Safari les da un **ancho intrínseco propio** (del `-webkit-appearance` nativo) que ignora `width: 100%`. En el modal de partido eso deja barra de scroll horizontal dentro de la tarjeta y la fecha cortada, mientras los campos `type=number` del mismo formulario quedan bien — esa diferencia entre unos campos y otros es la pista. **Lo único que lo suelta es `appearance: none`**, aplicado solo bajo `@media (hover: none) and (pointer: coarse)` porque en Chrome de escritorio quita el icono de calendario y el clic deja de abrir el selector. Se intentó antes solo con `min-width: 0` y `text-align: left` en `::-webkit-date-and-time-value`: alineó el texto pero **no** quitó el desborde. Además `.modal-overlay > *` lleva `overflow-x: hidden` como red — eso solo recorta, no arregla. **Chromium no reproduce el bug y no se puede bajar WebKit acá (el proxy lo bloquea): esto se verifica en un iPhone, no en esta sesión.** |
+| CSS y layout en móvil | Las trampas de iOS/Safari (el zoom en campos de menos de 16 px, el ancho propio de los `input` de fecha, la hidratación rota por `toLocaleString`) y la receta para renderizar una pantalla y mirarla viven en **`.claude/skills/ui-movil/SKILL.md`**, que se carga solo cuando hace falta. Leerlo antes de tocar `globals.css`, un modal o un formulario. |
 | PostgREST corta en 1000 filas, sin avisar | Un `.select()` sin paginar devuelve máximo ~1000 filas: no hay error, simplemente faltan datos, y cualquier conteo hecho encima queda mal. Mordió en `progreso_votaciones` (2026-09-20): mostraba "2 de 14 votaron" en partidos con 8 votantes, porque `inscripciones` (~550 filas) cabía bajo el tope pero `votos_reconocimiento` (~4.700) y `player_thumbs` (~6.200) venían cortadas. Lo peor es que **se ve bien mientras la tabla sea chica** y se rompe sola al crecer. Regla: si una query abarca varios partidos, paginar con `leerTodo()` (`src/lib/paginar.ts`), y **ordenar cada página por una columna única** (`.order('id')`) — sin `ORDER BY`, dos páginas seguidas pueden repetir filas y saltarse otras. Las queries de un solo partido o un solo jugador están bien sin paginar. |
 
 ---

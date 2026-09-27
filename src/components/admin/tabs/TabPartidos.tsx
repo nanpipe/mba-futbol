@@ -10,6 +10,10 @@ import { ButtonGroup } from '@/components/ButtonGroup'
 import { ModalOverlay } from '@/components/ModalOverlay'
 import type { Player, Partido, Inscripcion, Invitado, AdminAction } from '@/types/admin'
 import { gameNumber, gameString } from '@/lib/gameConfig'
+import {
+  programaApertura, programaRecordatorio, fechaHoraCO, fechaHoraCortaCO,
+  type ProgramaNotif,
+} from '@/lib/notifHorario'
 
 /** Venue selector: saved list + "Otro…" free text. */
 function LugarPicker({ ubicaciones, value, custom, onValue, onCustom }: {
@@ -45,6 +49,16 @@ function LugarPicker({ ubicaciones, value, custom, onValue, onCustom }: {
     </div>
   )
 }
+
+/** "29 sep" — sin toLocaleDateString, por lo mismo que en lib/notifHorario. */
+const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+const fechaCortaPartido = (fecha: string) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fecha)
+  return m ? `${Number(m[3])} ${MESES_CORTOS[Number(m[2]) - 1]}` : fecha
+}
+
+/** "automático" vs "a mano": el admin necesita saber si él puso esa hora. */
+const etiquetaPrograma = (pr: ProgramaNotif) => pr.automatica ? '(automático)' : '(a mano)'
 
 // Notification fires 5 min before the inscription window opens.
 function notifTime(horaApertura: string): string {
@@ -297,353 +311,385 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
       if (selectedPartido === partidoId) setSelectedPartido(null)
     }
   }
+  /**
+   * Los inscritos del partido abierto.
+   *
+   * Se pinta DENTRO de la tarjeta y no en un bloque al final de la pantalla.
+   * Antes vivía debajo de toda la lista: con seis partidos ya tocaba scrollear
+   * media pantalla para ver a quién se acababa de marcar, y con diez habría
+   * quedado absurdamente lejos del partido al que pertenece.
+   */
+  const panelInscritos = (partidoId: string) => (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+        <SectionHeader title="Inscritos" />
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {(() => {
+            const p = partidos.find(x => x.id === partidoId)
+            if (!p || p.notif_apertura_sent) return null
+            return (
+              <button
+                className="btn btn-ghost"
+                style={{ fontSize: 10, padding: '4px 10px', color: 'var(--amber)', borderColor: '#92400e' }}
+                onClick={async () => {
+                  const ok = await accionAdmin('forzar_notif_apertura', { partido_id: partidoId })
+                  if (ok) await onRecargarPartidos()
+                }}
+              >
+                🔔 Forzar notif apertura
+              </button>
+            )
+          })()}
+          <button
+            className="btn btn-ghost"
+            style={{ fontSize: 10, padding: '4px 10px', color: 'var(--green)', borderColor: '#14532d' }}
+            onClick={() => { setAgregarPlayerId(''); setAgregarEstado('confirmado'); setAgregarModal(true) }}
+          >
+            + Agregar jugador
+          </button>
+        </div>
+      </div>
+
+      {inscripciones.length === 0 ? (
+        <Card padding={32} style={{ textAlign: 'center' }}>
+          <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>Sin inscripciones aún.</p>
+        </Card>
+      ) : (
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {inscripciones.map(ins => (
+              <div key={ins.id} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '10px 14px', background: 'var(--bg-card)',
+                border: `1px solid ${ins.estado === 'espera' ? '#1a2a1a' : 'var(--border)'}`, borderRadius: 3,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                  <span className={`badge ${ins.estado === 'confirmado' ? 'badge-green' : 'badge-amber'}`}>
+                    {ins.estado === 'confirmado' ? '✓' : `#${ins.posicion_espera}`}
+                  </span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 15, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      {ins.profiles.username}
+                      {ins.added_by_profile && (
+                        <span className="mono" style={{ fontSize: 9, color: 'var(--amber)', background: '#1a1500', border: '1px solid #78350f', borderRadius: 2, padding: '1px 5px', letterSpacing: '0.05em' }}>
+                          por {ins.added_by_profile.username}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 1 }}>
+                      {new Date(ins.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', timeZone: 'America/Bogota' })}
+                      {' · '}
+                      {new Date(ins.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' })}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
+                  {ins.estado === 'confirmado' && (
+                    <button
+                      onClick={() => {
+                        if (!window.confirm(`¿Mover a ${ins.profiles.username} a lista de espera?`)) return
+                        accionAdminLocal('mover_espera', { player_id: ins.profiles.id, partido_id: ins.partido_id })
+                      }}
+                      className="mono"
+                      style={{ fontSize: 11, color: 'var(--amber)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
+                    >
+                      EN ESPERA
+                    </button>
+                  )}
+                  {ins.estado === 'espera' && (
+                    <button
+                      onClick={() => {
+                        const p = partidos.find(x => x.id === partidoId)
+                        if (!p) return
+                        const totalConf = inscripciones.filter(i => i.estado === 'confirmado').length
+                          + invitados.filter(i => i.estado === 'confirmado').length
+                        if (totalConf >= p.cupos_total) {
+                          setSwapPlayerId('')
+                          setPromoverModal(ins)
+                        } else {
+                          if (!window.confirm(`¿Promover a ${ins.profiles.username} a confirmado?`)) return
+                          accionAdminLocal('promover_espera_manual', { inscripcion_id: ins.id, partido_id: ins.partido_id })
+                        }
+                      }}
+                      className="mono"
+                      style={{ fontSize: 11, color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
+                    >
+                      PROMOVER
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      if (!window.confirm(`¿Remover a ${ins.profiles.username} del partido?`)) return
+                      accionAdminLocal('remover_partido', { player_id: ins.profiles.id, partido_id: ins.partido_id })
+                    }}
+                    className="mono"
+                    style={{ fontSize: 11, color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
+                  >
+                    REMOVER
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {/* Confirmed invitados */}
+            {invitados.filter(inv => inv.estado === 'confirmado').map(inv => (
+              <div key={inv.id} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '10px 14px', background: 'var(--bg-card)',
+                border: '1px solid #16a34a', borderRadius: 3,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span className="badge badge-green">✓</span>
+                  <div>
+                    <div style={{ fontSize: 15 }}>{inv.nombre}</div>
+                    <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>inv. de {inv.profiles.username}</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => confirmarInvitado(inv.id, true)}
+                  className="mono"
+                  style={{ fontSize: 11, color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
+                >
+                  REMOVER
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Invitados en espera */}
+          {invitados.some(inv => inv.estado === 'espera') && (
+            <div style={{ marginTop: 20 }}>
+              <SectionHeader
+                title="Invitados en Espera"
+                count={invitados.filter(inv => inv.estado === 'espera').length}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {invitados.filter(inv => inv.estado === 'espera').map(inv => (
+                  <div key={inv.id} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '10px 14px', background: 'var(--bg-card)',
+                    border: '1px solid #1a2a3a', borderRadius: 3, gap: 10,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                      <span className="badge badge-amber">{`#${inv.posicion_espera}`}</span>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 14 }}>{inv.nombre}</div>
+                        <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>inv. de {inv.profiles.username}</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => confirmarInvitado(inv.id)}
+                      disabled={confirmandoInvitado === inv.id}
+                      className="btn btn-ghost"
+                      style={{ fontSize: 11, padding: '6px 12px', color: 'var(--green)', borderColor: '#16a34a', flexShrink: 0 }}
+                    >
+                      {confirmandoInvitado === inv.id ? '...' : '✓ Confirmar'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Copy list button */}
+      <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+        <button
+          onClick={copiarLista}
+          className="btn btn-ghost mono"
+          style={{ fontSize: 11, padding: '7px 14px', color: 'var(--text-muted)' }}
+        >
+          📋 Copiar lista
+        </button>
+      </div>
+    </>
+  )
 
   return (
     <>
       <div id="tab-partidos" className="fade-in">
-        <div className="admin-partidos-grid">
-          {/* Lista de partidos */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <SectionHeader title="Próximos Partidos" />
-              <button
-                onClick={() => {
-                  // Seed form with this club's game-config defaults
-                  setNuevaHora(defHora())
-                  setNuevosCupos(defCupos())
-                  setNuevaHoraApertura(defHoraApertura())
-                  setNuevosDiasAntes(defDiasAntes())
-                  setNuevoLugar(defLugar())
-                  setLugarCustom(false)
-                  setCrearModal(true)
-                }}
-                className="btn btn-ghost"
-                style={{ fontSize: 11, padding: '6px 12px', color: 'var(--green)', borderColor: '#16a34a' }}
-              >
-                + Nuevo
-              </button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {partidos.map(p => {
-                const cupos = p.cupos_total ?? 14
-                let confirmados: number
-                let espera: number
-                if (p.id === selectedPartido) {
-                  confirmados = inscripciones.filter(i => i.estado === 'confirmado').length
-                    + invitados.filter(i => i.estado === 'confirmado').length
-                  espera = inscripciones.filter(i => i.estado === 'espera').length
-                } else {
-                  const rows = p.inscripciones ?? []
-                  const invRows = p.invitados ?? []
-                  confirmados = rows.filter((r: { estado: string }) => r.estado === 'confirmado').length
-                    + invRows.filter((r: { estado: string }) => r.estado === 'confirmado').length
-                  espera = rows.filter((r: { estado: string }) => r.estado === 'espera').length
-                }
-                return (
-                  <div key={p.id}>
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'stretch' }}>
-                    <button onClick={() => setSelectedPartido(p.id)} style={{
-                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '12px 16px',
-                      background: selectedPartido === p.id ? 'var(--bg-elevated)' : 'var(--bg-card)',
-                      border: `1px solid ${selectedPartido === p.id ? 'var(--green)' : 'var(--border)'}`,
-                      borderRadius: 3, cursor: 'pointer', textAlign: 'left',
-                    }}>
-                      <div>
-                        <div className="display" style={{ fontSize: 18, letterSpacing: '0.05em', color: selectedPartido === p.id ? 'var(--green)' : 'var(--text)' }}>
-                          {p.dia_semana.toUpperCase()}
-                          {p.tipo === 'minitorneo' && <span style={{ fontSize: 12, marginLeft: 6, verticalAlign: 'middle' }}>🟣</span>}
-                        </div>
-                        <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                          {new Date(p.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}
-                          {p.lugar && <span style={{ color: 'var(--text-dim)' }}> · 📍 {p.lugar}</span>}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div className="mono" style={{ fontSize: 13 }}>
-                          <span style={{ color: confirmados >= cupos ? 'var(--red)' : 'var(--green)' }}>{confirmados}</span>
-                          <span style={{ color: 'var(--text-dim)' }}>/{cupos}</span>
-                        </div>
-                        {espera > 0 && <div className="mono" style={{ fontSize: 11, color: 'var(--amber)' }}>+{espera} espera</div>}
-                        <div className="mono" style={{ fontSize: 9, color: p.notif_apertura_sent ? 'var(--green)' : 'var(--text-dim)', marginTop: 2 }}>
-                          {p.notif_apertura_sent ? '🔔 notif ✓' : '🔕 notif pendiente'}
-                        </div>
-                      </div>
-                    </button>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <button
-                        onClick={() => abrirEditPartido(p)}
-                        title="Editar partido"
-                        style={{ flex: 1, padding: '6px 12px', minHeight: 34, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--text-muted)', fontSize: 18 }}
-                      >✏</button>
-                      <button
-                        onClick={() => {
-                          setEditNotifPartidoId(p.id)
-                          setEditNotifAperturaAt(p.notif_apertura_at ? new Date(p.notif_apertura_at).toISOString().slice(0, 16) : '')
-                          setEditNotifRecordatorioAt(p.notif_recordatorio_at ? new Date(p.notif_recordatorio_at).toISOString().slice(0, 16) : '')
-                        }}
-                        title="Editar notificaciones"
-                        style={{ flex: 1, padding: '6px 12px', minHeight: 34, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--amber)', fontSize: 17 }}
-                      >🔔</button>
-                      <button
-                        onClick={() => { if (window.confirm(`¿Eliminar partido del ${p.dia_semana} ${p.fecha}?`)) eliminarPartido(p.id) }}
-                        title="Eliminar partido"
-                        style={{ flex: 1, padding: '6px 12px', minHeight: 34, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--red)', fontSize: 18 }}
-                      >✕</button>
-                    </div>
-                  </div>
-                  {/* Inline notif schedule display */}
-                  {editNotifPartidoId !== p.id && (
-                    <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', paddingLeft: 4, marginTop: -2, marginBottom: 2 }}>
-                      {p.notif_apertura_at
-                        ? <span>📣 Apertura: {new Date(p.notif_apertura_at).toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' })}</span>
-                        : <span style={{ color: 'var(--text-dim)' }}>📣 Sin notif. apertura</span>
-                      }
-                      {' · '}
-                      {p.notif_recordatorio_at
-                        ? <span>⏰ Rec: {new Date(p.notif_recordatorio_at).toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' })}</span>
-                        : <span style={{ color: 'var(--text-dim)' }}>⏰ Sin recordatorio</span>
-                      }
-                    </div>
-                  )}
-                  {/* Inline notif edit form */}
-                  {editNotifPartidoId === p.id && (
-                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 3, padding: '12px 14px', marginTop: 2, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      <div>
-                        <label className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>NOTIF. APERTURA</label>
-                        <input
-                          type="datetime-local"
-                          value={editNotifAperturaAt}
-                          onChange={e => setEditNotifAperturaAt(e.target.value)}
-                          style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 3, padding: '6px 8px', fontFamily: 'DM Mono, monospace', fontSize: 12 }}
-                        />
-                      </div>
-                      <div>
-                        <label className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>NOTIF. RECORDATORIO</label>
-                        <input
-                          type="datetime-local"
-                          value={editNotifRecordatorioAt}
-                          onChange={e => setEditNotifRecordatorioAt(e.target.value)}
-                          style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 3, padding: '6px 8px', fontFamily: 'DM Mono, monospace', fontSize: 12 }}
-                        />
-                      </div>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button
-                          onClick={() => guardarNotifPartido(p.id)}
-                          className="btn btn-primary mono"
-                          style={{ flex: 1, fontSize: 11, padding: '6px 10px' }}
-                        >
-                          Guardar
-                        </button>
-                        <button
-                          onClick={() => setEditNotifPartidoId(null)}
-                          className="btn btn-ghost mono"
-                          style={{ fontSize: 11, padding: '6px 10px' }}
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  </div>
-                )
-              })}
-            </div>
+        <div style={{ maxWidth: 720 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <SectionHeader title="Próximos Partidos" />
+            <button
+              onClick={() => {
+                // Seed form with this club's game-config defaults
+                setNuevaHora(defHora())
+                setNuevosCupos(defCupos())
+                setNuevaHoraApertura(defHoraApertura())
+                setNuevosDiasAntes(defDiasAntes())
+                setNuevoLugar(defLugar())
+                setLugarCustom(false)
+                setCrearModal(true)
+              }}
+              className="btn btn-ghost"
+              style={{ fontSize: 11, padding: '6px 12px', color: 'var(--green)', borderColor: '#16a34a' }}
+            >
+              + Nuevo
+            </button>
           </div>
 
-          {/* Inscripciones del partido seleccionado */}
-          <div>
-            {selectedPartido ? (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-                  <SectionHeader title="Inscritos" />
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {(() => {
-                      const p = partidos.find(x => x.id === selectedPartido)
-                      if (!p || p.notif_apertura_sent) return null
-                      return (
-                        <button
-                          className="btn btn-ghost"
-                          style={{ fontSize: 10, padding: '4px 10px', color: 'var(--amber)', borderColor: '#92400e' }}
-                          onClick={async () => {
-                            const ok = await accionAdmin('forzar_notif_apertura', { partido_id: selectedPartido })
-                            if (ok) await onRecargarPartidos()
-                          }}
-                        >
-                          🔔 Forzar notif apertura
-                        </button>
-                      )
-                    })()}
-                    <button
-                      className="btn btn-ghost"
-                      style={{ fontSize: 10, padding: '4px 10px', color: 'var(--green)', borderColor: '#14532d' }}
-                      onClick={() => { setAgregarPlayerId(''); setAgregarEstado('confirmado'); setAgregarModal(true) }}
-                    >
-                      + Agregar jugador
-                    </button>
-                  </div>
-                </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {partidos.map(p => {
+              const abierto = selectedPartido === p.id
+              const cupos = p.cupos_total ?? 14
+              let confirmados: number
+              let espera: number
+              if (abierto) {
+                confirmados = inscripciones.filter(i => i.estado === 'confirmado').length
+                  + invitados.filter(i => i.estado === 'confirmado').length
+                espera = inscripciones.filter(i => i.estado === 'espera').length
+              } else {
+                const rows = p.inscripciones ?? []
+                const invRows = p.invitados ?? []
+                confirmados = rows.filter((r: { estado: string }) => r.estado === 'confirmado').length
+                  + invRows.filter((r: { estado: string }) => r.estado === 'confirmado').length
+                espera = rows.filter((r: { estado: string }) => r.estado === 'espera').length
+              }
+              const apertura = programaApertura(p, p.notif_apertura_at)
+              const recordatorio = programaRecordatorio(p, p.notif_recordatorio_at)
 
-                {inscripciones.length === 0 ? (
-                  <Card padding={32} style={{ textAlign: 'center' }}>
-                    <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>Sin inscripciones aún.</p>
-                  </Card>
-                ) : (
-                  <>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {inscripciones.map(ins => (
-                        <div key={ins.id} style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                          padding: '10px 14px', background: 'var(--bg-card)',
-                          border: `1px solid ${ins.estado === 'espera' ? '#1a2a1a' : 'var(--border)'}`, borderRadius: 3,
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                            <span className={`badge ${ins.estado === 'confirmado' ? 'badge-green' : 'badge-amber'}`}>
-                              {ins.estado === 'confirmado' ? '✓' : `#${ins.posicion_espera}`}
-                            </span>
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ fontSize: 15, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                {ins.profiles.username}
-                                {ins.added_by_profile && (
-                                  <span className="mono" style={{ fontSize: 9, color: 'var(--amber)', background: '#1a1500', border: '1px solid #78350f', borderRadius: 2, padding: '1px 5px', letterSpacing: '0.05em' }}>
-                                    por {ins.added_by_profile.username}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 1 }}>
-                                {new Date(ins.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', timeZone: 'America/Bogota' })}
-                                {' · '}
-                                {new Date(ins.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' })}
-                              </div>
-                            </div>
+              return (
+                <div key={p.id} style={{
+                  background: abierto ? 'var(--bg-elevated)' : 'var(--bg-card)',
+                  border: `1px solid ${abierto ? 'var(--green)' : 'var(--border)'}`,
+                  borderRadius: 4, overflow: 'hidden',
+                }}>
+                  {/* La tarjeta entera abre y cierra, como en Jugadores. Los
+                      botones de editar / notificar / eliminar ya no viven en una
+                      columna al lado de cada fila: están adentro, donde se ve a
+                      cuál partido se le va a hacer algo. */}
+                  <button
+                    onClick={() => setSelectedPartido(abierto ? null : p.id)}
+                    aria-expanded={abierto}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '12px 14px', background: 'none', border: 'none',
+                      cursor: 'pointer', textAlign: 'left', color: 'var(--text)',
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="display" style={{ fontSize: 18, letterSpacing: '0.05em', color: abierto ? 'var(--green)' : 'var(--text)' }}>
+                        {p.dia_semana.toUpperCase()}
+                        {p.tipo === 'minitorneo' && <span style={{ fontSize: 12, marginLeft: 6, verticalAlign: 'middle' }}>🟣</span>}
+                      </div>
+                      <div className="mono" style={{
+                        fontSize: 11, color: 'var(--text-muted)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {fechaCortaPartido(p.fecha)}
+                        {p.lugar && <span style={{ color: 'var(--text-dim)' }}> · 📍 {p.lugar}</span>}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div className="mono" style={{ fontSize: 13 }}>
+                        <span style={{ color: confirmados >= cupos ? 'var(--red)' : 'var(--green)' }}>{confirmados}</span>
+                        <span style={{ color: 'var(--text-dim)' }}>/{cupos}</span>
+                      </div>
+                      {espera > 0 && <div className="mono" style={{ fontSize: 11, color: 'var(--amber)' }}>+{espera} espera</div>}
+                      {/* Antes decía "🔕 notif pendiente", que se leía como "no
+                          hay ninguna". Ahora dice a qué hora sale. */}
+                      <div className="mono" style={{ fontSize: 9, color: p.notif_apertura_sent ? 'var(--green)' : 'var(--text-dim)', marginTop: 2 }}>
+                        {p.notif_apertura_sent ? '🔔 aviso enviado' : `🔔 ${fechaHoraCortaCO(apertura.cuando)}`}
+                      </div>
+                    </div>
+                    <span className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', flexShrink: 0 }}>
+                      {abierto ? '▲' : '▼'}
+                    </span>
+                  </button>
+
+                  {abierto && (
+                    <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          onClick={() => abrirEditPartido(p)}
+                          className="btn btn-ghost mono"
+                          style={{ flex: 1, justifyContent: 'center', fontSize: 11, padding: '8px 6px' }}
+                        >
+                          ✏️ Editar
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (editNotifPartidoId === p.id) { setEditNotifPartidoId(null); return }
+                            setEditNotifPartidoId(p.id)
+                            setEditNotifAperturaAt(p.notif_apertura_at ? new Date(p.notif_apertura_at).toISOString().slice(0, 16) : '')
+                            setEditNotifRecordatorioAt(p.notif_recordatorio_at ? new Date(p.notif_recordatorio_at).toISOString().slice(0, 16) : '')
+                          }}
+                          className="btn btn-ghost mono"
+                          style={{ flex: 1, justifyContent: 'center', fontSize: 11, padding: '8px 6px', color: 'var(--amber)' }}
+                        >
+                          🔔 Avisos
+                        </button>
+                        <button
+                          onClick={() => { if (window.confirm(`¿Eliminar partido del ${p.dia_semana} ${p.fecha}?`)) eliminarPartido(p.id) }}
+                          className="btn btn-ghost mono"
+                          style={{ flex: 1, justifyContent: 'center', fontSize: 11, padding: '8px 6px', color: 'var(--red)' }}
+                        >
+                          ✕ Eliminar
+                        </button>
+                      </div>
+
+                      {/* Cuándo salen los dos avisos. Sin override el partido NO
+                          se queda sin aviso: sale a la hora calculada, y eso es
+                          lo que hay que mostrar. */}
+                      {editNotifPartidoId !== p.id && (
+                        <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.7 }}>
+                          <div>📣 Apertura: {fechaHoraCO(apertura.cuando)} {etiquetaPrograma(apertura)}</div>
+                          <div>⏰ Recordatorio: {fechaHoraCO(recordatorio.cuando)} {etiquetaPrograma(recordatorio)}</div>
+                        </div>
+                      )}
+
+                      {editNotifPartidoId === p.id && (
+                        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.6 }}>
+                            Vacío = automático. Apertura sale {fechaHoraCO(programaApertura(p).cuando)} y el
+                            recordatorio {fechaHoraCO(programaRecordatorio(p).cuando)}.
                           </div>
-                          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
-                            {ins.estado === 'confirmado' && (
-                              <button
-                                onClick={() => {
-                                  if (!window.confirm(`¿Mover a ${ins.profiles.username} a lista de espera?`)) return
-                                  accionAdminLocal('mover_espera', { player_id: ins.profiles.id, partido_id: ins.partido_id })
-                                }}
-                                className="mono"
-                                style={{ fontSize: 11, color: 'var(--amber)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
-                              >
-                                EN ESPERA
-                              </button>
-                            )}
-                            {ins.estado === 'espera' && (
-                              <button
-                                onClick={() => {
-                                  const p = partidos.find(x => x.id === selectedPartido)
-                                  if (!p) return
-                                  const totalConf = inscripciones.filter(i => i.estado === 'confirmado').length
-                                    + invitados.filter(i => i.estado === 'confirmado').length
-                                  if (totalConf >= p.cupos_total) {
-                                    setSwapPlayerId('')
-                                    setPromoverModal(ins)
-                                  } else {
-                                    if (!window.confirm(`¿Promover a ${ins.profiles.username} a confirmado?`)) return
-                                    accionAdminLocal('promover_espera_manual', { inscripcion_id: ins.id, partido_id: ins.partido_id })
-                                  }
-                                }}
-                                className="mono"
-                                style={{ fontSize: 11, color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
-                              >
-                                PROMOVER
-                              </button>
-                            )}
-                            <button
-                              onClick={() => {
-                                if (!window.confirm(`¿Remover a ${ins.profiles.username} del partido?`)) return
-                                accionAdminLocal('remover_partido', { player_id: ins.profiles.id, partido_id: ins.partido_id })
-                              }}
-                              className="mono"
-                              style={{ fontSize: 11, color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
-                            >
-                              REMOVER
+                          <div>
+                            <label className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>NOTIF. APERTURA</label>
+                            <input
+                              type="datetime-local"
+                              value={editNotifAperturaAt}
+                              onChange={e => setEditNotifAperturaAt(e.target.value)}
+                              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 3, padding: '6px 8px', fontFamily: 'DM Mono, monospace', fontSize: 12 }}
+                            />
+                          </div>
+                          <div>
+                            <label className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>NOTIF. RECORDATORIO</label>
+                            <input
+                              type="datetime-local"
+                              value={editNotifRecordatorioAt}
+                              onChange={e => setEditNotifRecordatorioAt(e.target.value)}
+                              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 3, padding: '6px 8px', fontFamily: 'DM Mono, monospace', fontSize: 12 }}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={() => guardarNotifPartido(p.id)} className="btn btn-primary mono" style={{ flex: 1, fontSize: 11, padding: '6px 10px' }}>
+                              Guardar
+                            </button>
+                            <button onClick={() => setEditNotifPartidoId(null)} className="btn btn-ghost mono" style={{ fontSize: 11, padding: '6px 10px' }}>
+                              Cancelar
                             </button>
                           </div>
                         </div>
-                      ))}
+                      )}
 
-                      {/* Confirmed invitados */}
-                      {invitados.filter(inv => inv.estado === 'confirmado').map(inv => (
-                        <div key={inv.id} style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                          padding: '10px 14px', background: 'var(--bg-card)',
-                          border: '1px solid #16a34a', borderRadius: 3,
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <span className="badge badge-green">✓</span>
-                            <div>
-                              <div style={{ fontSize: 15 }}>{inv.nombre}</div>
-                              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>inv. de {inv.profiles.username}</div>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => confirmarInvitado(inv.id, true)}
-                            className="mono"
-                            style={{ fontSize: 11, color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
-                          >
-                            REMOVER
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Invitados en espera */}
-                    {invitados.some(inv => inv.estado === 'espera') && (
-                      <div style={{ marginTop: 20 }}>
-                        <SectionHeader
-                          title="Invitados en Espera"
-                          count={invitados.filter(inv => inv.estado === 'espera').length}
-                        />
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {invitados.filter(inv => inv.estado === 'espera').map(inv => (
-                            <div key={inv.id} style={{
-                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                              padding: '10px 14px', background: 'var(--bg-card)',
-                              border: '1px solid #1a2a3a', borderRadius: 3, gap: 10,
-                            }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                                <span className="badge badge-amber">{`#${inv.posicion_espera}`}</span>
-                                <div style={{ minWidth: 0 }}>
-                                  <div style={{ fontSize: 14 }}>{inv.nombre}</div>
-                                  <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>inv. de {inv.profiles.username}</div>
-                                </div>
-                              </div>
-                              <button
-                                onClick={() => confirmarInvitado(inv.id)}
-                                disabled={confirmandoInvitado === inv.id}
-                                className="btn btn-ghost"
-                                style={{ fontSize: 11, padding: '6px 12px', color: 'var(--green)', borderColor: '#16a34a', flexShrink: 0 }}
-                              >
-                                {confirmandoInvitado === inv.id ? '...' : '✓ Confirmar'}
-                              </button>
-                            </div>
-                          ))}
-                        </div>
+                      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                        {panelInscritos(p.id)}
                       </div>
-                    )}
-                  </>
-                )}
-
-                {/* Copy list button */}
-                <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-                  <button
-                    onClick={copiarLista}
-                    className="btn btn-ghost mono"
-                    style={{ fontSize: 11, padding: '7px 14px', color: 'var(--text-muted)' }}
-                  >
-                    📋 Copiar lista
-                  </button>
+                    </div>
+                  )}
                 </div>
-              </>
-            ) : (
-              <Card padding={48} style={{ textAlign: 'center' }}>
-                <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>Selecciona un partido para ver los inscritos.</p>
-              </Card>
-            )}
+              )
+            })}
           </div>
+
+          {partidos.length === 0 && (
+            <Card padding={32} style={{ textAlign: 'center' }}>
+              <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>No hay partidos próximos.</p>
+            </Card>
+          )}
         </div>
       </div>
 

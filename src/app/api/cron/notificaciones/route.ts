@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPush, isDeadPushError } from '@/lib/push'
 import { calcularVentanaPartido, MIN_CONFIRMADOS_AUTO_JUGADO } from '@/lib/partidos'
+import { programaApertura, programaRecordatorio } from '@/lib/notifHorario'
 import { abrirEvaluaciones, contarConfirmados } from '@/lib/partidoCierre'
 import { ausenteEn, type Ausencia } from '@/lib/ausencia'
 import { logActivity } from '@/lib/activityLog'
@@ -345,8 +346,10 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Apertura notifications ────────────────────────────────────────────────
-  // Fires 5 minutes before the inscription window opens (or at admin-set timestamp).
-  const APERTURA_OFFSET_MS = 5 * 60 * 1000 // notify 5 min before window opens
+  // Fires 5 minutes before the inscription window opens (or at admin-set
+  // timestamp). El cálculo vive en lib/notifHorario, compartido con el panel:
+  // la pantalla que le dice al admin cuándo sale el aviso tiene que usar la
+  // misma cuenta que lo manda.
 
   const { data: aperturaCandidates } = await admin
     .from('partidos')
@@ -358,9 +361,7 @@ export async function GET(req: NextRequest) {
 
   const aperturaDue = (aperturaCandidates ?? []).filter(p => {
     const ts = (p as { notif_apertura_at?: string | null }).notif_apertura_at
-    // target = admin-set timestamp if present, else (window open time − 5 min)
-    const target = ts ? new Date(ts) : new Date(calcularVentanaPartido(p).abreEn.getTime() - APERTURA_OFFSET_MS)
-    return now >= target
+    return now >= programaApertura(p, ts).cuando
   })
 
   for (const partido of aperturaDue) {
@@ -430,8 +431,8 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Recordatorio notifications ────────────────────────────────────────────
-  // Fires 9 hours before the match (or at admin-set timestamp).
-  const RECORDATORIO_OFFSET_MS = 9 * 60 * 60 * 1000
+  // Fires 9 hours before the match (or at admin-set timestamp). Ver la nota de
+  // arriba: la cuenta es de lib/notifHorario.
 
   const { data: recordatorioCandidates } = await admin
     .from('partidos')
@@ -443,9 +444,7 @@ export async function GET(req: NextRequest) {
 
   const recordatorioDue = (recordatorioCandidates ?? []).filter(p => {
     const ts = (p as { notif_recordatorio_at?: string | null }).notif_recordatorio_at
-    // target = admin-set timestamp if present, else (match start − 9 h)
-    const target = ts ? new Date(ts) : new Date(calcularVentanaPartido(p).cierra.getTime() - RECORDATORIO_OFFSET_MS)
-    return now >= target
+    return now >= programaRecordatorio(p, ts).cuando
   })
 
   for (const partido of recordatorioDue) {

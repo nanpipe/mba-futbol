@@ -149,19 +149,6 @@ hr { border: none; border-top: 1px solid var(--border); }
 /* Scrollbar hiding utility */
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 
-/* Admin: partidos grid — side-by-side on desktop, stacked on mobile */
-.admin-partidos-grid {
-  display: grid;
-  grid-template-columns: 1fr 1.5fr;
-  gap: 24px;
-  align-items: start;
-}
-@media (max-width: 600px) {
-  .admin-partidos-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* Two-column form rows. Collapse on phones: side-by-side fields with
    different-height labels ended up misaligned and cramped. */
 .form-2col {

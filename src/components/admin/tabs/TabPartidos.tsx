@@ -57,6 +57,27 @@ const fechaCortaPartido = (fecha: string) => {
   return m ? `${Number(m[3])} ${MESES_CORTOS[Number(m[2]) - 1]}` : fecha
 }
 
+const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+
+/**
+ * "9 partidos, todos los martes, hasta el 24 nov."
+ *
+ * Se calcula igual que en el servidor (sumando días en UTC sobre la fecha
+ * pelada) para que lo que promete el formulario sea lo que termina creándose.
+ */
+function resumenRepeticion(fecha: string, semanas: number): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return 'Elige primero la fecha del primero.'
+  const n = Math.max(0, Math.min(26, Math.floor(semanas)))
+  const base = new Date(fecha + 'T00:00:00Z')
+  if (Number.isNaN(base.getTime())) return ''
+  const ultima = new Date(base.getTime() + n * 7 * 86400000)
+  const dia = DIAS_SEMANA[base.getUTCDay()]
+  if (n === 0) return `Solo el ${dia} ${fechaCortaPartido(fecha)}.`
+  return `${n + 1} partidos: todos los ${dia}, del ${fechaCortaPartido(fecha)} ` +
+    `al ${fechaCortaPartido(ultima.toISOString().slice(0, 10))}. ` +
+    'Si alguna fecha ya tiene partido, se deja como está.'
+}
+
 /** "automático" vs "a mano": el admin necesita saber si él puso esa hora. */
 const etiquetaPrograma = (pr: ProgramaNotif) => pr.automatica ? '(automático)' : '(a mano)'
 
@@ -122,6 +143,8 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
   const [nuevoTipo, setNuevoTipo] = useState<'normal' | 'minitorneo'>('normal')
   const [nuevoLugar, setNuevoLugar] = useState('')
   const [lugarCustom, setLugarCustom] = useState(false)
+  const [repetirSemanal, setRepetirSemanal] = useState(false)
+  const [repetirSemanas, setRepetirSemanas] = useState('8')
   const [notifAperturaAt, setNotifAperturaAt] = useState('')
   const [notifRecordatorioAt, setNotifRecordatorioAt] = useState('')
 
@@ -249,9 +272,14 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
       lugar: nuevoLugar.trim(),
       notif_apertura_at: notifAperturaAt ? new Date(notifAperturaAt).toISOString() : '',
       notif_recordatorio_at: notifRecordatorioAt ? new Date(notifRecordatorioAt).toISOString() : '',
+      // Como el resto del formulario, va en texto: `AdminAction` manda
+      // string | boolean y el servidor lo pasa a número al validarlo.
+      repetir_semanas: repetirSemanal ? String(Math.max(0, Math.min(26, Number(repetirSemanas) || 0))) : '0',
     })
     setCrearModal(false)
     setNuevaFecha('')
+    setRepetirSemanal(false)
+    setRepetirSemanas('8')
     setNuevaHora(defHora())
     setNuevosCupos(defCupos())
     setNuevaHoraApertura(defHoraApertura())
@@ -864,6 +892,36 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 <input type="number" min="1" max="30" value={nuevosCupos} onChange={e => setNuevosCupos(e.target.value)} />
               </div>
               <LugarPicker ubicaciones={ubicaciones} value={nuevoLugar} custom={lugarCustom} onValue={setNuevoLugar} onCustom={setLugarCustom} />
+              {/* Repetir semanal. El club juega los mismos días todas las
+                  semanas y crearlos de a uno era la tarea manual que más se
+                  repetía. Las fechas las calcula el servidor. */}
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4, padding: '12px 14px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={repetirSemanal}
+                    onChange={e => setRepetirSemanal(e.target.checked)}
+                    style={{ width: 16, height: 16, accentColor: 'var(--green)', cursor: 'pointer' }}
+                  />
+                  <span className="mono" style={{ fontSize: 12, color: 'var(--text)' }}>🔁 Repetir cada semana</span>
+                </label>
+                {repetirSemanal && (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <input
+                        type="number" min="1" max="26" value={repetirSemanas}
+                        onChange={e => setRepetirSemanas(e.target.value)}
+                        style={{ width: 80 }}
+                      />
+                      <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>semanas más</span>
+                    </div>
+                    <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 8, lineHeight: 1.6 }}>
+                      {resumenRepeticion(nuevaFecha, Number(repetirSemanas) || 0)}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.6, padding: '10px 12px', background: 'var(--surface)', borderRadius: 4 }}>
                 📣 Las notificaciones se envían automáticamente: apertura 5 min antes de abrir inscripciones, recordatorio el día del partido. Ajústalas por partido con el botón 🔔.
               </div>

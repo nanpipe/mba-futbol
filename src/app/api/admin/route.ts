@@ -658,37 +658,90 @@ export async function POST(req: NextRequest) {
 
   // ── Crear partido ──────────────────────────────────────────────────────────
   if (accion === 'crear_partido') {
-    const { fecha, hora, cupos_total, hora_apertura, dias_antes_apertura, tipo, notif_apertura_at, notif_recordatorio_at, lugar } = body
+    const { fecha, hora, cupos_total, hora_apertura, dias_antes_apertura, tipo, notif_apertura_at, notif_recordatorio_at, lugar, repetir_semanas } = body
 
     if (!isDate(fecha)) return NextResponse.json({ error: 'Fecha inválida' }, { status: 400 })
     if (!isIntInRange(cupos_total, 2, 30)) return NextResponse.json({ error: 'Cupos debe ser entre 2 y 30' }, { status: 400 })
     if (!isIntInRange(dias_antes_apertura, 0, 14)) return NextResponse.json({ error: 'Días antes debe ser entre 0 y 14' }, { status: 400 })
+
+    // Repeticiones semanales. 0 = solo este, que es lo de siempre. El tope de 26
+    // es medio año: más que eso no es "programar la temporada", es llenar el
+    // calendario de partidos que nadie va a mirar y que igual hay que borrar.
+    const repeticiones = repetir_semanas === undefined || repetir_semanas === null || repetir_semanas === ''
+      ? 0
+      : Number(repetir_semanas)
+    if (!Number.isInteger(repeticiones) || repeticiones < 0 || repeticiones > 26) {
+      return NextResponse.json({ error: 'Repetir: entre 0 y 26 semanas' }, { status: 400 })
+    }
 
     const tipoPartido = tipo === 'minitorneo' ? 'minitorneo' : 'normal'
     const date = new Date((fecha as string) + 'T12:00:00')
     const dias = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
     const dia_semana = dias[date.getDay()]
 
-    const { error } = await admin
-      .from('partidos')
-      .insert({
-        club_id: clubId,
-        fecha: fecha as string,
-        dia_semana,
-        hora: isString(hora, 4, 8) ? (hora as string) : '19:00:00',
-        cupos_total: parseInt(String(cupos_total), 10),
-        hora_apertura: isString(hora_apertura, 4, 8) ? (hora_apertura as string) : '10:00:00',
-        dias_antes_apertura: parseInt(String(dias_antes_apertura), 10),
-        inscripcion_abierta: false,
-        tipo: tipoPartido,
-        ...(isString(lugar, 1, 120) ? { lugar: (lugar as string).trim() } : {}),
-        ...(notif_apertura_at ? { notif_apertura_at } : {}),
-        ...(notif_recordatorio_at ? { notif_recordatorio_at } : {}),
-      })
+    // Las fechas se suman en UTC sobre la fecha pelada. `partidos.fecha` es un
+    // DATE sin zona y Colombia no tiene horario de verano, así que sumar
+    // 7×86.400.000 ms cae siempre en el mismo día de la semana. Hacerlo con
+    // `setDate` sobre una fecha local sí se corre según dónde corra el servidor.
+    const base = new Date((fecha as string) + 'T00:00:00Z').getTime()
+    const fechas = Array.from({ length: repeticiones + 1 }, (_, i) =>
+      new Date(base + i * 7 * 86400000).toISOString().slice(0, 10)
+    )
+
+    // Las REPETICIONES no pisan lo que ya existe: repetir dos veces desde el
+    // mismo martes no puede dejar el calendario duplicado.
+    //
+    // El primero sí se crea siempre, aunque ese día ya tenga partido. El club
+    // puede programar dos en una fecha (el home ya sabe mostrar varias ventanas
+    // abiertas a la vez) y bloquearlo acá sería quitar algo que hoy se puede
+    // hacer, a cuenta de una función nueva que no tiene nada que ver.
+    let nuevas = [fechas[0]]
+    if (fechas.length > 1) {
+      const { data: yaHay } = await admin
+        .from('partidos').select('fecha').eq('club_id', clubId).in('fecha', fechas.slice(1))
+      const ocupadas = new Set(((yaHay ?? []) as { fecha: string }[]).map(r => r.fecha))
+      nuevas = nuevas.concat(fechas.slice(1).filter(f => !ocupadas.has(f)))
+    }
+
+    const comun = {
+      club_id: clubId,
+      dia_semana,
+      hora: isString(hora, 4, 8) ? (hora as string) : '19:00:00',
+      cupos_total: parseInt(String(cupos_total), 10),
+      hora_apertura: isString(hora_apertura, 4, 8) ? (hora_apertura as string) : '10:00:00',
+      dias_antes_apertura: parseInt(String(dias_antes_apertura), 10),
+      inscripcion_abierta: false,
+      tipo: tipoPartido,
+      ...(isString(lugar, 1, 120) ? { lugar: (lugar as string).trim() } : {}),
+    }
+
+    const { error } = await admin.from('partidos').insert(
+      nuevas.map((f, i) => ({
+        ...comun,
+        fecha: f,
+        // Las horas de aviso puestas a mano valen SOLO para el primero: son un
+        // instante fijo, y copiarlas a las repeticiones haría que todas avisaran
+        // el mismo día. Las copias usan la hora automática, que es relativa a
+        // la fecha de cada partido (ver lib/notifHorario).
+        ...(i === 0 && notif_apertura_at ? { notif_apertura_at } : {}),
+        ...(i === 0 && notif_recordatorio_at ? { notif_recordatorio_at } : {}),
+      }))
+    )
 
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
-    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'crear_partido', detalles: { fecha, dia_semana, hora, cupos_total, tipo: tipoPartido }, ip })
-    return NextResponse.json({ ok: true, mensaje: `${tipoPartido === 'minitorneo' ? '🟣 Minitorneo' : 'Partido'} del ${dia_semana} ${fecha} creado.` })
+    await logActivity({
+      user_id: adminUser.id, username: adminUser.username, accion: 'crear_partido',
+      detalles: { fecha, dia_semana, hora, cupos_total, tipo: tipoPartido, creados: nuevas.length, repetir_semanas: repeticiones },
+      ip,
+    })
+
+    const etiqueta = tipoPartido === 'minitorneo' ? '🟣 Minitorneo' : 'Partido'
+    const saltadas = fechas.length - nuevas.length
+    const mensaje = nuevas.length === 1
+      ? `${etiqueta} del ${dia_semana} ${nuevas[0]} creado.`
+      : `${nuevas.length} partidos creados: todos los ${dia_semana} hasta el ${nuevas[nuevas.length - 1]}.` +
+        (saltadas > 0 ? ` (${saltadas} ya existían y se dejaron como estaban.)` : '')
+    return NextResponse.json({ ok: true, mensaje })
   }
 
   // ── Actualizar tiempos de notificación de un partido ───────────────────────

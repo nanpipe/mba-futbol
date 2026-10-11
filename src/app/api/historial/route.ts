@@ -235,8 +235,18 @@ export async function GET(req: NextRequest) {
   if (hasta) qp = qp.lte('fecha', hasta)
   if (idsPermitidos) qp = qp.in('id', idsPermitidos)
   if (jugador) {
-    qp = qp.eq('rating_events.player_id', jugador)
-    if (resultado) qp = qp.contains('rating_events.motivos', [resultado])
+    // `jugó` es obligatorio, no decorativo. `rating_events` tiene una fila por
+    // cada miembro del club en CADA partido, juegue o no: las ausencias
+    // (`ausente`) y las faltas (`no jugó (1/3)`, `inactivo`) también dejan
+    // evento. Filtrar solo por player_id metía en "los partidos de X" los que
+    // X se perdió por estar de viaje — y la lista contradecía a la ficha de
+    // arriba, que sí cuenta solo los `jugó` (ver `fichaDeEventos`).
+    //
+    // Un solo `contains` con los dos valores: es contención de arreglo jsonb,
+    // así que exige ambos a la vez.
+    qp = qp
+      .eq('rating_events.player_id', jugador)
+      .contains('rating_events.motivos', resultado ? ['jugó', resultado] : ['jugó'])
   }
 
   // Se pide uno de más para saber si hay página siguiente sin un count aparte.

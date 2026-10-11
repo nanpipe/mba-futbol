@@ -24,6 +24,7 @@ import { avisarBadgeRemovido } from '@/lib/notifyBadge'
 import { sanitizeBadges, parseBadges, BADGES_SETTING_KEY } from '@/lib/categorias'
 import { sanitizeTiers, parseTiers, TIERS_SETTING_KEY } from '@/lib/tier'
 import { leerTodo } from '@/lib/paginar'
+import { sincronizarAlineacion } from '@/lib/alineacion'
 import {
   RECURRENCIA_KEY, parsePlantillas, diaDeFecha, nombreDia, DIAS_SEMANA, MAX_PLANTILLAS,
 } from '@/lib/recurrencia'
@@ -461,6 +462,7 @@ export async function POST(req: NextRequest) {
     if (ins.estado === 'confirmado') {
       await admin.rpc('promover_espera', { p_partido_id: partido_id })
       await internalFetch('/api/notify', { method: 'POST' })
+      await sincronizarAlineacion(admin, partido_id as string, clubId)
     }
 
     const username = (ins as unknown as { profiles: { username: string } }).profiles?.username
@@ -495,6 +497,8 @@ export async function POST(req: NextRequest) {
     await admin.from('inscripciones')
       .update({ estado: 'espera', posicion_espera: posicion })
       .eq('id', ins.id)
+
+    await sincronizarAlineacion(admin, partido_id as string, clubId)
 
     const username = (ins as unknown as { profiles: { username: string } }).profiles?.username
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'mover_espera', detalles: { player_id, partido_id, username }, ip })
@@ -593,6 +597,10 @@ export async function POST(req: NextRequest) {
     for (let i = 0; i < (espera ?? []).length; i++) {
       await admin.from('inscripciones').update({ posicion_espera: i + 1 }).eq('id', espera![i].id)
     }
+
+    // Con swap, el que cedió el cupo sale y el promovido ocupa su lugar en el
+    // equipo. Sin swap (había cupo), el promovido va al equipo más corto.
+    await sincronizarAlineacion(admin, partido_id as string, clubId)
 
     const promoted = ((ins as unknown as { profiles: { username: string } }).profiles)?.username
     await logActivity({

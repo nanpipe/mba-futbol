@@ -7,6 +7,7 @@ import { internalFetch } from '@/lib/internalFetch'
 import { logActivity } from '@/lib/activityLog'
 import { isRateLimited, getClientIp } from '@/lib/rateLimit'
 import { fechaColombia } from '@/lib/promoHora'
+import { sincronizarAlineacion } from '@/lib/alineacion'
 import { notifyAdmins } from '@/lib/notifyAdmins'
 import { ausenteEn } from '@/lib/ausencia'
 
@@ -258,6 +259,9 @@ export async function DELETE(req: NextRequest) {
       .eq('enviado', false)
     promovidosNames = (pendientes ?? []).map((p: { username: string }) => p.username)
     await internalFetch('/api/notify', { method: 'POST' }).catch(() => {})
+    // Si ya había equipos, el que subió ocupa el lugar del que se bajó y se
+    // avisa del cambio. Ver lib/alineacion.
+    if (bajaClubId) await sincronizarAlineacion(admin, partido_id as string, bajaClubId)
   }
 
   // Log synchronously — before return so Vercel doesn't kill it

@@ -388,12 +388,20 @@ export default function HomePage() {
   }, [supabase, cargarDatos])
 
   // Countdown timer
+  //
+  // Corre solo con la app a la vista. Antes era un setInterval de un segundo
+  // que no se detenía nunca: con la app en segundo plano seguía re-renderizando
+  // la pantalla cada segundo durante días enteros, que es justo cuando hay
+  // cuenta regresiva (entre un partido y la apertura del siguiente). Pausado,
+  // al volver se recalcula desde el reloj, así que no se pierde precisión.
   useEffect(() => {
     if (!ventana || ventana.abierta || !abreEnRef.current) return
-    const interval = setInterval(() => {
+    let interval: ReturnType<typeof setInterval> | null = null
+
+    const tick = () => {
       const ms = (abreEnRef.current?.getTime() ?? 0) - Date.now()
       if (ms <= 0) {
-        clearInterval(interval)
+        parar()
         setCountdown('')
         if (user) cargarDatos(user)
         return
@@ -402,8 +410,17 @@ export default function HomePage() {
       const m = Math.floor((ms % 3600000) / 60000)
       const s = Math.floor((ms % 60000) / 1000)
       setCountdown(`${h}h ${m}m ${s}s`)
-    }, 1000)
-    return () => clearInterval(interval)
+    }
+    const parar = () => { if (interval) { clearInterval(interval); interval = null } }
+    const arrancar = () => { if (!interval) { tick(); interval = setInterval(tick, 1000) } }
+    const onVisibility = () => (document.visibilityState === 'visible' ? arrancar() : parar())
+
+    if (document.visibilityState === 'visible') arrancar()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      parar()
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
   }, [ventana, user, cargarDatos])
 
   // Reload at kickoff (sign-up buttons go away) and an hour later (the match

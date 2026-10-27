@@ -8,6 +8,7 @@ import { logActivity } from '@/lib/activityLog'
 import { isRateLimited, getClientIp } from '@/lib/rateLimit'
 import { fechaColombia } from '@/lib/promoHora'
 import { sincronizarAlineacion } from '@/lib/alineacion'
+import { cancelarInvitadosDe } from '@/lib/invitados'
 import { notifyAdmins } from '@/lib/notifyAdmins'
 import { ausenteEn } from '@/lib/ausencia'
 
@@ -247,10 +248,20 @@ export async function DELETE(req: NextRequest) {
   const dia = (partidoInfo as { dia_semana?: string } | null)?.dia_semana ?? ''
   const estado = inscripcion.estado === 'confirmado' ? 'confirmado' : 'lista de espera'
 
+  // Si se sale el que invita, se van sus invitados: no se puede dejar a un
+  // invitado jugando en nombre de alguien que ya no va. Ver lib/invitados.
+  const invCancelados = await cancelarInvitadosDe(admin, partido_id as string, user.id)
+
+  // Un cupo por el jugador (si estaba confirmado) y uno por cada invitado
+  // confirmado que se fue con él.
+  const cuposLiberados = (inscripcion.estado === 'confirmado' ? 1 : 0) + invCancelados.confirmadosLiberados
+
   let promovidosNames: string[] = []
-  if (inscripcion.estado === 'confirmado') {
-    const { error: promErr } = await admin.rpc('promover_espera', { p_partido_id: partido_id })
-    if (promErr) console.error('[inscripciones] promover_espera failed:', promErr.message)
+  if (cuposLiberados > 0) {
+    for (let i = 0; i < cuposLiberados; i++) {
+      const { error: promErr } = await admin.rpc('promover_espera', { p_partido_id: partido_id })
+      if (promErr) { console.error('[inscripciones] promover_espera failed:', promErr.message); break }
+    }
     // Find who got promoted: query notificaciones_pendientes for this partido (unsent rows)
     const { data: pendientes } = await admin
       .from('notificaciones_pendientes')
@@ -270,14 +281,17 @@ export async function DELETE(req: NextRequest) {
     user_id: user.id,
     username,
     accion: 'baja_partido',
-    detalles: { partido_id, estado_previo: inscripcion.estado, dia },
+    detalles: { partido_id, estado_previo: inscripcion.estado, dia, invitados_cancelados: invCancelados.nombres },
   })
 
   // Admin alert → batched into the digest (one summary via cron, not per-baja)
   const promoBody = promovidosNames.length
     ? ` → ${promovidosNames.join(', ')} promovido${promovidosNames.length > 1 ? 's' : ''}`
     : ''
-  const bajaMsg = `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}${promoBody}`
+  const invBody = invCancelados.nombres.length
+    ? ` · invitado${invCancelados.nombres.length > 1 ? 's' : ''} cancelado${invCancelados.nombres.length > 1 ? 's' : ''}: ${invCancelados.nombres.join(', ')}`
+    : ''
+  const bajaMsg = `${username} se retiró (${estado})${dia ? ` — ${dia}` : ''}${invBody}${promoBody}`
   if (bajaClubId) await notifyAdmins(admin, bajaClubId, 'baja', '⚠️ Baja en el partido', bajaMsg)
 
   return NextResponse.json({ ok: true })

@@ -61,6 +61,19 @@ export async function POST(req: NextRequest) {
   const { abierta } = calcularVentanaPartido(partido)
   if (!abierta) return NextResponse.json({ error: 'Las inscripciones están cerradas' }, { status: 400 })
 
+  // Solo invita quien está inscrito en ESE partido (confirmado o en espera).
+  // La pantalla ya escondía el formulario sin inscripción, pero el endpoint no
+  // lo revisaba: bastaba con llamarlo directo para meter invitados sin jugar.
+  const { data: miInscripcion } = await admin
+    .from('inscripciones')
+    .select('id')
+    .eq('partido_id', partido_id)
+    .eq('player_id', user.id)
+    .maybeSingle()
+  if (!miInscripcion) {
+    return NextResponse.json({ error: 'Para traer un invitado tienes que estar inscrito en el partido.' }, { status: 403 })
+  }
+
   // Check max invitees per player per match
   const { count } = await admin
     .from('invitados')

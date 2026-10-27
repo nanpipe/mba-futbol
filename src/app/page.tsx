@@ -496,14 +496,20 @@ export default function HomePage() {
 
   const cancelar = async () => {
     if (!ventana?.partido || !user || !miInscripcion) return
-    if (!confirm('¿Seguro que quieres liberar tu cupo?')) return
+    // Los invitados salen con quien los trajo (ver lib/invitados): avisarlo
+    // antes, que es lo que alguien no espera al soltar su cupo.
+    const nombres = misInvitados.map(i => i.nombre)
+    const aviso = nombres.length
+      ? `¿Seguro que quieres liberar tu cupo?\n\nTambién se cancela${nombres.length > 1 ? 'n tus invitados' : ' tu invitado'}: ${nombres.join(', ')}.`
+      : '¿Seguro que quieres liberar tu cupo?'
+    if (!confirm(aviso)) return
     const res = await fetch('/api/inscripciones', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ partido_id: ventana.partido.id }),
     })
     if (res.ok) {
-      setMensaje({ tipo: 'ok', texto: 'Cupo liberado.' })
+      setMensaje({ tipo: 'ok', texto: nombres.length ? `Cupo liberado. ${nombres.length > 1 ? 'Tus invitados también salieron' : 'Tu invitado también salió'}.` : 'Cupo liberado.' })
       cargarDatos(user)
     }
   }

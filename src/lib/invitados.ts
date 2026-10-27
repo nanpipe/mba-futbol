@@ -97,3 +97,43 @@ export async function notificarInvitadoConfirmado(
 
   return { notificado: true }
 }
+
+/**
+ * Cancela los invitados de un jugador en un partido. Se llama cuando ese
+ * jugador sale del partido (se baja él o lo saca un admin).
+ *
+ * Un invitado existe porque alguien del club responde por él. Sin esta regla
+ * había un atajo: inscribirse, meter un invitado y salirse, y el invitado
+ * quedaba jugando en el cupo de alguien que ni iba a ir.
+ *
+ * Devuelve los nombres cancelados y cuántos de ellos ya estaban CONFIRMADOS:
+ * cada uno de esos dejó un cupo libre que el que llama debe llenar con
+ * `promover_espera`, igual que cuando se baja un jugador.
+ */
+export async function cancelarInvitadosDe(
+  admin: Admin,
+  partidoId: string,
+  playerId: string
+): Promise<{ nombres: string[]; confirmadosLiberados: number }> {
+  const { data: invs, error } = await admin
+    .from('invitados')
+    .select('id, nombre, estado')
+    .eq('partido_id', partidoId)
+    .eq('player_id', playerId)
+  if (error) {
+    console.error('[invitados] cancelarInvitadosDe: lectura falló:', error.message)
+    return { nombres: [], confirmadosLiberados: 0 }
+  }
+  const lista = (invs ?? []) as { id: string; nombre: string; estado: string }[]
+  if (lista.length === 0) return { nombres: [], confirmadosLiberados: 0 }
+
+  const { error: delErr } = await admin.from('invitados').delete().in('id', lista.map(i => i.id))
+  if (delErr) {
+    console.error('[invitados] cancelarInvitadosDe: borrado falló:', delErr.message)
+    return { nombres: [], confirmadosLiberados: 0 }
+  }
+  return {
+    nombres: lista.map(i => i.nombre),
+    confirmadosLiberados: lista.filter(i => i.estado === 'confirmado').length,
+  }
+}

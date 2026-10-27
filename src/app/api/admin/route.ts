@@ -26,6 +26,7 @@ import { sanitizeTiers, parseTiers, TIERS_SETTING_KEY } from '@/lib/tier'
 import { leerTodo } from '@/lib/paginar'
 import { calcularFondo, APORTE_POR_PERSONA, type AporteFila } from '@/lib/fondo'
 import { sincronizarAlineacion } from '@/lib/alineacion'
+import { cancelarInvitadosDe } from '@/lib/invitados'
 import {
   RECURRENCIA_KEY, parsePlantillas, diaDeFecha, nombreDia, DIAS_SEMANA, MAX_PLANTILLAS,
 } from '@/lib/recurrencia'
@@ -418,7 +419,9 @@ export async function POST(req: NextRequest) {
       const fecha = (i as unknown as { partidos: { fecha: string } }).partidos?.fecha ?? ''
       if (fecha >= hoy) {
         await admin.from('inscripciones').delete().eq('id', i.id)
-        if (i.estado === 'confirmado') {
+        const { confirmadosLiberados } = await cancelarInvitadosDe(admin, i.partido_id, player_id as string)
+        const liberados = (i.estado === 'confirmado' ? 1 : 0) + confirmadosLiberados
+        for (let k = 0; k < liberados; k++) {
           await admin.rpc('promover_espera', { p_partido_id: i.partido_id })
         }
       }
@@ -465,10 +468,12 @@ export async function POST(req: NextRequest) {
       const fecha = (ins as unknown as { partidos: { fecha: string } }).partidos?.fecha ?? ''
       if (fecha >= hoy) {
         await admin.from('inscripciones').delete().eq('id', ins.id)
-        if (ins.estado === 'confirmado') {
+        const { confirmadosLiberados } = await cancelarInvitadosDe(admin, ins.partido_id, player_id as string)
+        const liberados = (ins.estado === 'confirmado' ? 1 : 0) + confirmadosLiberados
+        for (let k = 0; k < liberados; k++) {
           await admin.rpc('promover_espera', { p_partido_id: ins.partido_id })
-          await internalFetch('/api/notify', { method: 'POST' }).catch(() => {})
         }
+        if (liberados > 0) await internalFetch('/api/notify', { method: 'POST' }).catch(() => {})
       }
     }
 
@@ -511,16 +516,26 @@ export async function POST(req: NextRequest) {
 
     await admin.from('inscripciones').delete().eq('id', ins.id)
 
-    if (ins.estado === 'confirmado') {
-      await admin.rpc('promover_espera', { p_partido_id: partido_id })
+    // Sus invitados salen con él, igual que cuando se baja solo.
+    const invCancelados = await cancelarInvitadosDe(admin, partido_id as string, player_id as string)
+    const cuposLiberados = (ins.estado === 'confirmado' ? 1 : 0) + invCancelados.confirmadosLiberados
+
+    if (cuposLiberados > 0) {
+      for (let i = 0; i < cuposLiberados; i++) {
+        const { error: promErr } = await admin.rpc('promover_espera', { p_partido_id: partido_id })
+        if (promErr) { console.error('[admin] promover_espera failed:', promErr.message); break }
+      }
       await internalFetch('/api/notify', { method: 'POST' })
       await sincronizarAlineacion(admin, partido_id as string, clubId)
     }
 
     const username = (ins as unknown as { profiles: { username: string } }).profiles?.username
     const fecha = (ins as unknown as { partidos: { fecha: string } }).partidos?.fecha
-    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'remover_partido', detalles: { player_id, partido_id, username, fecha }, ip })
-    return NextResponse.json({ ok: true })
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'remover_partido', detalles: { player_id, partido_id, username, fecha, invitados_cancelados: invCancelados.nombres }, ip })
+    return NextResponse.json({
+      ok: true,
+      ...(invCancelados.nombres.length ? { mensaje: `También se cancelaron sus invitados: ${invCancelados.nombres.join(', ')}.` } : {}),
+    })
   }
 
   // ── Mover a espera ─────────────────────────────────────────────────────────

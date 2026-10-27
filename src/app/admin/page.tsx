@@ -13,10 +13,11 @@ import { TabLog } from '@/components/admin/tabs/TabLog'
 import { TabHistorial } from '@/components/admin/tabs/TabHistorial'
 import { TabNotifs } from '@/components/admin/tabs/TabNotifs'
 import { TabAjustes } from '@/components/admin/tabs/TabAjustes'
+import { TabFondo } from '@/components/admin/tabs/TabFondo'
 import { CierrePartidoCard } from '@/components/admin/CierrePartidoCard'
 import type { Player, Partido, AdminAction } from '@/types/admin'
 
-type Tab = 'partidos' | 'equipos' | 'jugadores' | 'log' | 'historial' | 'notifs' | 'ajustes'
+type Tab = 'partidos' | 'equipos' | 'jugadores' | 'log' | 'historial' | 'notifs' | 'ajustes' | 'fondo'
 
 const MAIN_TABS: { id: Tab; label: string }[] = [
   { id: 'partidos',  label: 'partidos' },
@@ -26,6 +27,7 @@ const MAIN_TABS: { id: Tab; label: string }[] = [
 ]
 
 const ICON_TABS: { id: Tab; icon: string; title: string }[] = [
+  { id: 'fondo',     icon: '💰', title: 'Fondo MBA' },
   { id: 'ajustes',   icon: '⚙',  title: 'Configuración' },
   { id: 'historial', icon: '🕐', title: 'Historial' },
   { id: 'notifs',    icon: '🔔', title: 'Notificaciones' },
@@ -273,6 +275,7 @@ export default function AdminPage() {
         {tab === 'historial' && <TabHistorial active />}
         {tab === 'notifs'    && <TabNotifs partidos={partidos} players={players} onFlash={flash} />}
         {tab === 'ajustes'   && <TabAjustes active isSuperAdmin={isSuperAdmin} />}
+        {tab === 'fondo'     && <TabFondo />}
 
         {/* Version footer */}
         <div style={{ textAlign: 'center', padding: '48px 0 16px' }}>

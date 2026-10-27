@@ -228,6 +228,10 @@ Medido en producción: **storage 56 MB de 1 GB (5,5%), creciendo 119 MB/año →
   - Si se va el **portero fijo**, el equipo pasa a rotar el arco y el que entra se suma al final de la banca. A los admins se les escribe aparte **solo** en ese caso o cuando un equipo queda corto: el aviso de cada baja ya les llega por `notifyAdmins('baja')`.
   - Ojo: `portero_fijo_id`, `rotacion_banca` y `rotacion_portero` guardan **nombres de usuario**, no ids, pese al nombre de la columna.
   - Pendiente, ya conversado: **capitanes**. Se eligen al armar equipos, como el portero, **solo si no juega ningún admin**. Preferidos: juli9, jbravo30, marin5, magic80; si no hay ninguno en el equipo, el de mayor puntaje. Necesita migración (`equipos.capitan_id`).
+- **Fondo MBA** (pestaña 💰 del admin, `lib/fondo.ts`, 2026-10-27). Ranking de cuánto ha aportado cada jugador desde el primer partido. La cuenta es **teórica y la pantalla lo dice**: la cancha cuesta 140.000, el ganador paga 9.000 y el perdedor 13.000 por cabeza, sobran 14.000 por partido y se cuentan como **1.000 parejo por persona y por partido** (`APORTE_POR_PERSONA`). En la realidad el ganador aporta un poco más; el club eligió contarlo parejo.
+  - Cuenta desde **inscripciones confirmadas**, no desde `rating_events`: un partido que nadie cerró no tiene eventos de puntaje, pero la cancha se pagó igual. Excluye los partidos marcados como no jugados; el de hoy solo cuenta cuando ya se marcó jugado.
+  - Los invitados van en una sola línea aparte (no tienen cuenta). Paginado con `leerTodo`: son las inscripciones de toda la historia.
+  - Si algún día cambian los precios, `APORTE_POR_PERSONA` es una constante y recalcularía **toda** la historia con el valor nuevo. Para eso haría falta guardar el aporte por fecha.
 - **Hora promo del club** (default 2 PM): se promueven invitados, se arma borrador de equipos automático (sin confirmar), se avisa a admins y jugadores, y el home deja de mostrar el partido anterior.
 - **Cierre de partido:**
   - El partido se ve hasta hora + 1 h. Desde el inicio se ocultan inscribirse / cancelar / invitados.

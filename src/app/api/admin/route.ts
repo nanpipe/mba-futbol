@@ -24,6 +24,7 @@ import { avisarBadgeRemovido } from '@/lib/notifyBadge'
 import { sanitizeBadges, parseBadges, BADGES_SETTING_KEY } from '@/lib/categorias'
 import { sanitizeTiers, parseTiers, TIERS_SETTING_KEY } from '@/lib/tier'
 import { leerTodo } from '@/lib/paginar'
+import { calcularFondo, APORTE_POR_PERSONA, type AporteFila } from '@/lib/fondo'
 import { sincronizarAlineacion } from '@/lib/alineacion'
 import {
   RECURRENCIA_KEY, parsePlantillas, diaDeFecha, nombreDia, DIAS_SEMANA, MAX_PLANTILLAS,
@@ -268,6 +269,57 @@ export async function GET(req: NextRequest) {
       progreso[id] = { votaron: votantes.get(id)?.size ?? 0, total: confirmados.get(id) ?? 0 }
     }
     return NextResponse.json({ ok: true, progreso })
+  }
+
+  // ── Fondo MBA ────────────────────────────────────────────────────────────
+  // Cuánto ha aportado cada uno al fondo desde el primer partido. La cuenta es
+  // de lib/fondo; acá solo se juntan las filas.
+  //
+  // Paginado: son las inscripciones confirmadas de TODOS los partidos de la
+  // historia, que pasan de 1000 filas en cuanto el club lleva unos meses.
+  if (accion === 'fondo') {
+    const hoy = fechaColombia()
+    type FilaIns = {
+      partido_id: string; player_id: string
+      partidos: { fecha: string; jugado: boolean | null } | { fecha: string; jugado: boolean | null }[] | null
+      profiles: { username: string; avatar_url: string | null } | { username: string; avatar_url: string | null }[] | null
+    }
+    type FilaInv = { partido_id: string; partidos: FilaIns['partidos'] }
+
+    const [ins, invs] = await Promise.all([
+      leerTodo<FilaIns>((d, h) => admin.from('inscripciones')
+        .select('partido_id, player_id, partidos!inner(fecha, jugado), profiles!player_id(username, avatar_url)')
+        .eq('club_id', clubId).eq('estado', 'confirmado')
+        .lte('partidos.fecha', hoy)
+        .order('id').range(d, h)),
+      leerTodo<FilaInv>((d, h) => admin.from('invitados')
+        .select('partido_id, partidos!inner(fecha, jugado)')
+        .eq('club_id', clubId).eq('estado', 'confirmado')
+        .lte('partidos.fecha', hoy)
+        .order('id').range(d, h)),
+    ])
+
+    const uno = <T,>(x: T | T[] | null): T | null => (Array.isArray(x) ? x[0] ?? null : x)
+    // Cuenta un partido que se jugó: los que un admin marcó como no jugado se
+    // cancelaron y nadie pagó cancha. `jugado` NULL es de antes de que existiera
+    // la marca y cuenta como jugado, igual que en el rating. El de HOY solo
+    // cuenta si ya se marcó jugado: a las 3 PM todavía no ha pasado nada.
+    const seJugo = (p: { fecha: string; jugado: boolean | null } | null) =>
+      !!p && p.jugado !== false && (p.fecha < hoy || p.jugado === true)
+
+    const filas: AporteFila[] = []
+    for (const r of ins) {
+      const p = uno(r.partidos), pr = uno(r.profiles)
+      if (!seJugo(p) || !pr) continue
+      filas.push({ partido_id: r.partido_id, fecha: p!.fecha, player_id: r.player_id, username: pr.username, avatar_url: pr.avatar_url })
+    }
+    const invitados: { partido_id: string; fecha: string }[] = []
+    for (const r of invs) {
+      const p = uno(r.partidos)
+      if (seJugo(p)) invitados.push({ partido_id: r.partido_id, fecha: p!.fecha })
+    }
+
+    return NextResponse.json({ ok: true, aporte: APORTE_POR_PERSONA, ...calcularFondo(filas, invitados) })
   }
 
   if (accion === 'settings') {

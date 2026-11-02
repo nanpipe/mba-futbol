@@ -36,20 +36,55 @@ una captura.
 `user-scalable=no` por accesibilidad. El único arreglo es `font-size: 16px`.
 
 Está en la regla base de `globals.css`. **Ojo con los `style` inline que la
-pisan** — son los que se escapan. Para buscarlos:
+pisan** — son los que se escapan. Para buscarlos (tiene que salir vacío):
 
 ```bash
 python3 - <<'PY'
 import re, pathlib
-pat = re.compile(r'<(input|select|textarea)\b(.*?)/>', re.S)
+# Campos de formulario con letra < 16px (zoom en iOS).
+# Recorre la etiqueta respetando llaves (un `=>` no la corta) y sigue
+# `style={variable}` / `style={{ ...variable, ... }}` hasta su definición.
+tag = re.compile(r'<(input|select|textarea)\b')
+def fin_etiqueta(t, i):
+    d = 0
+    while i < len(t):
+        c = t[i]
+        if c == '{': d += 1
+        elif c == '}': d -= 1
+        elif c == '>' and d == 0: return i
+        i += 1
+    return i
+def def_de(t, nombre):
+    m = re.search(r'(?:const|let)\s+' + re.escape(nombre) + r'\b[^=]*=\s*\{', t)
+    if not m: return ''
+    i, d = m.end() - 1, 0
+    for j in range(i, len(t)):
+        d += {'{': 1, '}': -1}.get(t[j], 0)
+        if d == 0: return t[i:j + 1]
+    return ''
+def tam(texto):
+    return [int(x) for x in re.findall(r'fontSize:\s*(\d+)', texto)]
 for f in sorted(pathlib.Path('src').rglob('*.tsx')):
     t = f.read_text()
-    for m in pat.finditer(t):
-        fs = re.search(r'fontSize:\s*(\d+)', m.group(2))
-        if fs and int(fs.group(1)) < 16:
-            print(f'{f}:{t[:m.start()].count(chr(10))+1}  fontSize {fs.group(1)}')
+    for m in tag.finditer(t):
+        cuerpo = t[m.start():fin_etiqueta(t, m.end())]
+        s = re.search(r'style=\{(.*)\}', cuerpo, re.S)
+        if not s: continue
+        estilo = s.group(1)
+        tams = tam(estilo)
+        if not tams:
+            for v in re.findall(r'(?:^|\.\.\.)\s*([A-Za-z_]\w*)', estilo.strip('{} ')):
+                tams += tam(def_de(t, v))
+        if tams and min(tams) < 16:
+            print(f'{f}:{t[:m.start()].count(chr(10))+1}  <{m.group(1)}> fontSize {min(tams)}')
 PY
 ```
+
+La versión anterior de este script usaba una regex hasta el primer `>` y no
+seguía `style={variable}`: el `=>` de un `onChange` la cortaba antes de llegar
+al estilo, y se le escaparon 11 campos (los filtros de `/historial`, entre
+otros). Esta recorre la etiqueta contando llaves y busca la definición de la
+variable de estilo en el mismo archivo.
 
 ### 2. Los `input` de fecha y hora tienen ancho propio
 

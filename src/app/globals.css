@@ -4,11 +4,16 @@
   --bg: #080808;
   --bg-card: #111111;
   --bg-elevated: #1a1a1a;
-  --border: #222222;
-  --border-light: #2a2a2a;
+  /* --border solo separa tarjetas (decorativo). --border-light es el contorno
+     de inputs y controles: necesita 3:1 contra su fondo para que un campo se
+     vea como campo (antes #2a2a2a, 1.2:1 — al sol no se veía). */
+  --border: #2e2e2e;
+  --border-light: #6b6b6b;
   --text: #ffffff;
   --text-muted: #a0a0a0;
-  --text-dim: #666666;
+  /* 5.5:1 sobre --bg-card. Era #666 (3.3:1) y es el gris más usado de la
+     app, casi siempre en letra chica: explicaciones, motivos del puntaje. */
+  --text-dim: #8a8a8a;
   --green: #4ade80;
   --green-dim: #16a34a;
   --amber: #fbbf24;
@@ -120,6 +125,14 @@ input::placeholder { color: var(--text-dim); }
 .btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+/* El principal deshabilitado va en gris, no en verde apagado: con opacity el
+   texto oscuro sobre verde a medias no se leía y parecía habilitado. */
+.btn-primary:disabled {
+  opacity: 1;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  box-shadow: inset 0 0 0 1px var(--border-light);
 }
 
 /* Status badges */

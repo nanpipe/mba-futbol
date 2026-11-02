@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rediseño MBA FC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── Tokens fijos (no configurables) ─────────────────────────────── */
+:root {
+  --font-display: 'Bebas Neue', 'Arial Narrow', sans-serif;
+  --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+  --font-num: 'DM Mono', ui-monospace, monospace;
+
+  --fs-xs: 12px; --fs-sm: 13px; --fs-md: 15px; --fs-lg: 17px; --fs-xl: 22px; --fs-2xl: 32px; --fs-3xl: 48px;
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
+  --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-pill: 999px;
+  --tap: 44px;
+  --shadow-1: 0 1px 0 rgba(255,255,255,.04) inset, 0 1px 2px rgba(0,0,0,.5);
+  --shadow-2: 0 8px 24px rgba(0,0,0,.45);
+
+  /* semánticos: NO cambian con el club */
+  --pos: #4ade80; --pos-soft: #0f2d1a;
+  --neg: #f87171; --neg-soft: #2d0a0a; --neg-line: #b91c1c;
+  --warn: #fbbf24; --warn-soft: #1f1803;
+  --info: #7dd3fc;
+}
+/* ── Tokens del club: los inyecta el servidor (aquí, JS de la maqueta) ── */
+:root {
+  --bg: #080808; --surface-1: #121212; --surface-2: #1a1a1a;
+  --line: #333333; --line-strong: #6b6b6b;
+  --text: #f5f5f5; --text-2: #b4b4b4; --text-3: #8a8a8a;
+  --primary: #4ade80; --primary-text: #4ade80; --on-primary: #06120a; --primary-soft: #0f2416; --primary-line: #2f8a52;
+  --accent: #fbbf24; --accent-text: #fbbf24; --on-accent: #1a1300; --accent-soft: #241c06;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+body { background: #1d1d1f; color: #eee; font-family: var(--font-ui); padding: 24px 16px 64px; }
+h1.doc { font-family: var(--font-display); font-size: 40px; letter-spacing: .03em; color: #fff; }
+p.doc { color: #bbb; max-width: 760px; line-height: 1.5; margin: 8px 0 24px; font-size: 15px; }
+h2.doc { font-family: var(--font-display); font-size: 26px; letter-spacing: .04em; color: #fff; margin: 40px 0 12px; }
+.row > div { flex: 1 1 340px; max-width: 390px; min-width: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.cap { font-size: 13px; color: #aaa; margin-bottom: 8px; max-width: 390px; line-height: 1.4; }
+
+/* ── Teléfono ── */
+.phone { width: 100%; max-width: 390px; background: var(--bg); color: var(--text); border-radius: 28px; overflow: hidden; border: 1px solid #333; font-family: var(--font-ui); }
+.top { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--bg); position: sticky; top: 0; }
+.brand { font-family: var(--font-display); font-size: 24px; letter-spacing: .04em; }
+.brand b { color: var(--primary-text); font-weight: 400; }
+.icon-btn { min-width: var(--tap); height: var(--tap); border-radius: var(--r-pill); display: inline-grid; place-items: center; background: var(--surface-1); border: 1px solid var(--line); font-size: 18px; }
+.avatar { width: var(--tap); height: var(--tap); border-radius: 50%; display: grid; place-items: center; background: var(--primary-soft); color: var(--primary-text); font-family: var(--font-display); font-size: 20px; border: 1px solid var(--primary-line); }
+.av-sm { width: 32px; height: 32px; font-size: 15px; }
+.screen { padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-4); }
+.card { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--sp-4); box-shadow: var(--shadow-1); }
+.eyebrow { font-size: var(--fs-xs); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
+.match-day { font-family: var(--font-display); font-size: var(--fs-3xl); line-height: .95; letter-spacing: .02em; }
+.meta { color: var(--text-2); font-size: var(--fs-md); margin-top: 2px; }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.cupos { display: grid; grid-template-columns: repeat(14, 1fr); gap: 3px; margin: 12px 0 8px; }
+.cupos i { height: 8px; border-radius: 2px; background: var(--primary); }
+.cupos i.off { background: var(--surface-2); outline: 1px solid var(--line); }
+.status { display: flex; align-items: center; gap: 12px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--r-pill); font-size: var(--fs-sm); font-weight: 600; }
+.chip.ok { background: var(--pos-soft); color: var(--pos); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.btn { min-height: var(--tap); padding: 0 18px; border-radius: var(--r-md); border: 1px solid transparent; font-size: var(--fs-md); font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+.btn-primary { background: var(--primary); color: var(--on-primary); width: 100%; }
+.btn-ghost { background: transparent; border-color: var(--line-strong); color: var(--text); }
+.btn-danger { background: transparent; border-color: var(--neg-line); color: var(--neg); }
+.list { display: flex; flex-direction: column; }
+.li { display: flex; align-items: center; gap: 12px; min-height: 52px; border-top: 1px solid var(--line); }
+.li:first-child { border-top: 0; }
+.li .name { font-size: var(--fs-md); font-weight: 600; flex: 1; }
+.li .n { width: 20px; color: var(--text-3); font-size: var(--fs-sm); }
+.li.me { background: var(--primary-soft); margin: 0 calc(-1 * var(--sp-4)); padding: 0 var(--sp-4); }
+.tu { font-size: var(--fs-xs); font-weight: 700; color: var(--primary-text); letter-spacing: .06em; }
+.link { color: var(--primary-text); font-size: var(--fs-md); font-weight: 600; text-decoration: none; display: inline-flex; min-height: var(--tap); align-items: center; }
+.tabbar { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); background: var(--bg); padding-bottom: 8px; }
+.tabbar a { min-height: 56px; display: grid; place-items: center; align-content: center; gap: 2px; font-size: 11px; font-weight: 600; color: var(--text-3); text-decoration: none; }
+.tabbar a span { font-size: 20px; }
+.tabbar a.on { color: var(--primary-text); }
+
+/* tarjeta de resultado */
+.photo { aspect-ratio: 16/9; border-radius: var(--r-md); background: linear-gradient(#3b6e8f, #9cc3d5 55%, #2f7d32 56%, #1b4d1e); }
+.score { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.team { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-size: var(--fs-xl); letter-spacing: .03em; }
+.dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+.dot.blanco { background: #e5e5e5; } .dot.negro { background: #4a4a4a; box-shadow: 0 0 0 1.5px rgba(255,255,255,.55); }
+.marcador { font-family: var(--font-display); font-size: 44px; line-height: 1; letter-spacing: .02em; }
+.marcador .w { color: var(--text); } .marcador .l { color: var(--text-3); }
+.reco { display: grid; grid-template-columns: 28px 32px 1fr auto; align-items: center; gap: 10px; min-height: 48px; border-top: 1px solid var(--line); }
+.reco .who { font-size: var(--fs-md); font-weight: 600; }
+.reco .cat { font-size: var(--fs-sm); color: var(--text-2); }
+.delta-pos { color: var(--pos); } .delta-neg { color: var(--neg); }
+.mine { display: flex; align-items: center; justify-content: space-between; min-height: var(--tap); padding: 0 12px; border-radius: var(--r-md); background: var(--surface-2); font-size: var(--fs-md); }
+
+/* ── Editor de colores ── */
+.editor { width: 100%; max-width: 390px; background: var(--bg); color: var(--text); border-radius: 18px; border: 1px solid #333; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.sw { width: var(--tap); height: var(--tap); border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
+.sw[aria-pressed="true"] { border-color: var(--text); box-shadow: 0 0 0 3px var(--bg) inset; }
+.sw.custom { display: grid; place-items: center; background: var(--surface-2); border: 1px dashed var(--line-strong); font-size: 18px; position: relative; overflow: hidden; }
+.sw.custom input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.seg button { min-height: var(--tap); border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface-1); font-size: var(--fs-sm); font-weight: 600; cursor: pointer; }
+.seg button[aria-pressed="true"] { border-color: var(--primary-line); background: var(--primary-soft); color: var(--primary-text); }
+.checks { font-size: var(--fs-sm); display: flex; flex-direction: column; gap: 4px; }
+.checks div { display: flex; justify-content: space-between; gap: 8px; }
+.pass { color: var(--pos); } .fix { color: var(--warn); }
+table.tok { border-collapse: collapse; font-size: 13px; color: #ddd; }
+table.tok td { padding: 4px 10px 4px 0; border-bottom: 1px solid #333; }
+table.tok .s { width: 22px; height: 16px; border-radius: 4px; border: 1px solid #555; }
+</style>
+</head>
+<body>
+<h1 class="doc">MBA FC — dirección "Cancha nocturna"</h1>
+<p class="doc">Maqueta estática del rediseño recomendado. Los dos teléfonos y el editor usan los mismos tokens; al cambiar los colores en el editor, todo se recalcula con la misma regla que se propone para <code>lib/tema.ts</code> (texto sobre primario negro o blanco según contraste; el primario usado como texto se aclara hasta 4.5:1). Los verdes y rojos del puntaje, el ámbar de aviso y los colores de equipo <b>no</b> cambian.</p>
+
+<div class="row">
+  <div>
+    <div class="cap">Inicio con partido abierto. La acción (estás dentro / cancelar) queda en la primera pantalla; el nombre del club pasa a la barra superior.</div>
+    <div class="phone" id="ph1">
+      <div class="top">
+        <div class="brand">MBA <b>FC</b></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="icon-btn" aria-label="Notificaciones">🔔</span>
+          <span class="avatar" aria-label="Mi perfil">22</span>
+        </div>
+      </div>
+      <div class="screen">
+        <div class="card">
+          <div class="eyebrow">Próximo partido</div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:4px">
+            <div class="match-day">Martes</div>
+            <div class="num" style="font-size:var(--fs-xl)">7:00 PM</div>
+          </div>
+          <div class="meta">3 de noviembre · 📍 Cancha La 70</div>
+          <div class="cupos" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="off"></i></div>
+          <div style="display:flex;justify-content:space-between;font-size:var(--fs-sm);color:var(--text-2)"><span><b class="num" style="color:var(--text)">13</b>/14 cupos</span><span style="color:var(--warn)">1 en espera</span></div>
+          <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
+          <div class="status">
+            <span class="chip ok">✓ Estás dentro</span>
+            <span style="flex:1"></span>
+            <button class="btn btn-danger">Salirme</button>
+          </div>
+        </div>
+
+        <div class="card" style="display:flex;gap:12px;align-items:center;border-color:var(--warn);background:var(--warn-soft)">
+          <span style="font-size:24px">📸</span>
+          <div style="flex:1;font-size:var(--fs-md);line-height:1.35;color:var(--text)">Te queda <b>un partido</b> para subir tu foto.</div>
+          <span class="link" style="color:var(--warn)">Subir</span>
+        </div>
+
+        <div class="card" style="padding-bottom:4px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="eyebrow">Jugadores · 13 confirmados</div>
+            <a class="link" style="font-size:var(--fs-sm)">+ Invitado</a>
+          </div>
+          <div class="list">
+            <div class="li me"><span class="n num">1</span><span class="avatar av-sm">22</span><span class="name">pipes22</span><span class="tu">TÚ</span></div>
+            <div class="li"><span class="n num">2</span><span class="avatar av-sm">16</span><span class="name">alexis16</span></div>
+            <div class="li"><span class="n num">3</span><span class="avatar av-sm">44</span><span class="name">guerrero44</span></div>
+            <div class="li"><span class="n num">4</span><span class="avatar av-sm">9</span><span class="name">juli9</span></div>
+          </div>
+          <a class="link">Ver los 13 →</a>
+        </div>
+      </div>
+      <nav class="tabbar" aria-label="Secciones">
+        <a class="on"><span>⚽</span>Partido</a><a><span>📋</span>Historial</a><a><span>⭐</span>Puntaje</a><a><span>🛠️</span>Admin</a>
+      </nav>
+    </div>
+  </div>
+
+  <div>
+    <div class="cap">Tarjeta de resultado. El marcador manda; el ganador se lee por el punto de su color, no por el verde de la marca. Tu delta propio arriba, plegado el resto.</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="card" style="padding:12px">
+          <div class="eyebrow" style="padding:4px 4px 10px">Último partido · martes 27 oct</div>
+          <div class="photo" role="img" aria-label="Foto del partido"></div>
+          <div class="score" style="padding:14px 4px 6px">
+            <div>
+              <div class="team"><span class="dot blanco"></span>Blanco</div>
+              <div class="team" style="color:var(--text-2)"><span class="dot negro"></span>Negro</div>
+            </div>
+            <div class="marcador"><span class="w">6</span><span class="l"> – 4</span></div>
+          </div>
+          <div style="padding:0 4px 8px;font-size:var(--fs-sm);color:var(--text-2)">Ganó <b style="color:var(--text)">Blanco</b> por 2</div>
+          <div style="padding:0 4px">
+            <div class="reco"><span style="font-size:22px">🏆</span><span class="avatar av-sm">9</span><div><div class="who">juli9</div><div class="cat">MVP del Partido · 6 votos</div></div><span class="dot blanco" title="Blanco"></span></div>
+            <div class="reco"><span style="font-size:22px">⚽</span><span class="avatar av-sm">16</span><div><div class="who">alexis16</div><div class="cat">Goleador · 5 votos</div></div><span class="dot negro" title="Negro"></span></div>
+            <div class="reco"><span style="font-size:22px">💤</span><span class="avatar av-sm">3</span><div><div class="who">danielb3 · hernan14</div><div class="cat">Desaparecido · 3 c/u · <span style="color:var(--warn)">empate</span></div></div><span class="dot negro"></span></div>
+          </div>
+          <div class="mine" style="margin-top:10px"><span>Tu puntaje en este partido</span><span class="num delta-pos">+0.02 ▾</span></div>
+        </div>
+        <div class="card">
+          <div class="eyebrow">Botones (44 px mínimo)</div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+            <button class="btn btn-primary">Inscribirme</button>
+            <div style="display:flex;gap:8px"><button class="btn btn-ghost" style="flex:1">Invitar</button><button class="btn btn-danger" style="flex:1">Cancelar</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="cap">Ajustes → Club → Colores (superadmin). Dos colores y un fondo; el resto se deriva. Vista previa en vivo y chequeo de contraste: si un color no da 4.5:1 se corrige solo y se avisa.</div>
+    <div class="editor">
+      <div class="eyebrow">Colores del club</div>
+      <div class="field"><label>Color principal (botones, selección, nombre)</label><div class="swatches" id="swP"></div></div>
+      <div class="field"><label>Color de acento (admin, destacados)</label><div class="swatches" id="swA"></div></div>
+      <div class="field"><label>Fondo</label><div class="seg" id="segF"></div></div>
+      <div class="card" style="padding:12px">
+        <div class="eyebrow">Vista previa</div>
+        <div style="display:flex;align-items:center;gap:10px;margin:10px 0">
+          <div class="brand" style="font-size:28px">MBA <b>FC</b></div><span style="flex:1"></span><span class="avatar av-sm">22</span>
+        </div>
+        <button class="btn btn-primary">Inscribirme</button>
+        <div style="display:flex;gap:8px;margin-top:8px;align-items:center"><span class="chip" style="background:var(--accent-soft);color:var(--accent-text)">ADMIN</span><span class="chip ok">+0.02</span><span class="chip" style="background:var(--neg-soft);color:var(--neg)">−0.02</span></div>
+      </div>
+      <div class="checks" id="checks"></div>
+      <div style="display:flex;gap:8px"><button class="btn btn-ghost" style="flex:1" id="reset">Restaurar</button><button class="btn btn-primary" style="flex:2">Guardar colores</button></div>
+    </div>
+  </div>
+</div>
+
+<h2 class="doc">Tokens derivados (valores actuales del editor)</h2>
+<table class="tok" id="tok"></table>
+
+<script>
+// ── Misma lógica que se propone para src/lib/tema.ts ──────────────────
+const hex2rgb = h => { h = h.replace('#',''); if (h.length===3) h=[...h].map(c=>c+c).join(''); return [0,2,4].map(i=>parseInt(h.slice(i,i+2),16)) }
+const rgb2hex = a => '#'+a.map(v=>Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0')).join('')
+const lum = h => { const [r,g,b]=hex2rgb(h).map(v=>{v/=255;return v<=.03928?v/12.92:((v+.055)/1.055)**2.4}); return .2126*r+.7152*g+.0722*b }
+const ratio = (a,b) => { const [x,y]=[lum(a),lum(b)].sort((p,q)=>q-p); return (x+.05)/(y+.05) }
+const mix = (a,b,t) => { const A=hex2rgb(a),B=hex2rgb(b); return rgb2hex(A.map((v,i)=>v+(B[i]-v)*t)) }
+// Aclara (hacia blanco) hasta alcanzar el contraste pedido contra `fondo`.
+const legible = (c, fondo, min) => { let x=c; for (let t=0; t<=1 && ratio(x,fondo)<min; t+=.04) x=mix(c,'#ffffff',t); return x }
+const sobre = c => ratio('#000000',c) >= ratio('#ffffff',c) ? mix(c,'#000000',.88) : '#ffffff'
+
+const FONDOS = {
+  carbon:  { bg:'#080808', s1:'#121212', s2:'#1a1a1a', label:'Carbón' },
+  noche:   { bg:'#070b14', s1:'#0f1522', s2:'#172033', label:'Azul noche' },
+  cancha:  { bg:'#06100a', s1:'#0d1a12', s2:'#14251a', label:'Verde cancha' },
+}
+function derivar({ primario, acento, fondo }) {
+  const F = FONDOS[fondo] ?? FONDOS.carbon
+  const line = mix(F.s1,'#ffffff',.14), lineStrong = legible(mix(F.s1,'#ffffff',.26), F.s2, 3)
+  const t = {
+    '--bg':F.bg, '--surface-1':F.s1, '--surface-2':F.s2, '--line':line, '--line-strong':lineStrong,
+    '--text':'#f5f5f5', '--text-2':legible('#b4b4b4',F.s2,7), '--text-3':legible('#8a8a8a',F.s2,4.5),
+    '--primary':primario, '--on-primary':sobre(primario),
+    '--primary-text':legible(primario,F.s2,4.5), '--primary-soft':mix(F.s1,primario,.14), '--primary-line':legible(mix(F.s1,primario,.6),F.s1,3),
+    '--accent':acento, '--on-accent':sobre(acento), '--accent-text':legible(acento,F.s2,4.5), '--accent-soft':mix(F.s1,acento,.14),
+  }
+  const checks = [
+    ['Texto sobre botón principal', ratio(t['--on-primary'],primario), 4.5],
+    ['Principal como texto (sobre tarjeta)', ratio(primario,F.s2), 4.5, t['--primary-text']!==primario],
+    ['Acento como texto (sobre tarjeta)', ratio(acento,F.s2), 4.5, t['--accent-text']!==acento],
+    ['Borde de selección', ratio(t['--primary-line'],F.s1), 3],
+    ['Principal ≠ verde de "subió"', deltaE(primario,'#4ade80'), 30],
+    ['Principal ≠ rojo de "bajó"', deltaE(primario,'#f87171'), 30],
+    ['Principal ≠ ámbar de "aviso"', deltaE(primario,'#fbbf24'), 30],
+  ]
+  return { t, checks }
+}
+// Distancia de tono (0–180°). Dos colores saturados con menos de ~30° de tono
+// se leen como "el mismo color" en una pantalla chica, aunque difieran en brillo.
+function hue(h){ const [r,g,b]=hex2rgb(h).map(v=>v/255), mx=Math.max(r,g,b), mn=Math.min(r,g,b), d=mx-mn; if(!d) return {h:0,s:0}; let x= mx===r?((g-b)/d)%6 : mx===g?(b-r)/d+2 : (r-g)/d+4; return {h:(x*60+360)%360, s:d/(1-Math.abs(mx+mn-1))} }
+function deltaE(a,b){ const A=hue(a),B=hue(b); if (A.s<.25||B.s<.25) return 99; const d=Math.abs(A.h-B.h); return Math.min(d,360-d) }
+
+const PRIM = ['#4ade80','#22d3ee','#60a5fa','#f43f5e','#f97316','#facc15','#a78bfa','#ffffff']
+const ACEN = ['#fbbf24','#f97316','#f472b6','#38bdf8','#a3e635','#e5e5e5']
+const DEF = { primario:'#4ade80', acento:'#fbbf24', fondo:'carbon' }
+let tema = { ...DEF }
+
+function render() {
+  const { t, checks } = derivar(tema)
+  for (const [k,v] of Object.entries(t)) document.documentElement.style.setProperty(k,v)
+  const sw = (id, list, key) => { const el=document.getElementById(id); el.innerHTML=''
+    for (const c of list) { const b=document.createElement('button'); b.className='sw'; b.style.background=c; b.setAttribute('aria-label',c); b.setAttribute('aria-pressed', String(tema[key]===c)); b.onclick=()=>{tema[key]=c;render()}; el.appendChild(b) }
+    const cu=document.createElement('label'); cu.className='sw custom'; cu.title='Otro color'; cu.innerHTML='＋<input type="color" value="'+tema[key]+'">'; cu.querySelector('input').oninput=e=>{tema[key]=e.target.value;render()}; el.appendChild(cu) }
+  sw('swP',PRIM,'primario'); sw('swA',ACEN,'acento')
+  const seg=document.getElementById('segF'); seg.innerHTML=''
+  for (const [k,f] of Object.entries(FONDOS)) { const b=document.createElement('button'); b.textContent=f.label; b.setAttribute('aria-pressed',String(tema.fondo===k)); b.onclick=()=>{tema.fondo=k;render()}; seg.appendChild(b) }
+  document.getElementById('checks').innerHTML = checks.map(([n,r,min,ajustado]) => {
+    const ok = r>=min
+    const msg = n.includes('≠') ? (ok?'distinto':'se confunde: aviso, no bloquea') : r.toFixed(2)+':1'
+    return `<div><span>${n}</span><span class="${ok&&!ajustado?'pass':'fix'}">${ok?'✓':'⚠'} ${msg}${ajustado?' · se aclara como texto':''}</span></div>` }).join('')
+  document.getElementById('tok').innerHTML = Object.entries(t).map(([k,v])=>`<tr><td><div class="s" style="background:${v}"></div></td><td><code>${k}</code></td><td><code>${v}</code></td></tr>`).join('')
+}
+document.getElementById('reset').onclick=()=>{tema={...DEF};render()}
+render()
+</script>
+</body>
+</html>

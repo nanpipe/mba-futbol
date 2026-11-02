@@ -337,7 +337,7 @@ export default function PerfilPage() {
     <div style={{ minHeight: '100vh', paddingBottom: 80 }}>
       <nav style={{ borderBottom: '1px solid var(--border)', padding: '16px 0' }}>
         <div className="container" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <Link href="/" className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', textDecoration: 'none' }}>← INICIO</Link>
+          <Link href="/" className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', textDecoration: 'none', minHeight: 44, display: 'flex', alignItems: 'center' }}>← INICIO</Link>
           <span className="display" style={{ fontSize: 20, letterSpacing: '0.1em' }}>MI PERFIL</span>
         </div>
       </nav>
@@ -570,6 +570,17 @@ export default function PerfilPage() {
             {savingPass ? 'Guardando...' : 'Cambiar contraseña'}
           </button>
         </Section>
+
+        {/* Cerrar sesión vive acá y no en la barra del inicio: allá quedaba
+            pegado al avatar y un toque fallido sacaba a la persona de la app.
+            Se usa poco, y quien lo busca lo busca en su perfil. */}
+        <button
+          onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login' }}
+          className="btn btn-ghost"
+          style={{ width: '100%', minHeight: 44, marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}
+        >
+          Cerrar sesión
+        </button>
       </div>
 
       {/* Guía redonda: lo que se ve dentro del círculo es exactamente lo que

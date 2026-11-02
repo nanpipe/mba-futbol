@@ -8,18 +8,23 @@ export interface ThumbTeammate {
   avatar_url: string | null
 }
 
-function thumbStyle(active: boolean, kind: 'up' | 'neutral' | 'down'): React.CSSProperties {
+// 44×44: el mínimo para el pulgar. Sin elegir, los tres van a opacidad plena
+// (apagados parecían deshabilitados al sol); al elegir uno se apagan los otros.
+function thumbStyle(active: boolean, kind: 'up' | 'neutral' | 'down', algunoElegido: boolean): React.CSSProperties {
   const color = kind === 'up' ? 'var(--green)' : kind === 'down' ? 'var(--red)' : 'var(--text-muted)'
   const bg = kind === 'up' ? '#0f2d1a' : kind === 'down' ? '#2d0a0a' : 'var(--bg-elevated)'
   return {
-    fontSize: 18,
+    fontSize: 20,
     lineHeight: 1,
-    padding: '6px 10px',
-    borderRadius: 6,
+    width: 44,
+    height: 44,
+    flexShrink: 0,
+    padding: 0,
+    borderRadius: 8,
     cursor: 'pointer',
     background: active ? bg : 'transparent',
     border: `1px solid ${active ? color : 'var(--border)'}`,
-    opacity: active ? 1 : 0.55,
+    opacity: active || !algunoElegido ? 1 : 0.45,
     transition: 'all 0.15s',
   }
 }
@@ -47,8 +52,8 @@ export function ThumbsRater({
           <div
             key={t.id}
             style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '10px 14px', background: 'var(--bg-card)',
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '8px 10px 8px 14px', background: 'var(--bg-card)',
               border: '1px solid var(--border)', borderRadius: 6,
             }}
           >
@@ -56,9 +61,9 @@ export function ThumbsRater({
             <span style={{ flex: 1, minWidth: 0, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {t.username}
             </span>
-            <button onClick={() => onSet(t.id, 1)} aria-label={`Pulgar arriba ${t.username}`} style={thumbStyle(v === 1, 'up')}>👍</button>
-            <button onClick={() => onSet(t.id, 0)} aria-label={`Neutral ${t.username}`} style={thumbStyle(v === 0, 'neutral')}>😐</button>
-            <button onClick={() => onSet(t.id, -1)} aria-label={`Pulgar abajo ${t.username}`} style={thumbStyle(v === -1, 'down')}>👎</button>
+            <button onClick={() => onSet(t.id, 1)} aria-label={`Pulgar arriba ${t.username}`} style={thumbStyle(v === 1, 'up', v !== undefined)}>👍</button>
+            <button onClick={() => onSet(t.id, 0)} aria-label={`Neutral ${t.username}`} style={thumbStyle(v === 0, 'neutral', v !== undefined)}>😐</button>
+            <button onClick={() => onSet(t.id, -1)} aria-label={`Pulgar abajo ${t.username}`} style={thumbStyle(v === -1, 'down', v !== undefined)}>👎</button>
           </div>
         )
       })}

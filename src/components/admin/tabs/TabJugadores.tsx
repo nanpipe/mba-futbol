@@ -432,7 +432,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                 eliminarlos, así que mostrar los botones sería mentir. */}
             {!isPrivileged(editModal.role) && (
             <div style={{ marginTop: 28, borderTop: '1px solid #3a1a1a', paddingTop: 20 }}>
-              <SectionHeader title="ZONA DE RIESGO" color="#7f1d1d" />
+              <SectionHeader title="ZONA DE RIESGO" color="var(--red)" />
 
               {!editModal.baneado && (
                 <div style={{ marginBottom: 14 }}>
@@ -466,7 +466,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                 <button
                   onClick={() => { setEditDeleteOpen(o => !o); setEditSuspenderOpen(false); setEditDeleteConfirm('') }}
                   className="mono"
-                  style={{ fontSize: 11, padding: '8px 16px', width: '100%', textAlign: 'center', background: 'none', border: '1px solid #7f1d1d', borderRadius: 3, color: '#7f1d1d', cursor: 'pointer', letterSpacing: '0.08em' }}
+                  style={{ fontSize: 11, padding: '8px 16px', width: '100%', textAlign: 'center', background: 'none', border: '1px solid #7f1d1d', borderRadius: 3, color: 'var(--red)', cursor: 'pointer', letterSpacing: '0.08em' }}
                 >
                   {editDeleteOpen ? '↑ Cancelar' : 'Eliminar jugador permanentemente'}
                 </button>

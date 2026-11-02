@@ -93,7 +93,7 @@ export function AlineacionVoto({ partidoId }: { partidoId: string }) {
             placeholder="¿Por qué? (opcional)"
             maxLength={200}
             onKeyDown={e => e.key === 'Enter' && votar(-1, comentario)}
-            style={{ width: '100%', boxSizing: 'border-box', fontSize: 12 }}
+            style={{ width: '100%', boxSizing: 'border-box', fontSize: 16 }}
           />
           <button
             onClick={() => votar(-1, comentario)}

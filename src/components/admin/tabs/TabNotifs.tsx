@@ -114,7 +114,7 @@ export function TabNotifs({ partidos, players, onFlash }: Props) {
               <select
                 value={pushPartidoId || partidos[0]?.id || ''}
                 onChange={e => setPushPartidoId(e.target.value)}
-                style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, padding: '10px 12px', color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: 13 }}
+                style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, padding: '10px 12px', color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: 16 }}
               >
                 {partidos.map(p => (
                   <option key={p.id} value={p.id}>
@@ -132,7 +132,7 @@ export function TabNotifs({ partidos, players, onFlash }: Props) {
               <select
                 value={pushTarget}
                 onChange={e => setPushTarget(e.target.value)}
-                style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, padding: '10px 12px', color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: 13 }}
+                style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, padding: '10px 12px', color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: 16 }}
               >
                 <option value="">— Seleccionar jugador —</option>
                 {players.filter(p => p.aprobado && !p.baneado).map(p => (

@@ -192,6 +192,14 @@ Medido en producción: **storage 56 MB de 1 GB (5,5%), creciendo 119 MB/año →
 
 ---
 
+### 5.9 Diseño — en curso (desde 2026-11-02)
+Auditoría completa en `docs/diseno/INFORME.md` (+ `mockup.html` con editor de colores, + arnés de capturas en `docs/diseno/arnes/`). Orden acordado con el usuario:
+1. ✅ Arreglos rápidos (2026-11-02): 11 campos < 16 px, contraste de `--text-dim`/bordes, barra del inicio a 44 px, votación a 44 px, botón principal deshabilitado en gris.
+2. ⏳ Pasar los colores sueltos a tokens **sin cambio visual** (fase 1 del §5.8 del informe), separando "marca" de "subió/ok" en `--green`. Verificar comparando capturas con el arnés.
+3. ⏳ Colores por club: `app_settings.tema`, acción `guardar_tema` (solo superadmin), inyectado en `layout.tsx`. Validar el hex con regex estricta (si no, XSS persistente).
+4. ⏳ Rediseño "Cancha nocturna" (§4 del informe).
+Pendientes P1/P2 sueltos del informe §3 que no entraron en el paso 1: segmentados de `/puntaje` a 44 px, botones de `/perfil`, `var(--surface)` inexistente en `TabPartidos`, rejilla de inscritos del panel, navegación del admin.
+
 ## 6. Decisiones de producto vigentes
 
 - **Rating v2** (`lib/rating.ts`):
@@ -258,6 +266,8 @@ Medido en producción: **storage 56 MB de 1 GB (5,5%), creciendo 119 MB/año →
   - **El cierre por plazo solo dispara antes de las 6 AM.** No es decorativo: un admin que marque el partido como jugado al día siguiente abre las votaciones, y sin ese límite el cron se las cerraría al minuto, dejando a todos sin votar.
   - La **red de seguridad** que reabre un partido jugado cuya apertura falló se movió al mismo día del partido. En D+1 abriría algo que el cierre mata en el tic siguiente.
 - **Los invitados dependen de quien los trae** (2026-10-27): alguien descubrió el atajo de inscribirse, meter un invitado y salirse para dejarlo jugando. Ahora (`cancelarInvitadosDe()` en `lib/invitados.ts`) **cuando un jugador sale de un partido se borran sus invitados de ese partido**, en espera o confirmados: al bajarse solo, al sacarlo un admin (`remover_partido`), al banearlo y al eliminarlo. Cada invitado confirmado que se va libera un cupo y se corre `promover_espera` una vez por cupo, y después `sincronizarAlineacion` si había equipos. El aviso de "liberar tu cupo" nombra a los invitados que se van. Además `POST /api/invitados` exige que quien invita **esté inscrito en ese partido** (confirmado o en espera): la pantalla ya escondía el formulario, pero el endpoint no lo revisaba. `mover_espera` (admin pasa a alguien a espera) **no** toca sus invitados: sigue inscrito.
+- **"Salir" vive en Mi perfil** (2026-11-02), al final, como "Cerrar sesión". En la barra del inicio quedaba pegado al avatar a 28 px y un toque fallido sacaba a la persona. La barra quedó: nombre del club · ADMIN (si aplica) · 🔔 solo icono (si faltan permisos) · avatar, todo de 44 px.
+- **Grises y bordes** (2026-11-02): `--text-dim` #8a8a8a (5.5:1; era #666), `--border` #2e2e2e (solo separa tarjetas), `--border-light` #6b6b6b = contorno de **controles** (3:1, para que un campo se vea como campo). Un control nuevo usa `--border-light`, no `--border`. `.btn-primary:disabled` es gris, no verde apagado.
 - **Recordatorio de votación** (cron, **10 PM del mismo día del partido** — dos horas después de que abren y dos antes de que cierren): push **y** email a los confirmados que todavía no han entregado evaluación. No sale si la votación ya llegó a `reco_min_votantes` — si hay quórum nadie va a perder puntaje y no hay por qué molestar. Bandera `partidos.notif_votar_sent` para que no se repita cada minuto. Todo el bloque va en try/catch: si falta `20260919_recordatorio_votar.sql` no manda nada y el resto del cron sigue igual.
   - **La ventana de votación es más corta de lo que suena:** abren al cerrar el partido (~1 h después del pito) y el cron las cierra cuando la fecha queda dos días atrás, o sea en el tic de las **00:00 del día D+2**. Para un partido del martes: abren martes ~8 PM, cierran jueves a medianoche. En la práctica se vota "hasta que se acabe el miércoles".
 - **Progreso de votación** (Admin → Historial, acción GET `progreso_votaciones`): barra + "8 de 14 han votado" junto al botón de cerrar, y "votaron" cuando ya cerró. Va por el servidor porque el cliente ya no puede leer `votos_reconocimiento` ni `player_thumbs` — quedaron sin políticas para que los votos sean anónimos de verdad. Un jugador cuenta una sola vez aunque haya mandado votos y pulgares.

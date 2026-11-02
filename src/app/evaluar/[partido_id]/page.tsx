@@ -120,19 +120,22 @@ function PlayerChip({
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 6,
-        padding: '6px 12px',
-        borderRadius: 20,
+        gap: 8,
+        // 44 px: el mínimo para el pulgar. El borde sin elegir es el de los
+        // controles (3:1) para que el chip se lea como botón y no como texto.
+        minHeight: 44,
+        padding: '6px 14px 6px 8px',
+        borderRadius: 22,
         background: selected ? 'var(--green)' : 'var(--bg-card)',
-        border: `1px solid ${selected ? 'var(--green)' : 'var(--border)'}`,
+        border: `1px solid ${selected ? 'var(--green)' : 'var(--border-light)'}`,
         color: selected ? '#000' : 'var(--text)',
         cursor: 'pointer',
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: selected ? 600 : 400,
         transition: 'all 0.15s',
       }}
     >
-      <PlayerAvatar url={p.avatar_url} username={p.username} size={20} borderColor="rgba(255,255,255,0.1)" />
+      <PlayerAvatar url={p.avatar_url} username={p.username} size={28} borderColor="rgba(255,255,255,0.1)" />
       {p.username}
     </button>
   )
@@ -454,9 +457,9 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
                     onClick={() => toggleVoto(cat.id, NO_APLICA)}
                     className="mono"
                     style={{
-                      fontSize: 11, padding: '8px 14px', borderRadius: 999, cursor: 'pointer',
+                      fontSize: 12, minHeight: 44, padding: '8px 16px', borderRadius: 999, cursor: 'pointer',
                       background: noAplica ? 'var(--bg-elevated)' : 'none',
-                      border: `1px solid ${noAplica ? 'var(--text-dim)' : 'var(--border)'}`,
+                      border: `1px solid ${noAplica ? 'var(--text-dim)' : 'var(--border-light)'}`,
                       color: noAplica ? 'var(--text-muted)' : 'var(--text-dim)',
                     }}
                   >
@@ -499,7 +502,6 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
                 style={{
                   width: '100%', justifyContent: 'center',
                   padding: '14px', fontSize: 14,
-                  opacity: total === 0 ? 0.4 : 1,
                 }}
               >
                 {enviando

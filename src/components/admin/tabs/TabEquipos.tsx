@@ -354,7 +354,7 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
                 const g = e.target.value
                 setRotacion(p => p ? { ...p, porteroFijoId: g, rotacionBanca: g ? p.rotacionBanca.filter(u => u !== g) : p.rotacionBanca } : p)
               }}
-              style={{ fontSize: 12, padding: '6px 10px', marginBottom: 8, width: '100%' }}
+              style={{ fontSize: 16, padding: '6px 10px', marginBottom: 8, width: '100%' }}
             >
               <option value="">— seleccionar portero —</option>
               {jugadores.map(u => <option key={u} value={u}>{u}</option>)}
@@ -410,7 +410,7 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
         <select
           value={equiposPartido?.id ?? ''}
           onChange={e => { const p = partidos.find(pt => pt.id === e.target.value); if (p) cargarEquipos(p) }}
-          style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, padding: '8px 12px', color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: 12 }}
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, padding: '8px 12px', color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: 16 }}
         >
           <option value="">Seleccionar partido...</option>
           {partidos.map(p => (
@@ -577,7 +577,7 @@ ${c.comentario}` : c.comentario)}
             </ButtonGroup>
           )}
           <div style={{ marginBottom: 28 }}>
-            <button onClick={resetearEquiposAction} disabled={equiposLoading} className="mono" style={{ fontSize: 11, padding: '8px 14px', background: 'none', border: '1px solid #7f1d1d', borderRadius: 3, color: '#7f1d1d', cursor: 'pointer', letterSpacing: '0.08em' }}>
+            <button onClick={resetearEquiposAction} disabled={equiposLoading} className="mono" style={{ fontSize: 11, padding: '8px 14px', background: 'none', border: '1px solid #7f1d1d', borderRadius: 3, color: 'var(--red)', cursor: 'pointer', letterSpacing: '0.08em' }}>
               ✕ Resetear equipos
             </button>
           </div>
@@ -626,7 +626,7 @@ ${c.comentario}` : c.comentario)}
                   onChange={e => setFeedbackText(e.target.value)}
                   placeholder={'Ej: "Juli y Mauricio no deben ir juntos"\nEj: "Magic y Mati siempre en el mismo equipo"'}
                   rows={3}
-                  style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, padding: '10px 12px', color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: 12, resize: 'vertical', boxSizing: 'border-box' }}
+                  style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, padding: '10px 12px', color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: 16, resize: 'vertical', boxSizing: 'border-box' }}
                 />
                 <button onClick={guardarFeedback} disabled={savingFeedback || !feedbackText.trim()} className="btn btn-ghost" style={{ marginTop: 8, fontSize: 11, padding: '8px 16px', color: 'var(--green)', borderColor: '#16a34a' }}>
                   {savingFeedback ? 'Guardando...' : '💾 Guardar feedback'}
@@ -644,7 +644,7 @@ ${c.comentario}` : c.comentario)}
                           {new Date(f.created_at).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
                         </div>
                         <div style={{ flex: 1, fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>{f.feedback}</div>
-                        <button onClick={() => eliminarFeedback(f.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#7f1d1d', fontSize: 13, lineHeight: 1, flexShrink: 0, padding: '0 4px' }} title="Eliminar">✕</button>
+                        <button onClick={() => eliminarFeedback(f.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)', fontSize: 13, lineHeight: 1, flexShrink: 0, padding: '0 4px', minWidth: 44, minHeight: 44 }} title="Eliminar" aria-label="Eliminar">✕</button>
                       </div>
                     ))}
                   </div>

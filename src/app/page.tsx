@@ -515,11 +515,6 @@ export default function HomePage() {
   }
 
 
-  const cerrarSesion = async () => {
-    await supabase.auth.signOut()
-    window.location.href = '/login'
-  }
-
   const renderUltimoResultados = () => {
     // Sin foto, sin reconocimientos y sin movimiento de puntaje la tarjeta
     // quedaría vacía. Con cualquiera de las tres hay algo que mostrar.
@@ -588,32 +583,35 @@ export default function HomePage() {
   return (
     <div style={{ minHeight: '100vh', paddingBottom: 80 }}>
       {/* Nav */}
-      <nav style={{ borderBottom: '1px solid var(--border)', padding: '16px 0', position: 'sticky', top: 0, zIndex: 30, background: 'var(--bg)' }}>
-        <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <nav style={{ borderBottom: '1px solid var(--border)', padding: '6px 0', position: 'sticky', top: 0, zIndex: 30, background: 'var(--bg)' }}>
+        <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <span className="display" style={{
             fontSize: 20, letterSpacing: '0.1em',
             minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>{club.nombre}</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
+          {/* Todo lo de la derecha mide 44 px de alto: es el mínimo para el
+              pulgar. Antes eran 28 px uno al lado del otro, y "Salir" quedaba
+              pegado al avatar (ahora vive en Mi perfil). La campana va sin
+              texto para que el nombre del club no se corte a "M". */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             {(profile?.role === 'admin' || profile?.role === 'superadmin') && (
-              <Link href="/admin" className="mono" style={{ fontSize: 12, color: 'var(--amber)', letterSpacing: '0.08em', textDecoration: 'none' }}>
-                ADMIN ↗
+              <Link href="/admin" className="mono" style={{ fontSize: 12, color: 'var(--amber)', letterSpacing: '0.08em', textDecoration: 'none', minHeight: 44, padding: '0 8px', display: 'flex', alignItems: 'center' }}>
+                ADMIN
               </Link>
             )}
             {pushPermission !== 'granted' && pushPermission !== null && 'PushManager' in window && (
-              <button onClick={activarPush} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 11, color: 'var(--amber)', borderColor: '#92400e' }}>
-                🔔 Notificaciones
+              <button onClick={activarPush} aria-label="Activar notificaciones" title="Activar notificaciones" style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid #92400e', borderRadius: 22, fontSize: 18, cursor: 'pointer', padding: 0 }}>
+                🔔
               </button>
             )}
             {/* Profile avatar + username → /perfil */}
-            <Link href="/perfil" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+            <Link href="/perfil" aria-label="Mi perfil" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', minHeight: 44, minWidth: 44, justifyContent: 'center' }}>
               {/* Era una tercera copia a mano del avatar, con su propio
                   respaldo por inicial y sin manejo de error. Se usa el
                   componente, que ya pinta el dorsal y aguanta una foto rota. */}
-              <PlayerAvatar url={profile?.avatar_url ?? null} username={profile?.username ?? ''} size={28} />
+              <PlayerAvatar url={profile?.avatar_url ?? null} username={profile?.username ?? ''} size={34} />
               <span className="mono nav-hide-sm" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{profile?.username}</span>
             </Link>
-            <button onClick={cerrarSesion} className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 11 }}>Salir</button>
           </div>
         </div>
       </nav>
@@ -764,7 +762,7 @@ export default function HomePage() {
                 {Array.from({ length: cuposTotal }, (_, i) => (
                   <div key={i} style={{
                     height: 8, borderRadius: 2,
-                    background: i < totalConfirmados ? 'var(--green)' : 'var(--border-light)'
+                    background: i < totalConfirmados ? 'var(--green)' : 'var(--border)'
                   }} />
                 ))}
               </div>

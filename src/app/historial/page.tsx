@@ -36,8 +36,8 @@ const COLOR: Record<Resultado, string> = {
 
 const selectStyle: React.CSSProperties = {
   background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3,
-  color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: 12,
-  padding: '7px 10px', minWidth: 0, flex: '1 1 140px',
+  color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: 16,
+  padding: '9px 10px', minWidth: 0, flex: '1 1 140px',
 }
 
 function Chip({ activo, onClick, color, children }: {
@@ -191,7 +191,7 @@ export default function HistorialPage() {
             <select
               value={anio}
               onChange={e => { setAnio(e.target.value); setMes('') }}
-              style={{ ...selectStyle, flex: '0 1 100px' }}
+              style={{ ...selectStyle, flex: '0 1 130px' }}
               aria-label="Año"
             >
               <option value="">Siempre</option>
@@ -201,7 +201,7 @@ export default function HistorialPage() {
                 por el primer partido del club y por el mes de hoy, así que se
                 alimenta sin que nadie la mantenga. */}
             {anio && (
-              <select value={mes} onChange={e => setMes(e.target.value)} style={{ ...selectStyle, flex: '0 1 130px' }} aria-label="Mes">
+              <select value={mes} onChange={e => setMes(e.target.value)} style={{ ...selectStyle, flex: '0 1 160px' }} aria-label="Mes">
                 <option value="">Todo el año</option>
                 {meses.map(m => <option key={m} value={m}>{MESES[m - 1]}</option>)}
               </select>

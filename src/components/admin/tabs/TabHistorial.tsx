@@ -709,7 +709,7 @@ export function TabHistorial({ active }: Props) {
                             <select
                               value={addPlayerId}
                               onChange={e => setAddPlayerId(e.target.value)}
-                              style={{ width: '100%', padding: '8px 10px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text)', fontSize: 13 }}
+                              style={{ width: '100%', padding: '8px 10px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text)', fontSize: 16 }}
                               aria-label={modo === 'agregar' ? 'Jugador a agregar' : 'Jugador a remover'}
                             >
                               <option value="">— Seleccionar —</option>

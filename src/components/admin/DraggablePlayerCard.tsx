@@ -29,7 +29,7 @@ export function DraggablePlayerCard({ jugador, equipo, confirmado }: Props) {
         padding: '8px 10px',
         background: 'var(--bg-card)',
         border: '1px solid var(--border)',
-        borderRadius: 3,
+        borderRadius: 10,
         cursor: confirmado ? 'default' : 'grab',
         touchAction: 'none',
         display: 'flex',
@@ -46,7 +46,7 @@ export function DraggablePlayerCard({ jugador, equipo, confirmado }: Props) {
         <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {jugador.username}
         </div>
-        <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>
+        <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>
           {posicionEmoji(jugador.posicion)} ★{formatRating(jugador.habilidad)}
         </div>
       </div>

@@ -57,10 +57,10 @@ function ProgresoVotacion({ progreso, cerrada }: {
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <div style={{ flex: 1, maxWidth: 160, height: 5, background: 'var(--bg-elevated)', borderRadius: 3, overflow: 'hidden' }}>
+      <div style={{ flex: 1, maxWidth: 160, height: 5, background: 'var(--bg-elevated)', borderRadius: 10, overflow: 'hidden' }}>
         <div style={{ width: `${pct}%`, height: '100%', background: color, transition: 'width 0.3s' }} />
       </div>
-      <span className="mono" style={{ fontSize: 11, color, whiteSpace: 'nowrap' }}>
+      <span className="mono" style={{ fontSize: 12, color, whiteSpace: 'nowrap' }}>
         {votaron} de {total} {cerrada ? 'votaron' : 'han votado'}
       </span>
     </div>
@@ -108,7 +108,7 @@ function ListaJugadores({ inscripciones, equipoDe }: {
         const color = meta?.color ?? (clave === 'espera' ? 'var(--amber)' : 'var(--text-dim)')
         return (
           <div key={clave}>
-            <div className="mono" style={{ fontSize: 9, letterSpacing: '0.12em', color, marginBottom: 6 }}>
+            <div className="mono" style={{ fontSize: 12, letterSpacing: '0.12em', color, marginBottom: 6 }}>
               {titulo} · {lista.length}
             </div>
             {/* `flex` y no `grid`: con una rejilla de columnas iguales, en
@@ -125,7 +125,7 @@ function ListaJugadores({ inscripciones, equipoDe }: {
                   opacity: clave === 'espera' ? 0.65 : 1,
                 }}>
                   <PlayerAvatar url={ins.profiles.avatar_url ?? null} username={ins.profiles.username} size={20} />
-                  <span className="mono" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
+                  <span className="mono" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
                     {ins.profiles.username}
                   </span>
                 </div>
@@ -479,17 +479,17 @@ export function TabHistorial({ active }: Props) {
         <div className="mono" style={{
           position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)',
           background: 'var(--pos-soft)', border: '1px solid var(--pos-line)', color: 'var(--pos)',
-          padding: '10px 20px', borderRadius: 3, fontSize: 13, zIndex: 200,
+          padding: '10px 20px', borderRadius: 10, fontSize: 13, zIndex: 200,
         }}>
           {flash}
         </div>
       )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
+        <div className="mono" style={{ fontSize: 12, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
           HISTORIAL — {historial.length} partidos pasados
         </div>
-        <button onClick={cargar} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>↻ Refrescar</button>
+        <button onClick={cargar} className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }}>↻ Refrescar</button>
       </div>
 
       {loading ? (
@@ -546,13 +546,13 @@ export function TabHistorial({ active }: Props) {
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
                     {p.jugado === true && (
-                      <span className="mono" style={{ fontSize: 10, color: 'var(--pos)', border: '1px solid var(--pos-line)', padding: '2px 8px', borderRadius: 2 }}>JUGADO</span>
+                      <span className="mono" style={{ fontSize: 12, color: 'var(--pos)', border: '1px solid var(--pos-line)', padding: '2px 8px', borderRadius: 6 }}>JUGADO</span>
                     )}
                     {p.jugado === false && (
-                      <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', border: '1px solid var(--border)', padding: '2px 8px', borderRadius: 2 }}>NO JUGADO</span>
+                      <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', border: '1px solid var(--border)', padding: '2px 8px', borderRadius: 6 }}>NO JUGADO</span>
                     )}
                     {p.evaluaciones_abiertas && (
-                      <span className="mono" style={{ fontSize: 10, color: 'var(--mini)', border: '1px solid var(--mini-line)', padding: '2px 8px', borderRadius: 2 }}>EVAL ✓</span>
+                      <span className="mono" style={{ fontSize: 12, color: 'var(--mini)', border: '1px solid var(--mini-line)', padding: '2px 8px', borderRadius: 6 }}>EVAL ✓</span>
                     )}
                     <span className="mono" style={{ fontSize: 14, color: 'var(--text-dim)' }}>{isExpanded ? '▲' : '▼'}</span>
                   </div>
@@ -567,7 +567,7 @@ export function TabHistorial({ active }: Props) {
                         const quitando = quitandoBadge === key
                         const etiqueta = `${b.badge_nombre}${b.profiles ? ` · ${b.profiles.username}` : ''}`
                         return (
-                          <div key={i} className="mono" style={{ fontSize: 11, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 2, padding: '3px 4px 3px 8px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, opacity: quitando ? 0.5 : 1 }}>
+                          <div key={i} className="mono" style={{ fontSize: 12, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 4px 3px 8px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, opacity: quitando ? 0.5 : 1 }}>
                             <span>
                               {b.badge_emoji} {b.badge_nombre}
                               {b.profiles && <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>· {b.profiles.username}</span>}
@@ -614,7 +614,7 @@ export function TabHistorial({ active }: Props) {
                         // pantalla que gana con el espacio, y estaba capada a
                         // 340 px mientras la lista de nombres se estiraba a
                         // lo ancho completo.
-                        <div style={{ marginBottom: 10, borderRadius: 4, overflow: 'hidden', aspectRatio: '16 / 9', background: '#000' }}>
+                        <div style={{ marginBottom: 10, borderRadius: 10, overflow: 'hidden', aspectRatio: '16 / 9', background: '#000' }}>
                           <img
                             src={p.foto_url!}
                             alt="Foto del partido"
@@ -625,9 +625,9 @@ export function TabHistorial({ active }: Props) {
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                       <label style={{
                         display: 'inline-block', padding: '8px 16px', fontSize: 12, cursor: uploadingFoto ? 'wait' : 'pointer',
-                        border: '1px solid var(--border)', borderRadius: 3, background: 'var(--bg-card)',
+                        border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-card)',
                         color: uploadingFoto ? 'var(--text-dim)' : 'var(--text)',
-                        fontFamily: 'DM Mono, monospace', letterSpacing: '0.05em',
+                        fontFamily: 'var(--font-ui)', letterSpacing: '0.05em',
                       }}>
                         {uploadingFoto ? 'Subiendo...' : p.foto_url ? '📷 Cambiar foto' : '📷 Subir foto'}
                         <input
@@ -649,17 +649,17 @@ export function TabHistorial({ active }: Props) {
                           style={{
                             padding: '8px 16px', fontSize: 12,
                             cursor: uploadingFoto ? 'wait' : 'pointer',
-                            border: '1px solid var(--border)', borderRadius: 3,
+                            border: '1px solid var(--border)', borderRadius: 10,
                             background: 'var(--bg-card)',
                             color: uploadingFoto ? 'var(--text-dim)' : 'var(--text)',
-                            fontFamily: 'DM Mono, monospace', letterSpacing: '0.05em',
+                            fontFamily: 'var(--font-ui)', letterSpacing: '0.05em',
                           }}
                         >
                           ✂️ Reencuadrar
                         </button>
                       )}
                       </div>
-                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 6 }}>
+                      <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6 }}>
                         Se muestra en el dashboard cuando cierran las evaluaciones.
                       </div>
                     </div>
@@ -691,11 +691,11 @@ export function TabHistorial({ active }: Props) {
                               onClick={() => { setModo(modo === m ? null : m); setAddPlayerId('') }}
                               className="mono"
                               style={{
-                                padding: '6px 12px', fontSize: 11, border: '1px solid',
+                                padding: '6px 12px', fontSize: 12, border: '1px solid',
                                 borderColor: modo === m ? (m === 'agregar' ? 'var(--pos-line)' : 'var(--neg-line)') : 'var(--border)',
                                 background: modo === m ? (m === 'agregar' ? 'var(--pos-soft)' : '#2a0f0f') : 'none',
                                 color: modo === m ? (m === 'agregar' ? 'var(--pos)' : 'var(--red)') : 'var(--text-dim)',
-                                borderRadius: 3, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase',
+                                borderRadius: 10, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase',
                               }}
                             >
                               {m === 'agregar' ? '+ Agregar' : '− Remover'}
@@ -709,7 +709,7 @@ export function TabHistorial({ active }: Props) {
                             <select
                               value={addPlayerId}
                               onChange={e => setAddPlayerId(e.target.value)}
-                              style={{ width: '100%', padding: '8px 10px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text)', fontSize: 16 }}
+                              style={{ width: '100%', padding: '8px 10px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)', fontSize: 16 }}
                               aria-label={modo === 'agregar' ? 'Jugador a agregar' : 'Jugador a remover'}
                             >
                               <option value="">— Seleccionar —</option>
@@ -730,11 +730,11 @@ export function TabHistorial({ active }: Props) {
                                   onClick={() => setAddEstado(e)}
                                   className="mono"
                                   style={{
-                                    padding: '7px 10px', fontSize: 11, border: '1px solid',
+                                    padding: '7px 10px', fontSize: 12, border: '1px solid',
                                     borderColor: addEstado === e ? (e === 'confirmado' ? 'var(--pos-line)' : 'var(--warn-line)') : 'var(--border)',
                                     background: addEstado === e ? (e === 'confirmado' ? 'var(--pos-soft)' : 'var(--warn-bg)') : 'none',
                                     color: addEstado === e ? (e === 'confirmado' ? 'var(--pos)' : 'var(--amber)') : 'var(--text-muted)',
-                                    borderRadius: 3, cursor: 'pointer', letterSpacing: '0.05em', textTransform: 'uppercase',
+                                    borderRadius: 10, cursor: 'pointer', letterSpacing: '0.05em', textTransform: 'uppercase',
                                   }}
                                 >
                                   {e}
@@ -776,7 +776,7 @@ export function TabHistorial({ active }: Props) {
                         >
                           {savingConfirmar ? '...' : '✓ Marcar como jugado'}
                         </button>
-                        <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6, lineHeight: 1.5 }}>
+                        <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6, lineHeight: 1.5 }}>
                           Abre las votaciones y avisa a los confirmados.
                         </div>
                       </div>
@@ -792,7 +792,7 @@ export function TabHistorial({ active }: Props) {
                     <div>
                       {score && editandoResultado !== p.id ? (
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-                          <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
+                          <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
                             RESULTADO
                           </div>
                           <div className="mono" style={{ fontSize: 13, color: 'var(--text-muted)' }}>
@@ -804,7 +804,7 @@ export function TabHistorial({ active }: Props) {
                             onClick={() => { prefillResultado(p); setEditandoResultado(p.id) }}
                             className="mono"
                             style={{
-                              fontSize: 10, color: 'var(--text-dim)', background: 'none',
+                              fontSize: 12, color: 'var(--text-dim)', background: 'none',
                               border: 'none', cursor: 'pointer', textDecoration: 'underline',
                               padding: 0, letterSpacing: '0.06em',
                             }}
@@ -823,7 +823,7 @@ export function TabHistorial({ active }: Props) {
                             { label: '🟣 Morados', val: ptsMorados, set: setPtsMorados },
                           ] as { label: string; val: string; set: (v: string) => void }[]).map(({ label, val, set }) => (
                             <div key={label}>
-                              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>{label}</div>
+                              <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 4 }}>{label}</div>
                               <input
                                 type="number" min="0" max="99" value={val}
                                 onChange={e => set(e.target.value)}
@@ -843,7 +843,7 @@ export function TabHistorial({ active }: Props) {
                       ) : (
                         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
                           <div>
-                            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>🤍 Blancos</div>
+                            <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 4 }}>🤍 Blancos</div>
                             <input
                               type="number" min="0" max="99" value={golesA}
                               onChange={e => setGolesA(e.target.value)}
@@ -852,7 +852,7 @@ export function TabHistorial({ active }: Props) {
                           </div>
                           <div className="mono" style={{ fontSize: 20, color: 'var(--text-dim)', paddingBottom: 8 }}>–</div>
                           <div>
-                            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>🖤 Negros</div>
+                            <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 4 }}>🖤 Negros</div>
                             <input
                               type="number" min="0" max="99" value={golesB}
                               onChange={e => setGolesB(e.target.value)}
@@ -889,7 +889,7 @@ export function TabHistorial({ active }: Props) {
                           >
                             {savingCerrar ? '...' : '🏅 Cerrar votación y asignar badges'}
                           </button>
-                          <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                          <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>
                             Cierra la votación, talla votos y asigna badges a los ganadores por categoría.
                           </div>
                         </div>
@@ -904,7 +904,7 @@ export function TabHistorial({ active }: Props) {
                           >
                             {savingEval ? '...' : '📊 Abrir evaluaciones ahora'}
                           </button>
-                          <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                          <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>
                             Abre votación y notifica por push a jugadores confirmados.
                           </div>
                         </div>

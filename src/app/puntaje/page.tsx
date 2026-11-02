@@ -49,7 +49,7 @@ function Chip({ activo, onClick, color, children, flex }: {
       onClick={onClick}
       className="mono"
       style={{
-        padding: '8px 14px', fontSize: 12, cursor: 'pointer', borderRadius: 3,
+        minHeight: 44, padding: '8px 14px', fontSize: 13, cursor: 'pointer', borderRadius: 10,
         letterSpacing: '0.06em', whiteSpace: 'nowrap', flex: flex ? 1 : undefined,
         border: `1px solid ${activo ? (color ?? VERDE) : 'var(--border)'}`,
         background: activo ? 'var(--bg-elevated)' : 'transparent',
@@ -66,8 +66,8 @@ function Contador({ valor, set, max, label }: {
   valor: number; set: (n: number) => void; max: number; label: React.ReactNode
 }) {
   const btn: React.CSSProperties = {
-    width: 34, height: 34, borderRadius: 3, cursor: 'pointer', fontSize: 16,
-    border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)',
+    width: 44, height: 44, borderRadius: 10, cursor: 'pointer', fontSize: 18,
+    border: '1px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text)',
   }
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -82,7 +82,7 @@ function Contador({ valor, set, max, label }: {
 function Seccion({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 26 }}>
-      <div className="mono" style={{ fontSize: 10, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 10 }}>
+      <div className="mono" style={{ fontSize: 12, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 10 }}>
         {titulo}
       </div>
       {children}
@@ -181,7 +181,7 @@ export default function PuntajePage() {
             de a poquito: cada señal de un partido vale <strong style={{ color: 'var(--text)' }}>{paso}</strong>.
             Sube y baja entre 1.00 y 5.00.
           </div>
-          <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8 }}>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8 }}>
             Se aplica una sola vez, cuando cierran las votaciones del partido. Antes de eso nada se mueve.
           </div>
         </div>
@@ -194,7 +194,7 @@ export default function PuntajePage() {
             Un `sticky` solo se pega dentro de su padre, así que al terminar el
             simulador se despega solo y la tabla de abajo queda libre. */}
         <div style={{ marginBottom: 32 }}>
-          <div className="mono" style={{ fontSize: 10, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 10 }}>
+          <div className="mono" style={{ fontSize: 12, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 10 }}>
             SIMULA TU PRÓXIMO PARTIDO
           </div>
 
@@ -215,7 +215,7 @@ export default function PuntajePage() {
 
             <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 5 }}>
               {calculo.lineas.map((l, i) => (
-                <div key={i} className="mono" style={{ fontSize: 11, display: 'flex', gap: 8 }}>
+                <div key={i} className="mono" style={{ fontSize: 12, display: 'flex', gap: 8 }}>
                   <span style={{ flex: 1, minWidth: 0, color: l.escalones === 0 ? 'var(--text-dim)' : 'var(--text-muted)' }}>
                     {explicarMotivo(l.motivo)}
                   </span>
@@ -227,14 +227,14 @@ export default function PuntajePage() {
             </div>
 
             {calculo.topado && (
-              <div className="mono" style={{ fontSize: 11, color: 'var(--amber)', marginTop: 12, lineHeight: 1.6 }}>
+              <div className="mono" style={{ fontSize: 12, color: 'var(--amber)', marginTop: 12, lineHeight: 1.6 }}>
                 Te daba {formatDelta(calculo.bruto)}, pero el tope de {esMini ? 'un minitorneo' : 'un partido'} es
                 ±{tope.toFixed(3)}. Lo que sobra se pierde para este partido, no para siempre.
               </div>
             )}
 
             {despues !== round3(antes + calculo.delta) && (
-              <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 10 }}>
+              <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 10 }}>
                 Recortado al límite de la escala (1.00 – 5.00).
               </div>
             )}
@@ -260,7 +260,7 @@ export default function PuntajePage() {
                 </div>
 
                 <div>
-                  <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
+                  <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 8 }}>
                     Reconocimientos que te ganaste
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -278,7 +278,7 @@ export default function PuntajePage() {
                 </div>
 
                 <div>
-                  <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
+                  <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 8 }}>
                     Pulgares que te dieron — cada {reglas.thumbsPaso} valen {paso}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -327,7 +327,7 @@ export default function PuntajePage() {
               detalle="Te inscribiste; que no entraras no es culpa tuya. No baja nada." />
           </div>
 
-          <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 12, lineHeight: 1.7, padding: '10px 12px', background: 'var(--bg-card)', borderRadius: 4, border: '1px solid var(--border)' }}>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 12, lineHeight: 1.7, padding: '10px 12px', background: 'var(--bg-card)', borderRadius: 10, border: '1px solid var(--border)' }}>
             <strong style={{ color: 'var(--amber)' }}>Hay un tope por partido.</strong> Sumes lo que sumes, un partido
             normal no te mueve más de <strong style={{ color: 'var(--text)' }}>±{CAP_NORMAL.toFixed(3)}</strong> y
             un minitorneo más de <strong style={{ color: 'var(--text)' }}>±{CAP_MINI.toFixed(2)}</strong>.
@@ -335,7 +335,7 @@ export default function PuntajePage() {
           </div>
         </Seccion>
 
-        <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 24, lineHeight: 1.7, textAlign: 'center' }}>
+        <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 24, lineHeight: 1.7, textAlign: 'center' }}>
           Esta cuenta la hace exactamente el mismo código que corre al cerrar las votaciones.
           <br />
           Si acá dice {formatDelta(calculo.delta)}, eso es lo que te va a quedar.
@@ -347,7 +347,7 @@ export default function PuntajePage() {
 
 function Regla({ valor, texto, detalle }: { valor: number; texto: string; detalle?: string }) {
   return (
-    <div style={{ padding: '10px 12px', background: 'var(--bg-card)', borderRadius: 3, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+    <div style={{ padding: '10px 12px', background: 'var(--bg-card)', borderRadius: 10, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="mono" style={{ fontSize: 13, color: 'var(--text)' }}>{texto}</div>
         {detalle && (

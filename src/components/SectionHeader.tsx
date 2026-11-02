@@ -10,7 +10,7 @@ interface Props {
 export function SectionHeader({ title, icon = '', count, color = 'var(--text-muted)' }: Props) {
   return (
     <div className="mono" style={{
-      fontSize: 10,
+      fontSize: 12,
       letterSpacing: '0.15em',
       color,
       marginBottom: 12,

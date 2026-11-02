@@ -75,13 +75,13 @@ export function RecorteFotoModal({
   return (
     <ModalOverlay>
       <Card style={{ width: '100%', maxWidth: 460, margin: 'auto' }} padding={18}>
-        <div className="mono" style={{ fontSize: 10, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 10 }}>
+        <div className="mono" style={{ fontSize: 12, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 10 }}>
           {titulo}
         </div>
 
         <div style={{
           position: 'relative', width: '100%', aspectRatio: String(aspecto),
-          background: '#000', borderRadius: 4, overflow: 'hidden',
+          background: '#000', borderRadius: 10, overflow: 'hidden',
         }}>
           {src && (
             <Cropper
@@ -111,13 +111,13 @@ export function RecorteFotoModal({
           <span className="mono" style={{ fontSize: 14, color: 'var(--text-dim)' }}>+</span>
         </div>
 
-        <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.5 }}>
+        <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.5 }}>
           {ayuda ?? <>Arrastra para mover, pellizca o usa la barra para acercar.
             Se guarda a {FOTO_ANCHO_MAX} px, comprimida.</>}
         </div>
 
         {error && (
-          <div className="mono" style={{ fontSize: 11, color: 'var(--amber)', marginTop: 10 }}>{error}</div>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--amber)', marginTop: 10 }}>{error}</div>
         )}
 
         <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>

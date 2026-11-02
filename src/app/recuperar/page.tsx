@@ -98,7 +98,7 @@ export default function RecuperarPage() {
             </span>
           ))}
         </div>
-        <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.15em', marginTop: 8 }}>
+        <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.15em', marginTop: 8 }}>
           RECUPERAR ACCESO
         </div>
       </div>
@@ -131,9 +131,9 @@ export default function RecuperarPage() {
         sentPwd ? (
           <div style={{ textAlign: 'center' }}>
             <div style={{
-              padding: '20px 24px', borderRadius: 3, marginBottom: 24,
+              padding: '20px 24px', borderRadius: 10, marginBottom: 24,
               background: 'var(--pos-soft)', border: '1px solid var(--pos-line)',
-              color: 'var(--pos)', fontFamily: 'DM Mono, monospace', fontSize: 13, lineHeight: 1.6
+              color: 'var(--pos)', fontFamily: 'var(--font-ui)', fontSize: 13, lineHeight: 1.6
             }}>
               ✓ Te enviamos un correo con el enlace para restablecer tu contraseña.
               <br /><br />
@@ -174,9 +174,9 @@ export default function RecuperarPage() {
         sentUser ? (
           <div style={{ textAlign: 'center' }}>
             <div style={{
-              padding: '20px 24px', borderRadius: 3, marginBottom: 24,
+              padding: '20px 24px', borderRadius: 10, marginBottom: 24,
               background: 'var(--pos-soft)', border: '1px solid var(--pos-line)',
-              color: 'var(--pos)', fontFamily: 'DM Mono, monospace', fontSize: 13, lineHeight: 1.6
+              color: 'var(--pos)', fontFamily: 'var(--font-ui)', fontSize: 13, lineHeight: 1.6
             }}>
               ✓ Si ese correo está registrado, te enviamos tu usuario.
               <br /><br />

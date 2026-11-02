@@ -40,7 +40,7 @@ async function postAdmin(payload: Record<string, unknown>): Promise<{ ok: boolea
 }
 
 const scoreInput: React.CSSProperties = { width: '4rem', padding: '8px 10px', textAlign: 'center', fontSize: 22, fontWeight: 700 }
-const scoreLabel: React.CSSProperties = { fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }
+const scoreLabel: React.CSSProperties = { fontSize: 12, color: 'var(--text-dim)', marginBottom: 4 }
 
 export function CierrePartidoCard({ onDone }: { onDone?: () => void }) {
   const [pendiente, setPendiente] = useState<Pendiente | null>(null)
@@ -158,7 +158,7 @@ export function CierrePartidoCard({ onDone }: { onDone?: () => void }) {
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
         <span style={{ fontSize: 18, lineHeight: 1 }}>{yaJugado ? '✅' : '⚽'}</span>
-        <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--amber)' }}>
+        <div className="mono" style={{ fontSize: 12, letterSpacing: '0.15em', color: 'var(--amber)' }}>
           {yaJugado ? 'PARTIDO JUGADO — FALTA EL MARCADOR' : '¿SE JUGÓ EL PARTIDO?'}
         </div>
       </div>
@@ -170,7 +170,7 @@ export function CierrePartidoCard({ onDone }: { onDone?: () => void }) {
       {!yaJugado ? (
         <>
           {lleno && (
-            <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 12, lineHeight: 1.5 }}>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 12, lineHeight: 1.5 }}>
               Con más de {pendiente.auto_jugado_min} confirmados lo damos por jugado.
             </div>
           )}
@@ -187,7 +187,7 @@ export function CierrePartidoCard({ onDone }: { onDone?: () => void }) {
               No se jugó
             </button>
           </div>
-          <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 8, lineHeight: 1.5 }}>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8, lineHeight: 1.5 }}>
             &quot;Sí&quot; abre las votaciones y avisa a los confirmados.
           </div>
         </>
@@ -224,13 +224,13 @@ export function CierrePartidoCard({ onDone }: { onDone?: () => void }) {
           {/* Photo */}
           <div>
             {(preview || p.foto_url) && (
-              <div style={{ marginBottom: 10, borderRadius: 4, overflow: 'hidden', maxWidth: 340 }}>
+              <div style={{ marginBottom: 10, borderRadius: 10, overflow: 'hidden', maxWidth: 340 }}>
                 <img src={preview ?? p.foto_url!} alt="Foto del partido" style={{ width: '100%', display: 'block', maxHeight: 200, objectFit: 'cover' }} />
               </div>
             )}
             <label className="mono" style={{
               display: 'inline-block', padding: '8px 16px', fontSize: 12, cursor: 'pointer',
-              border: '1px solid var(--border)', borderRadius: 3, background: 'var(--bg-card)',
+              border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-card)',
               color: 'var(--text)', letterSpacing: '0.05em',
             }}>
               {foto || p.foto_url ? '📷 Cambiar foto' : '📷 Subir foto'}
@@ -266,7 +266,7 @@ export function CierrePartidoCard({ onDone }: { onDone?: () => void }) {
               onClick={responderNo}
               disabled={saving}
               className="mono"
-              style={{ fontSize: 11, color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+              style={{ fontSize: 12, color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
             >
               En realidad no se jugó
             </button>

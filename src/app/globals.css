@@ -1,6 +1,21 @@
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&display=swap');  
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap');
 
 :root {
+  /* ── Tipografía ("Cancha nocturna", docs/diseno/INFORME.md §4) ──────────
+     Texto e interfaz en la letra del sistema (SF Pro en iPhone): pesa cero
+     bytes y es la más legible a 15–17 px. Bebas solo para titulares. DM Mono
+     queda para cifras que tienen que alinearse (clase .num). */
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Bebas Neue', var(--font-ui);
+  --font-num: 'DM Mono', ui-monospace, monospace;
+  /* Radios: cuatro, no nueve. */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-pill: 999px;
+  /* Mínimo para el pulgar. */
+  --tap: 44px;
+
   --bg: #080808;
   --bg-card: #111111;
   --bg-elevated: #1a1a1a;
@@ -64,7 +79,7 @@
 html {
   background: var(--bg);
   color: var(--text);
-  font-family: 'DM Serif Display', Georgia, serif;
+  font-family: var(--font-ui);
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
 }
@@ -75,9 +90,16 @@ body {
 }
 
 /* Typography */
-.display { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.05em; }
-.mono { font-family: 'DM Mono', monospace; }
-.serif { font-family: 'DM Serif Display', serif; }
+.display { font-family: var(--font-display); letter-spacing: 0.05em; }
+/* .mono era la voz de toda la interfaz (430 elementos en mayúsculas mono de
+   9–11 px). Ahora es la letra del sistema con cifras tabulares: etiquetas y
+   números siguen alineando, pero se leen. Para mono de verdad: .num. */
+.mono { font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+
+/* Los botones y campos no heredan la letra por defecto: sin esto el mismo
+   nombre salía en una letra en el inicio y en otra en el panel. */
+button, input, select, textarea { font-family: inherit; }
 
 /* Layout */
 .container {
@@ -90,7 +112,7 @@ body {
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--r-lg);
   padding: 24px;
 }
 
@@ -99,7 +121,7 @@ input, select, textarea {
   background: var(--bg-elevated);
   border: 1px solid var(--border-light);
   color: var(--text);
-  font-family: 'DM Mono', monospace;
+  font-family: var(--font-ui);
   /* 16px NO es una decisión de diseño, es un requisito de iOS.
      Safari hace zoom sobre cualquier campo con letra de menos de 16px en
      cuanto se toca, y no hay forma de desactivarlo (desde iOS 10 ignora
@@ -109,7 +131,7 @@ input, select, textarea {
      partido, que es el que más campos tiene. Bajar de acá lo revive. */
   font-size: 16px;
   padding: 12px 16px;
-  border-radius: 3px;
+  border-radius: var(--r-md);
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;  /* width includes padding+border → no overflow */
@@ -127,13 +149,15 @@ input::placeholder { color: var(--text-dim); }
   align-items: center;
   justify-content: center;
   gap: 8px;
+  min-height: var(--tap);
   padding: 12px 24px;
   border: none;
-  border-radius: 3px;
+  border-radius: var(--r-md);
   cursor: pointer;
-  font-family: 'DM Mono', monospace;
+  font-family: var(--font-ui);
   font-size: 13px;
-  letter-spacing: 0.05em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   transition: all 0.15s;
   text-decoration: none;
@@ -173,9 +197,10 @@ input::placeholder { color: var(--text-dim); }
 .badge {
   display: inline-block;
   padding: 3px 10px;
-  border-radius: 2px;
-  font-family: 'DM Mono', monospace;
-  font-size: 11px;
+  border-radius: var(--r-sm);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }

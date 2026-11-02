@@ -26,7 +26,7 @@ function ChipFiltro({ activo, onClick, color, children }: {
       onClick={onClick}
       className="mono"
       style={{
-        padding: '6px 12px', fontSize: 11, cursor: 'pointer', borderRadius: 3,
+        padding: '6px 12px', fontSize: 12, cursor: 'pointer', borderRadius: 10,
         letterSpacing: '0.06em', whiteSpace: 'nowrap',
         border: `1px solid ${activo ? (color ?? 'var(--primary)') : 'var(--border)'}`,
         background: activo ? 'var(--bg-elevated)' : 'transparent',
@@ -182,7 +182,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                 <div key={p.id} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '14px 16px', background: 'var(--neg-bg)',
-                  border: '1px solid var(--neg-deep)', borderRadius: 3,
+                  border: '1px solid var(--neg-deep)', borderRadius: 10,
                   flexWrap: 'wrap', gap: 12,
                 }}>
                   <div>
@@ -190,13 +190,13 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                       <span style={{ fontSize: 15 }}>{p.username}</span>
                       <span className="badge badge-red">BANEADO</span>
                     </div>
-                    <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                       {p.razon_ban}
                       {p.fecha_liberacion && ` · hasta ${new Date(p.fecha_liberacion).toLocaleDateString('es-CO')}`}
                     </div>
                   </div>
                   <ButtonGroup gap={8}>
-                    <button onClick={() => abrirEdit(p)} className="btn btn-ghost" style={{ fontSize: 11, padding: '8px 14px' }}>
+                    <button onClick={() => abrirEdit(p)} className="btn btn-ghost" style={{ fontSize: 12, padding: '8px 14px' }}>
                       Editar
                     </button>
                     <button
@@ -233,7 +233,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
               <button
                 onClick={() => { setFiltros(new Set()); setPorPuntaje(false) }}
                 className="mono"
-                style={{ padding: '6px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 3, border: 'none', background: 'none', color: 'var(--text-dim)' }}
+                style={{ padding: '6px 10px', fontSize: 12, cursor: 'pointer', borderRadius: 10, border: 'none', background: 'none', color: 'var(--text-dim)' }}
               >
                 limpiar
               </button>
@@ -254,7 +254,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
               return (
                 <div key={p.id} style={{
                   background: c.fondo, border: `1px solid ${abierto ? c.acento : c.borde}`,
-                  borderLeft: `4px solid ${c.acento}`, borderRadius: 4, overflow: 'hidden',
+                  borderLeft: `4px solid ${c.acento}`, borderRadius: 10, overflow: 'hidden',
                 }}>
                   {/* La fila entera es el botón: sin "Ver" y "Editar" en cada
                       renglón cabe un avatar del doble de tamaño, que es lo que
@@ -285,15 +285,15 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                       </div>
                       {ausenteActiva(p) && (
                         <div className="mono" style={{
-                          fontSize: 9, color: 'var(--info)', letterSpacing: '0.1em', marginTop: 5,
+                          fontSize: 12, color: 'var(--info)', letterSpacing: '0.1em', marginTop: 5,
                           background: 'var(--info-soft)', border: '1px solid var(--info-line)',
-                          padding: '2px 5px', borderRadius: 2, display: 'inline-block',
+                          padding: '2px 5px', borderRadius: 6, display: 'inline-block',
                         }}>
                           ✈️ AUSENTE · {fechaCorta(p.ausente_hasta!)}
                         </div>
                       )}
                     </div>
-                    <span className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', flexShrink: 0 }}>
+                    <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', flexShrink: 0 }}>
                       {abierto ? '▲' : '▼'}
                     </span>
                   </button>
@@ -326,19 +326,19 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
               <PlayerAvatar url={editModal.avatar_url} username={editModal.username} size={48} />
               <div>
                 <div className="display" style={{ fontSize: 20 }}>{editModal.username}</div>
-                <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>{editModal.email}</div>
+                <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>{editModal.email}</div>
               </div>
             </div>
 
             {/* ── Ausencia ── */}
             <div style={{
               marginBottom: 20, padding: '14px 16px',
-              background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 4,
+              background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10,
             }}>
-              <div className="mono" style={{ fontSize: 11, letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: 8 }}>
+              <div className="mono" style={{ fontSize: 12, letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: 8 }}>
                 ✈️ AUSENCIA
               </div>
-              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.7, marginBottom: 14 }}>
+              <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.7, marginBottom: 14 }}>
                 Para viajes o lesiones. Mientras esté ausente:<br />
                 · no pierde puntaje por no inscribirse<br />
                 · no recibe avisos de inscripción ni de cupos<br />
@@ -347,14 +347,14 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
               </div>
 
               {ausenteActiva(editModal) && (
-                <div className="mono" style={{ fontSize: 11, color: 'var(--info)', marginBottom: 12 }}>
+                <div className="mono" style={{ fontSize: 12, color: 'var(--info)', marginBottom: 12 }}>
                   Ausente desde el {fechaCorta(editModal.ausente_desde!)} hasta el {fechaCorta(editModal.ausente_hasta!)}.
                 </div>
               )}
 
               <FormLabel label="AUSENTE HASTA" />
               <input type="date" value={ausenciaHasta} min={hoy} max={maxAusencia} onChange={e => setAusenciaHasta(e.target.value)} />
-              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>
+              <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
                 Empieza hoy. Máximo {AUSENCIA_MAX_DIAS} días.
               </div>
 
@@ -363,7 +363,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                   onClick={() => guardarAusencia(ausenciaHasta)}
                   disabled={!ausenciaHasta}
                   className="btn btn-ghost"
-                  style={{ flex: 1, justifyContent: 'center', fontSize: 11, opacity: ausenciaHasta ? 1 : 0.4 }}
+                  style={{ flex: 1, justifyContent: 'center', fontSize: 12, opacity: ausenciaHasta ? 1 : 0.4 }}
                 >
                   {ausenteActiva(editModal) ? 'Actualizar ausencia' : 'Marcar ausente'}
                 </button>
@@ -371,7 +371,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                   <button
                     onClick={() => guardarAusencia('')}
                     className="btn btn-ghost"
-                    style={{ fontSize: 11, whiteSpace: 'nowrap' }}
+                    style={{ fontSize: 12, whiteSpace: 'nowrap' }}
                   >
                     Volvió
                   </button>
@@ -383,20 +383,20 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
                 padding: '12px 14px', marginBottom: 20,
-                background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 4,
+                background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 10,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                   <span style={{ fontSize: 16, lineHeight: 1 }}>👕</span>
                   {editModal.uniform ? (
-                    <span className="mono" style={{ fontSize: 9, color: 'var(--pos)', letterSpacing: '0.1em', background: 'var(--pos-soft)', padding: '2px 5px', borderRadius: 2 }}>UNIFORME</span>
+                    <span className="mono" style={{ fontSize: 12, color: 'var(--pos)', letterSpacing: '0.1em', background: 'var(--pos-soft)', padding: '2px 5px', borderRadius: 6 }}>UNIFORME</span>
                   ) : (
-                    <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>Sin uniforme</span>
+                    <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>Sin uniforme</span>
                   )}
                 </div>
                 <button
                   onClick={toggleUniforme}
                   className="btn btn-ghost"
-                  style={{ fontSize: 11, padding: '6px 12px', whiteSpace: 'nowrap' }}
+                  style={{ fontSize: 12, padding: '6px 12px', whiteSpace: 'nowrap' }}
                 >
                   {editModal.uniform ? 'Quitar' : 'Asignar'}
                 </button>
@@ -413,7 +413,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                   <div>
                     <FormLabel label="NUEVA CONTRASEÑA" />
                     <input type="password" value={editPassword} onChange={e => setEditPassword(e.target.value)} placeholder="Dejar vacío para no cambiar" autoComplete="new-password" />
-                    <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>Mínimo 6 caracteres. Vacío = sin cambio.</div>
+                    <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>Mínimo 6 caracteres. Vacío = sin cambio.</div>
                   </div>
                 </div>
                 <ButtonGroup gap={12} marginTop={20}>
@@ -439,12 +439,12 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                   <button
                     onClick={() => { setEditSuspenderOpen(o => !o); setEditDeleteOpen(false) }}
                     className="btn btn-danger"
-                    style={{ fontSize: 11, padding: '8px 16px', width: '100%', justifyContent: 'center' }}
+                    style={{ fontSize: 12, padding: '8px 16px', width: '100%', justifyContent: 'center' }}
                   >
                     {editSuspenderOpen ? '↑ Cancelar suspensión' : 'Suspender jugador'}
                   </button>
                   {editSuspenderOpen && (
-                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12, background: 'var(--neg-bg)', border: '1px solid var(--neg-deep)', borderRadius: 3, padding: 14 }}>
+                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12, background: 'var(--neg-bg)', border: '1px solid var(--neg-deep)', borderRadius: 10, padding: 14 }}>
                       <div>
                         <FormLabel label="RAZÓN" />
                         <input type="text" value={editBanRazon} onChange={e => setEditBanRazon(e.target.value)} placeholder="Multa pendiente, no asistió..." />
@@ -452,7 +452,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                       <div>
                         <FormLabel label="FECHA DE LIBERACIÓN (opcional)" />
                         <input type="date" value={editBanFecha} onChange={e => setEditBanFecha(e.target.value)} />
-                        <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>Vacío = ban indefinido.</div>
+                        <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>Vacío = ban indefinido.</div>
                       </div>
                       <button onClick={confirmarSuspender} className="btn btn-danger" style={{ justifyContent: 'center', padding: '10px' }}>
                         Confirmar suspensión
@@ -466,16 +466,16 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                 <button
                   onClick={() => { setEditDeleteOpen(o => !o); setEditSuspenderOpen(false); setEditDeleteConfirm('') }}
                   className="mono"
-                  style={{ fontSize: 11, padding: '8px 16px', width: '100%', textAlign: 'center', background: 'none', border: '1px solid var(--neg-line)', borderRadius: 3, color: 'var(--red)', cursor: 'pointer', letterSpacing: '0.08em' }}
+                  style={{ fontSize: 12, padding: '8px 16px', width: '100%', textAlign: 'center', background: 'none', border: '1px solid var(--neg-line)', borderRadius: 10, color: 'var(--red)', cursor: 'pointer', letterSpacing: '0.08em' }}
                 >
                   {editDeleteOpen ? '↑ Cancelar' : 'Eliminar jugador permanentemente'}
                 </button>
                 {editDeleteOpen && (
-                  <div style={{ marginTop: 12, background: 'var(--neg-bg)', border: '1px solid var(--neg-line)', borderRadius: 3, padding: 14 }}>
+                  <div style={{ marginTop: 12, background: 'var(--neg-bg)', border: '1px solid var(--neg-line)', borderRadius: 10, padding: 14 }}>
                     <p className="mono" style={{ fontSize: 12, color: 'var(--red)', marginBottom: 12, lineHeight: 1.5 }}>
                       Esta acción es <strong>irreversible</strong>. Se eliminará la cuenta y todas sus inscripciones históricas.
                     </p>
-                    <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>
+                    <label className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>
                       Escribe <strong style={{ color: 'var(--red)' }}>{editModal.username}</strong> para confirmar
                     </label>
                     <input

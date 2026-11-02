@@ -8,7 +8,7 @@ interface Props {
 export function FormLabel({ label, required = false }: Props) {
   return (
     <label className="mono" style={{
-      fontSize: 11,
+      fontSize: 12,
       color: 'var(--text-muted)',
       letterSpacing: '0.1em',
       display: 'block',

@@ -10,7 +10,7 @@ export function EvaluationCTA({ partidoId, title, subtitle }: { partidoId: strin
           <span style={{ fontSize: 20 }}>📊</span>
           <span className="display" style={{ fontSize: 18, letterSpacing: '0.05em' }}>{title}</span>
         </div>
-        <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+        <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>
           {subtitle}
         </div>
       </div>

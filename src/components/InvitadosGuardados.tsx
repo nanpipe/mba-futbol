@@ -79,15 +79,15 @@ export function InvitadosGuardados() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.6 }}>
+      <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.6 }}>
         Tus invitados frecuentes. Al agregar invitados a un partido los eliges con un toque.
         El correo es opcional — si lo pones, le avisamos a él cuando entre.
       </div>
 
       {cargando ? (
-        <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>Cargando...</div>
+        <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>Cargando...</div>
       ) : lista.length === 0 ? (
-        <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+        <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>
           Aún no has guardado invitados.
         </div>
       ) : (
@@ -129,14 +129,14 @@ export function InvitadosGuardados() {
                   <div style={{ fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {inv.nombre}
                   </div>
-                  <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {inv.email ?? 'sin correo'}
                   </div>
                 </div>
                 <button
                   onClick={() => empezarEdicion(inv)}
                   className="mono"
-                  style={{ fontSize: 11, padding: '5px 10px', background: 'none', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text-muted)', cursor: 'pointer', flexShrink: 0 }}
+                  style={{ fontSize: 12, padding: '5px 10px', background: 'none', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text-muted)', cursor: 'pointer', flexShrink: 0 }}
                 >
                   Editar
                 </button>
@@ -144,7 +144,7 @@ export function InvitadosGuardados() {
                   onClick={() => eliminar(inv)}
                   aria-label={'Eliminar ' + inv.nombre}
                   className="mono"
-                  style={{ fontSize: 13, padding: '5px 9px', background: 'none', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--red)', cursor: 'pointer', flexShrink: 0 }}
+                  style={{ fontSize: 13, padding: '5px 9px', background: 'none', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--red)', cursor: 'pointer', flexShrink: 0 }}
                 >
                   ✕
                 </button>
@@ -180,7 +180,7 @@ export function InvitadosGuardados() {
 
       {error && (
         <div className="mono" style={{
-          fontSize: 12, padding: '8px 12px', borderRadius: 3,
+          fontSize: 12, padding: '8px 12px', borderRadius: 10,
           color: 'var(--red)', background: 'var(--neg-soft)', border: '1px solid var(--neg-line)',
         }}>
           {error}

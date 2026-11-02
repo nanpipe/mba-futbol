@@ -375,7 +375,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
             return (
               <button
                 className="btn btn-ghost"
-                style={{ fontSize: 10, padding: '4px 10px', color: 'var(--amber)', borderColor: 'var(--warn-line)' }}
+                style={{ fontSize: 12, padding: '4px 10px', color: 'var(--amber)', borderColor: 'var(--warn-line)' }}
                 onClick={async () => {
                   const ok = await accionAdmin('forzar_notif_apertura', { partido_id: partidoId })
                   if (ok) await onRecargarPartidos()
@@ -387,7 +387,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
           })()}
           <button
             className="btn btn-ghost"
-            style={{ fontSize: 10, padding: '4px 10px', color: 'var(--primary)', borderColor: '#14532d' }}
+            style={{ fontSize: 12, padding: '4px 10px', color: 'var(--primary)', borderColor: '#14532d' }}
             onClick={() => { setAgregarPlayerId(''); setAgregarEstado('confirmado'); setAgregarModal(true) }}
           >
             + Agregar jugador
@@ -406,7 +406,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
               <div key={ins.id} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '10px 14px', background: 'var(--bg-card)',
-                border: `1px solid ${ins.estado === 'espera' ? '#1a2a1a' : 'var(--border)'}`, borderRadius: 3,
+                border: `1px solid ${ins.estado === 'espera' ? '#1a2a1a' : 'var(--border)'}`, borderRadius: 10,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
                   <span className={`badge ${ins.estado === 'confirmado' ? 'badge-green' : 'badge-amber'}`}>
@@ -416,12 +416,12 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                     <div style={{ fontSize: 15, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       {ins.profiles.username}
                       {ins.added_by_profile && (
-                        <span className="mono" style={{ fontSize: 9, color: 'var(--amber)', background: 'var(--warn-soft)', border: '1px solid #78350f', borderRadius: 2, padding: '1px 5px', letterSpacing: '0.05em' }}>
+                        <span className="mono" style={{ fontSize: 12, color: 'var(--amber)', background: 'var(--warn-soft)', border: '1px solid #78350f', borderRadius: 6, padding: '1px 5px', letterSpacing: '0.05em' }}>
                           por {ins.added_by_profile.username}
                         </span>
                       )}
                     </div>
-                    <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 1 }}>
+                    <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 1 }}>
                       {new Date(ins.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', timeZone: 'America/Bogota' })}
                       {' · '}
                       {new Date(ins.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' })}
@@ -436,7 +436,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                         accionAdminLocal('mover_espera', { player_id: ins.profiles.id, partido_id: ins.partido_id })
                       }}
                       className="mono"
-                      style={{ fontSize: 11, color: 'var(--amber)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
+                      style={{ fontSize: 12, color: 'var(--amber)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
                     >
                       EN ESPERA
                     </button>
@@ -457,7 +457,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                         }
                       }}
                       className="mono"
-                      style={{ fontSize: 11, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
+                      style={{ fontSize: 12, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
                     >
                       PROMOVER
                     </button>
@@ -468,7 +468,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                       accionAdminLocal('remover_partido', { player_id: ins.profiles.id, partido_id: ins.partido_id })
                     }}
                     className="mono"
-                    style={{ fontSize: 11, color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
+                    style={{ fontSize: 12, color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
                   >
                     REMOVER
                   </button>
@@ -481,19 +481,19 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
               <div key={inv.id} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '10px 14px', background: 'var(--bg-card)',
-                border: '1px solid var(--pos-line)', borderRadius: 3,
+                border: '1px solid var(--pos-line)', borderRadius: 10,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span className="badge badge-green">✓</span>
                   <div>
                     <div style={{ fontSize: 15 }}>{inv.nombre}</div>
-                    <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>inv. de {inv.profiles.username}</div>
+                    <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>inv. de {inv.profiles.username}</div>
                   </div>
                 </div>
                 <button
                   onClick={() => confirmarInvitado(inv.id, true)}
                   className="mono"
-                  style={{ fontSize: 11, color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
+                  style={{ fontSize: 12, color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
                 >
                   REMOVER
                 </button>
@@ -513,20 +513,20 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                   <div key={inv.id} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '10px 14px', background: 'var(--bg-card)',
-                    border: '1px solid #1a2a3a', borderRadius: 3, gap: 10,
+                    border: '1px solid #1a2a3a', borderRadius: 10, gap: 10,
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
                       <span className="badge badge-amber">{`#${inv.posicion_espera}`}</span>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 14 }}>{inv.nombre}</div>
-                        <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>inv. de {inv.profiles.username}</div>
+                        <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>inv. de {inv.profiles.username}</div>
                       </div>
                     </div>
                     <button
                       onClick={() => confirmarInvitado(inv.id)}
                       disabled={confirmandoInvitado === inv.id}
                       className="btn btn-ghost"
-                      style={{ fontSize: 11, padding: '6px 12px', color: 'var(--primary)', borderColor: 'var(--primary-line)', flexShrink: 0 }}
+                      style={{ fontSize: 12, padding: '6px 12px', color: 'var(--primary)', borderColor: 'var(--primary-line)', flexShrink: 0 }}
                     >
                       {confirmandoInvitado === inv.id ? '...' : '✓ Confirmar'}
                     </button>
@@ -543,7 +543,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
         <button
           onClick={copiarLista}
           className="btn btn-ghost mono"
-          style={{ fontSize: 11, padding: '7px 14px', color: 'var(--text-muted)' }}
+          style={{ fontSize: 12, padding: '7px 14px', color: 'var(--text-muted)' }}
         >
           📋 Copiar lista
         </button>
@@ -569,7 +569,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 setCrearModal(true)
               }}
               className="btn btn-ghost"
-              style={{ fontSize: 11, padding: '6px 12px', color: 'var(--primary)', borderColor: 'var(--primary-line)' }}
+              style={{ fontSize: 12, padding: '6px 12px', color: 'var(--primary)', borderColor: 'var(--primary-line)' }}
             >
               + Nuevo
             </button>
@@ -600,7 +600,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 <div key={p.id} style={{
                   background: abierto ? 'var(--bg-elevated)' : 'var(--bg-card)',
                   border: `1px solid ${abierto ? 'var(--primary)' : 'var(--border)'}`,
-                  borderRadius: 4, overflow: 'hidden',
+                  borderRadius: 10, overflow: 'hidden',
                 }}>
                   {/* La tarjeta entera abre y cierra, como en Jugadores. Los
                       botones de editar / notificar / eliminar ya no viven en una
@@ -626,7 +626,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                         )}
                       </div>
                       <div className="mono" style={{
-                        fontSize: 11, color: 'var(--text-muted)',
+                        fontSize: 12, color: 'var(--text-muted)',
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       }}>
                         {fechaCortaPartido(p.fecha)}
@@ -638,14 +638,14 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                         <span style={{ color: confirmados >= cupos ? 'var(--red)' : 'var(--primary)' }}>{confirmados}</span>
                         <span style={{ color: 'var(--text-dim)' }}>/{cupos}</span>
                       </div>
-                      {espera > 0 && <div className="mono" style={{ fontSize: 11, color: 'var(--amber)' }}>+{espera} espera</div>}
+                      {espera > 0 && <div className="mono" style={{ fontSize: 12, color: 'var(--amber)' }}>+{espera} espera</div>}
                       {/* Antes decía "🔕 notif pendiente", que se leía como "no
                           hay ninguna". Ahora dice a qué hora sale. */}
-                      <div className="mono" style={{ fontSize: 9, color: p.notif_apertura_sent ? 'var(--pos)' : 'var(--text-dim)', marginTop: 2 }}>
+                      <div className="mono" style={{ fontSize: 12, color: p.notif_apertura_sent ? 'var(--pos)' : 'var(--text-dim)', marginTop: 2 }}>
                         {p.notif_apertura_sent ? '🔔 aviso enviado' : `🔔 ${fechaHoraCortaCO(apertura.cuando)}`}
                       </div>
                     </div>
-                    <span className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', flexShrink: 0 }}>
+                    <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', flexShrink: 0 }}>
                       {abierto ? '▲' : '▼'}
                     </span>
                   </button>
@@ -656,7 +656,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                         <button
                           onClick={() => abrirEditPartido(p)}
                           className="btn btn-ghost mono"
-                          style={{ flex: 1, justifyContent: 'center', fontSize: 11, padding: '8px 6px' }}
+                          style={{ flex: 1, justifyContent: 'center', fontSize: 12, padding: '8px 6px' }}
                         >
                           ✏️ Editar
                         </button>
@@ -668,14 +668,14 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                             setEditNotifRecordatorioAt(p.notif_recordatorio_at ? new Date(p.notif_recordatorio_at).toISOString().slice(0, 16) : '')
                           }}
                           className="btn btn-ghost mono"
-                          style={{ flex: 1, justifyContent: 'center', fontSize: 11, padding: '8px 6px', color: 'var(--amber)' }}
+                          style={{ flex: 1, justifyContent: 'center', fontSize: 12, padding: '8px 6px', color: 'var(--amber)' }}
                         >
                           🔔 Avisos
                         </button>
                         <button
                           onClick={() => { if (window.confirm(`¿Eliminar partido del ${p.dia_semana} ${p.fecha}?`)) eliminarPartido(p.id) }}
                           className="btn btn-ghost mono"
-                          style={{ flex: 1, justifyContent: 'center', fontSize: 11, padding: '8px 6px', color: 'var(--red)' }}
+                          style={{ flex: 1, justifyContent: 'center', fontSize: 12, padding: '8px 6px', color: 'var(--red)' }}
                         >
                           ✕ Eliminar
                         </button>
@@ -685,9 +685,9 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                         <div style={{
                           display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
                           padding: '10px 12px', background: 'var(--bg-card)',
-                          border: '1px solid var(--border)', borderRadius: 4,
+                          border: '1px solid var(--border)', borderRadius: 10,
                         }}>
-                          <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1, minWidth: 200, lineHeight: 1.6 }}>
+                          <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', flex: 1, minWidth: 200, lineHeight: 1.6 }}>
                             🔁 {nombreDia(serie.dia)} se crean solos.<br />
                             <span style={{ color: 'var(--text-dim)' }}>
                               Siempre hay {SEMANAS_ADELANTE} por delante.
@@ -696,7 +696,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                           <button
                             onClick={() => detenerRecurrencia(serie.dia)}
                             className="btn btn-ghost mono"
-                            style={{ fontSize: 11, padding: '7px 12px', color: 'var(--amber)', whiteSpace: 'nowrap' }}
+                            style={{ fontSize: 12, padding: '7px 12px', color: 'var(--amber)', whiteSpace: 'nowrap' }}
                           >
                             Dejar de repetir
                           </button>
@@ -707,41 +707,41 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                           se queda sin aviso: sale a la hora calculada, y eso es
                           lo que hay que mostrar. */}
                       {editNotifPartidoId !== p.id && (
-                        <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.7 }}>
+                        <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7 }}>
                           <div>📣 Apertura: {fechaHoraCO(apertura.cuando)} {etiquetaPrograma(apertura)}</div>
                           <div>⏰ Recordatorio: {fechaHoraCO(recordatorio.cuando)} {etiquetaPrograma(recordatorio)}</div>
                         </div>
                       )}
 
                       {editNotifPartidoId === p.id && (
-                        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.6 }}>
+                        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.6 }}>
                             Vacío = automático. Apertura sale {fechaHoraCO(programaApertura(p).cuando)} y el
                             recordatorio {fechaHoraCO(programaRecordatorio(p).cuando)}.
                           </div>
                           <div>
-                            <label className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>NOTIF. APERTURA</label>
+                            <label className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>NOTIF. APERTURA</label>
                             <input
                               type="datetime-local"
                               value={editNotifAperturaAt}
                               onChange={e => setEditNotifAperturaAt(e.target.value)}
-                              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 3, padding: '6px 8px', fontFamily: 'DM Mono, monospace', fontSize: 16 }}
+                              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 10, padding: '6px 8px', fontFamily: 'var(--font-ui)', fontSize: 16 }}
                             />
                           </div>
                           <div>
-                            <label className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>NOTIF. RECORDATORIO</label>
+                            <label className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>NOTIF. RECORDATORIO</label>
                             <input
                               type="datetime-local"
                               value={editNotifRecordatorioAt}
                               onChange={e => setEditNotifRecordatorioAt(e.target.value)}
-                              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 3, padding: '6px 8px', fontFamily: 'DM Mono, monospace', fontSize: 16 }}
+                              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 10, padding: '6px 8px', fontFamily: 'var(--font-ui)', fontSize: 16 }}
                             />
                           </div>
                           <div style={{ display: 'flex', gap: 8 }}>
-                            <button onClick={() => guardarNotifPartido(p.id)} className="btn btn-primary mono" style={{ flex: 1, fontSize: 11, padding: '6px 10px' }}>
+                            <button onClick={() => guardarNotifPartido(p.id)} className="btn btn-primary mono" style={{ flex: 1, fontSize: 12, padding: '6px 10px' }}>
                               Guardar
                             </button>
-                            <button onClick={() => setEditNotifPartidoId(null)} className="btn btn-ghost mono" style={{ fontSize: 11, padding: '6px 10px' }}>
+                            <button onClick={() => setEditNotifPartidoId(null)} className="btn btn-ghost mono" style={{ fontSize: 12, padding: '6px 10px' }}>
                               Cancelar
                             </button>
                           </div>
@@ -777,7 +777,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
             <select
               value={swapPlayerId}
               onChange={e => setSwapPlayerId(e.target.value)}
-              style={{ width: '100%', marginBottom: 20, padding: '10px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text)', fontSize: 16 }}
+              style={{ width: '100%', marginBottom: 20, padding: '10px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)', fontSize: 16 }}
             >
               <option value="">— Selecciona jugador —</option>
               {inscripciones.filter(i => i.estado === 'confirmado').map(i => (
@@ -822,7 +822,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
               <select
                 value={agregarPlayerId}
                 onChange={e => setAgregarPlayerId(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 3, color: 'var(--text)', fontSize: 16 }}
+                style={{ width: '100%', padding: '10px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)', fontSize: 16 }}
               >
                 <option value="">— Selecciona jugador —</option>
                 {players
@@ -841,7 +841,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                     style={{
                       flex: 1, padding: '8px',
                       border: `1px solid ${agregarEstado === e ? (e === 'confirmado' ? 'var(--pos-line)' : 'var(--warn-line)') : 'var(--border)'}`,
-                      borderRadius: 3,
+                      borderRadius: 10,
                       background: agregarEstado === e ? (e === 'confirmado' ? 'var(--pos-soft)' : 'var(--warn-bg)') : 'none',
                       color: agregarEstado === e ? (e === 'confirmado' ? 'var(--pos)' : 'var(--amber)') : 'var(--text-muted)',
                       cursor: 'pointer', fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase',
@@ -895,7 +895,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                       onClick={() => { setNuevoTipo(t); setNuevosCupos(t === 'minitorneo' ? defCuposMini() : defCupos()) }}
                       className="btn btn-ghost mono"
                       style={{
-                        flex: 1, fontSize: 11, padding: '8px',
+                        flex: 1, fontSize: 12, padding: '8px',
                         borderColor: nuevoTipo === t ? (t === 'minitorneo' ? 'var(--mini-line)' : 'var(--primary)') : undefined,
                         color: nuevoTipo === t ? (t === 'minitorneo' ? 'var(--mini)' : 'var(--primary)') : undefined,
                       }}
@@ -917,9 +917,9 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 <div style={{ minWidth: 0 }}>
                   <FormLabel label="Abrir Inscripciones" />
                   <input type="time" value={nuevaHoraApertura} onChange={e => setNuevaHoraApertura(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
-                  <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>hora de apertura</div>
+                  <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>hora de apertura</div>
                   {notifTime(nuevaHoraApertura) && (
-                    <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                    <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
                       📣 Notif. {notifTime(nuevaHoraApertura)} (5 min antes)
                     </div>
                   )}
@@ -927,11 +927,11 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 <div style={{ minWidth: 0 }}>
                   <FormLabel label="Días Antes" />
                   <input type="number" min="0" max="7" value={nuevosDiasAntes} onChange={e => setNuevosDiasAntes(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
-                  <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>días previos al partido</div>
+                  <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>días previos al partido</div>
                 </div>
               </div>
               <div>
-                <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>
+                <label className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>
                   CUPOS {nuevoTipo === 'minitorneo' && <span style={{ color: 'var(--mini)' }}>(3 × 7)</span>}
                 </label>
                 <input type="number" min="1" max="30" value={nuevosCupos} onChange={e => setNuevosCupos(e.target.value)} />
@@ -941,12 +941,12 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                   semanas y crearlos de a uno era la tarea manual que más se
                   repetía. Las fechas las calcula el servidor. */}
               {primeraOcupada && (
-                <div className="mono" style={{ fontSize: 11, color: 'var(--amber)', lineHeight: 1.6, padding: '10px 12px', background: '#1c1503', border: '1px solid #4d3a10', borderRadius: 4 }}>
+                <div className="mono" style={{ fontSize: 12, color: 'var(--amber)', lineHeight: 1.6, padding: '10px 12px', background: '#1c1503', border: '1px solid #4d3a10', borderRadius: 10 }}>
                   ⚠️ Ya hay un partido el {fechaCortaPartido(nuevaFecha)}. Este se crea igual y quedan dos ese día.
                 </div>
               )}
 
-              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4, padding: '12px 14px' }}>
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
                   <input
                     type="checkbox"
@@ -957,13 +957,13 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                   <span className="mono" style={{ fontSize: 12, color: 'var(--text)' }}>🔁 Repetir cada semana</span>
                 </label>
                 {repetirSemanal && (
-                  <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 10, lineHeight: 1.7 }}>
+                  <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 10, lineHeight: 1.7 }}>
                     {resumenRepeticion(nuevaFecha)}
                   </div>
                 )}
               </div>
 
-              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.6, padding: '10px 12px', background: 'var(--surface)', borderRadius: 4 }}>
+              <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.6, padding: '10px 12px', background: 'var(--surface)', borderRadius: 10 }}>
                 📣 Las notificaciones se envían automáticamente: apertura 5 min antes de abrir inscripciones, recordatorio el día del partido. Ajústalas por partido con el botón 🔔.
               </div>
             </div>
@@ -999,7 +999,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                   <FormLabel label="Hora Apertura" />
                   <input type="time" value={nuevaHoraApertura} onChange={e => setNuevaHoraApertura(e.target.value)} style={{ width: '100%', boxSizing: 'border-box' }} />
                   {notifTime(nuevaHoraApertura) && (
-                    <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                    <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
                       📣 Notif. {notifTime(nuevaHoraApertura)} (5 min antes)
                     </div>
                   )}

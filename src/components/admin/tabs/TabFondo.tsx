@@ -52,13 +52,13 @@ export function TabFondo() {
         padding: '18px 18px 16px', marginBottom: 28, borderRadius: 6,
         background: 'var(--bg-card)', border: '1px solid var(--primary-deep)',
       }}>
-        <div className="mono" style={{ fontSize: 10, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
+        <div className="mono" style={{ fontSize: 12, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
           FONDO MBA
         </div>
         <div className="display" style={{ fontSize: 44, lineHeight: 1.1, color: 'var(--primary)', marginTop: 6 }}>
           {formatoPesos(datos.total)}
         </div>
-        <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.6 }}>
+        <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.6 }}>
           {datos.partidos} partido{datos.partidos !== 1 ? 's' : ''} · {datos.aportes} aportes
           {datos.desde && <> · desde el {fechaCorta(datos.desde, true)}</>}
         </div>
@@ -70,13 +70,13 @@ export function TabFondo() {
           className="mono"
           style={{
             marginTop: 12, padding: 0, background: 'none', border: 'none', cursor: 'pointer',
-            fontSize: 11, color: 'var(--text-dim)', textAlign: 'left',
+            fontSize: 12, color: 'var(--text-dim)', textAlign: 'left',
           }}
         >
           {verExplicacion ? '▲' : '▼'} ¿De dónde sale?
         </button>
         {verExplicacion && (
-          <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.7, marginTop: 8 }}>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.7, marginTop: 8 }}>
             La cancha cuesta $ 140.000. El equipo que gana paga $ 9.000 por persona y el que pierde $ 13.000:
             entre los 14 juntan $ 154.000 y sobran <strong style={{ color: 'var(--text-muted)' }}>$ 14.000</strong>,
             que van al fondo.
@@ -101,7 +101,7 @@ export function TabFondo() {
             const podio = a.puesto <= 3
             return (
               <div key={a.player_id} style={{
-                background: 'var(--bg-card)', borderRadius: 4, overflow: 'hidden',
+                background: 'var(--bg-card)', borderRadius: 10, overflow: 'hidden',
                 border: `1px solid ${abierto ? 'var(--primary)' : 'var(--border)'}`,
               }}>
                 <button
@@ -124,7 +124,7 @@ export function TabFondo() {
                     <div style={{ fontSize: 15, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {a.username}
                     </div>
-                    <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
+                    <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
                       {a.partidos} partido{a.partidos !== 1 ? 's' : ''}
                     </div>
                   </div>
@@ -134,9 +134,9 @@ export function TabFondo() {
                 </button>
 
                 {/* Barra proporcional al primero. */}
-                <div style={{ height: 3, margin: '0 12px 10px 48px', background: 'var(--bg-elevated)', borderRadius: 2 }}>
+                <div style={{ height: 3, margin: '0 12px 10px 48px', background: 'var(--bg-elevated)', borderRadius: 6 }}>
                   <div style={{
-                    height: '100%', borderRadius: 2,
+                    height: '100%', borderRadius: 6,
                     width: `${max ? Math.max(2, (a.total / max) * 100) : 0}%`,
                     background: podio ? 'var(--primary)' : '#2f5d3f',
                   }} />
@@ -144,13 +144,13 @@ export function TabFondo() {
 
                 {abierto && (
                   <div style={{ padding: '0 12px 12px 48px' }}>
-                    <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+                    <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
                       Desde el {fechaCorta(a.primera, true)} · último el {fechaCorta(a.ultima, true)}
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                       {a.fechas.map(f => (
                         <span key={f} className="mono" style={{
-                          fontSize: 10, padding: '3px 7px', borderRadius: 2,
+                          fontSize: 12, padding: '3px 7px', borderRadius: 6,
                           background: 'var(--bg-elevated)', border: '1px solid var(--border)',
                           color: 'var(--text-muted)',
                         }}>
@@ -168,7 +168,7 @@ export function TabFondo() {
 
       {datos.invitados.aportes > 0 && (
         <div className="mono" style={{
-          marginTop: 14, padding: '10px 12px', borderRadius: 4, fontSize: 12,
+          marginTop: 14, padding: '10px 12px', borderRadius: 10, fontSize: 12,
           border: '1px dashed var(--border)', color: 'var(--text-muted)',
           display: 'flex', justifyContent: 'space-between', gap: 10,
         }}>

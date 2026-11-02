@@ -20,7 +20,7 @@ export function ListItem({ children, style, onClick, dimmed = false }: Props) {
         padding: '10px 14px',
         background: 'var(--bg-card)',
         border: '1px solid var(--border)',
-        borderRadius: 3,
+        borderRadius: 10,
         cursor: onClick ? 'pointer' : undefined,
         opacity: dimmed ? 0.6 : 1,
         flexWrap: 'wrap',

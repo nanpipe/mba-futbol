@@ -586,9 +586,9 @@ export default function HomePage() {
       <nav style={{ borderBottom: '1px solid var(--border)', padding: '6px 0', position: 'sticky', top: 0, zIndex: 30, background: 'var(--bg)' }}>
         <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <span className="display" style={{
-            fontSize: 20, letterSpacing: '0.1em',
+            fontSize: 24, letterSpacing: '0.08em',
             minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>{club.nombre}</span>
+          }}><NombreClub nombre={club.nombre} /></span>
           {/* Todo lo de la derecha mide 44 px de alto: es el mínimo para el
               pulgar. Antes eran 28 px uno al lado del otro, y "Salir" quedaba
               pegado al avatar (ahora vive en Mi perfil). La campana va sin
@@ -628,15 +628,15 @@ export default function HomePage() {
         onCancel={() => setNagAbierto(false)}
       />
 
-      <div className="container" style={{ paddingTop: 48 }}>
+      <div className="container" style={{ paddingTop: 24 }}>
         {/* Molesta hasta que suba la foto. No se puede cerrar: quien lo cierra
             una vez no lo vuelve a ver y nunca la sube. */}
         <AvisoFoto tieneFoto={Boolean(profile?.avatar_url)} partidosJugados={partidosJugados} />
 
-        {/* Header */}
-        <Header club={club} />
-
-        <div style={{ height: 48 }} />
+        {/* El "MBA / FC" de 64 px que iba acá ocupaba 250 px de la primera
+            pantalla y repetía el nombre de la barra. Sin él, el partido y tu
+            estado entran sin desplazar. */}
+        <div style={{ height: 8 }} />
 
         {/* Admins land here — ask "¿Se jugó?" where they'll actually see it. */}
         {(profile?.role === 'admin' || profile?.role === 'superadmin') && (
@@ -647,7 +647,7 @@ export default function HomePage() {
         {!ventana?.abierta ? (
           <>
             <div className="card fade-in" style={{ textAlign: 'center', padding: '48px 24px' }}>
-              <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 16 }}>
+              <div className="mono" style={{ fontSize: 12, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 16 }}>
                 INSCRIPCIONES CERRADAS
               </div>
               {ventana?.proximoPartido && ventana?.abreEnDate ? (() => {
@@ -671,7 +671,7 @@ export default function HomePage() {
                 </p>
               )}
               {countdown && (
-                <div className="display" style={{ fontSize: 36, color: 'var(--primary)', marginTop: 24, fontFamily: 'DM Mono, monospace' }}>
+                <div className="display" style={{ fontSize: 36, color: 'var(--primary)', marginTop: 24, fontFamily: 'var(--font-ui)' }}>
                   {countdown}
                 </div>
               )}
@@ -710,7 +710,7 @@ export default function HomePage() {
             <div style={{ marginBottom: 24 }}>
               {ventana.partido?.tipo === 'minitorneo' ? (
                 <>
-                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--mini)', marginBottom: 8 }}>
+                  <div className="mono" style={{ fontSize: 12, letterSpacing: '0.15em', color: 'var(--mini)', marginBottom: 8 }}>
                     PRÓXIMO EVENTO
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
@@ -727,14 +727,16 @@ export default function HomePage() {
                 </>
               ) : (
                 <>
-                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: enJuego ? 'var(--primary)' : 'var(--text-muted)', marginBottom: 8 }}>
+                  <div className="mono" style={{ fontSize: 12, letterSpacing: '0.15em', color: enJuego ? 'var(--primary)' : 'var(--text-muted)', marginBottom: 8 }}>
                     {enJuego ? '🟢 EN JUEGO' : 'PRÓXIMO PARTIDO'}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+                  {/* Día arriba, fecha y hora en una línea abajo: al lado del
+                      día la hora se partía en dos ("7:00 / PM"). */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <h2 className="display" style={{ fontSize: 52, lineHeight: 1 }}>
                       {ventana.partido?.dia_semana?.toUpperCase()}
                     </h2>
-                    <span className="mono" style={{ fontSize: 14, color: 'var(--text-muted)' }}>
+                    <span className="mono" style={{ fontSize: 16, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                       {ventana.partido?.fecha
                         ? new Date(ventana.partido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })
                         : ''}{formatHora12(ventana.partido?.hora) && ` · ${formatHora12(ventana.partido?.hora)}`}
@@ -761,13 +763,13 @@ export default function HomePage() {
               <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cuposTotal}, 1fr)`, gap: 4 }}>
                 {Array.from({ length: cuposTotal }, (_, i) => (
                   <div key={i} style={{
-                    height: 8, borderRadius: 2,
+                    height: 8, borderRadius: 6,
                     background: i < totalConfirmados ? 'var(--primary)' : 'var(--border)'
                   }} />
                 ))}
               </div>
               {enEspera.length > 0 && (
-                <div className="mono" style={{ fontSize: 11, color: 'var(--amber)', marginTop: 12, letterSpacing: '0.05em' }}>
+                <div className="mono" style={{ fontSize: 12, color: 'var(--amber)', marginTop: 12, letterSpacing: '0.05em' }}>
                   {enEspera.length} en lista de espera
                 </div>
               )}
@@ -776,11 +778,11 @@ export default function HomePage() {
             {/* Mensaje */}
             {mensaje && (
               <div style={{
-                padding: '12px 16px', borderRadius: 3, marginBottom: 20,
+                padding: '12px 16px', borderRadius: 10, marginBottom: 20,
                 background: mensaje.tipo === 'ok' ? 'var(--pos-soft)' : 'var(--neg-soft)',
                 border: `1px solid ${mensaje.tipo === 'ok' ? 'var(--pos-line)' : 'var(--neg-line)'}`,
                 color: mensaje.tipo === 'ok' ? 'var(--pos)' : 'var(--red)',
-                fontFamily: 'DM Mono, monospace', fontSize: 13
+                fontFamily: 'var(--font-ui)', fontSize: 13
               }}>
                 {mensaje.texto}
               </div>
@@ -869,15 +871,15 @@ export default function HomePage() {
                 <div style={{ marginTop: 40 }}>
                   {esBorrador ? (
                     <>
-                      <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--amber)', marginBottom: 6 }}>
+                      <div className="mono" style={{ fontSize: 12, letterSpacing: '0.15em', color: 'var(--amber)', marginBottom: 6 }}>
                         🧩 ALINEACIÓN SUGERIDA
                       </div>
-                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 16, lineHeight: 1.6 }}>
+                      <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16, lineHeight: 1.6 }}>
                         Todavía no es definitiva — el admin la revisa y confirma.
                       </div>
                     </>
                   ) : (
-                    <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--primary)', marginBottom: 20 }}>
+                    <div className="mono" style={{ fontSize: 12, letterSpacing: '0.15em', color: 'var(--primary)', marginBottom: 20 }}>
                       ⚽ EQUIPOS CONFIRMADOS
                     </div>
                   )}
@@ -897,12 +899,12 @@ export default function HomePage() {
                             <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: accent, letterSpacing: '0.05em' }}>
                               EQUIPO {eq.nombre}
                             </span>
-                            <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg)', padding: '2px 8px', borderRadius: 3, border: '1px solid var(--border)' }}>
+                            <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg)', padding: '2px 8px', borderRadius: 10, border: '1px solid var(--border)' }}>
                               {colorLabel(eq.color)}
                             </span>
                           </div>
                           {isMyTeam && (
-                            <span className="mono" style={{ fontSize: 10, color: accent, letterSpacing: '0.1em' }}>TU EQUIPO</span>
+                            <span className="mono" style={{ fontSize: 12, color: accent, letterSpacing: '0.1em' }}>TU EQUIPO</span>
                           )}
                         </div>
 
@@ -910,16 +912,16 @@ export default function HomePage() {
                         {myRole && (
                           <div style={{ background: bg, borderBottom: `1px solid ${border}`, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
                             <span className="mono" style={{ fontSize: 13, color: myRole.color, fontWeight: 600 }}>{myRole.label}</span>
-                            {myRole.sub && <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>— {myRole.sub}</span>}
+                            {myRole.sub && <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>— {myRole.sub}</span>}
                           </div>
                         )}
 
                         {/* Goalkeeper info */}
                         {eq.portero_fijo && eq.portero_fijo_id && (
                           <div style={{ padding: '8px 16px', background: '#0d0d1a', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span className="mono" style={{ fontSize: 10, color: 'var(--portero)', letterSpacing: '0.1em' }}>🧤 PORTERO FIJO</span>
+                            <span className="mono" style={{ fontSize: 12, color: 'var(--portero)', letterSpacing: '0.1em' }}>🧤 PORTERO FIJO</span>
                             <span className="mono" style={{ fontSize: 12, color: 'var(--text)' }}>{eq.portero_fijo_id}</span>
-                            <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>— no rota</span>
+                            <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>— no rota</span>
                           </div>
                         )}
 
@@ -937,7 +939,7 @@ export default function HomePage() {
                                 <PlayerAvatar url={j.avatar_url} username={j.username} size={28} borderColor={isMe ? border : 'var(--border)'} />
                                 <span style={{ fontSize: 14, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isMe ? 'var(--text)' : 'var(--text-muted)' }}>{j.username}</span>
                                 {isPorteroFijo && <span style={{ fontSize: 13 }}>🧤</span>}
-                                {isMe && <span className="mono" style={{ fontSize: 10, color: accent, letterSpacing: '0.1em' }}>TÚ</span>}
+                                {isMe && <span className="mono" style={{ fontSize: 12, color: accent, letterSpacing: '0.1em' }}>TÚ</span>}
                               </div>
                             )
                           })}
@@ -948,13 +950,13 @@ export default function HomePage() {
                           <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'var(--bg-card)', display: 'flex', gap: 24, flexWrap: 'wrap' }}>
                             {(eq.rotacion_banca ?? []).length > 0 && (
                               <div>
-                                <div className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--text-dim)', marginBottom: 6 }}>ROTACIÓN BANCA</div>
+                                <div className="mono" style={{ fontSize: 12, letterSpacing: '0.1em', color: 'var(--text-dim)', marginBottom: 6 }}>ROTACIÓN BANCA</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                                   {(eq.rotacion_banca ?? []).map((u, i) => (
-                                    <div key={u} className="mono" style={{ fontSize: 11, display: 'flex', gap: 8, alignItems: 'center' }}>
+                                    <div key={u} className="mono" style={{ fontSize: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
                                       <span style={{ color: 'var(--text-dim)', width: 14, textAlign: 'right' }}>{i + 1}.</span>
                                       <span style={{ color: u === myUsername ? accent : 'var(--text-muted)', fontWeight: u === myUsername ? 700 : 400 }}>{u}</span>
-                                      {i === 0 && <span style={{ fontSize: 10, color: 'var(--amber)' }}>← empieza</span>}
+                                      {i === 0 && <span style={{ fontSize: 12, color: 'var(--amber)' }}>← empieza</span>}
                                     </div>
                                   ))}
                                 </div>
@@ -962,13 +964,13 @@ export default function HomePage() {
                             )}
                             {!eq.portero_fijo && (eq.rotacion_portero ?? []).length > 0 && (
                               <div>
-                                <div className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--text-dim)', marginBottom: 6 }}>ROTACIÓN PORTERO</div>
+                                <div className="mono" style={{ fontSize: 12, letterSpacing: '0.1em', color: 'var(--text-dim)', marginBottom: 6 }}>ROTACIÓN PORTERO</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                                   {(eq.rotacion_portero ?? []).map((u, i) => (
-                                    <div key={u} className="mono" style={{ fontSize: 11, display: 'flex', gap: 8, alignItems: 'center' }}>
+                                    <div key={u} className="mono" style={{ fontSize: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
                                       <span style={{ color: 'var(--text-dim)', width: 14, textAlign: 'right' }}>{i + 1}.</span>
                                       <span style={{ color: u === myUsername ? 'var(--portero)' : 'var(--text-muted)', fontWeight: u === myUsername ? 700 : 400 }}>{u}</span>
-                                      {i === 0 && <span style={{ fontSize: 10, color: 'var(--portero)' }}>← primer portero</span>}
+                                      {i === 0 && <span style={{ fontSize: 12, color: 'var(--portero)' }}>← primer portero</span>}
                                     </div>
                                   ))}
                                 </div>
@@ -1006,14 +1008,14 @@ export default function HomePage() {
             {/* Lista de jugadores */}
             {inscripciones.length > 0 && (
               <div style={{ marginTop: 40 }}>
-                <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 8 }}>
+                <div className="mono" style={{ fontSize: 12, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 8 }}>
                   JUGADORES — {totalConfirmados} CONFIRMADOS
                 </div>
                 {/* La frase estaba sola y era justo lo que nadie entendía:
                     "sube si ganas" no dice cuánto, ni por qué el número se
                     movió distinto que el del vecino. Ahora lleva a /puntaje,
                     donde están las reglas y el simulador. */}
-                <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 16, lineHeight: 1.6 }}>
+                <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16, lineHeight: 1.6 }}>
                   ⭐ Tu puntaje se gana en la cancha: sube si juegas y ganas, baja si faltas o pierdes.{' '}
                   <Link href="/puntaje" style={{ color: 'var(--primary)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
                     Ver las reglas y simular →
@@ -1023,13 +1025,13 @@ export default function HomePage() {
                   {confirmados.map((ins, idx) => (
                     <div key={ins.id} style={{
                       display: 'flex', alignItems: 'center', gap: 12,
-                      padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 3,
+                      padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 10,
                       border: ins.player_id === user.id ? '1px solid var(--primary-line)' : '1px solid transparent'
                     }}>
-                      <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', width: 20, flexShrink: 0 }}>{idx + 1}</span>
+                      <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', width: 20, flexShrink: 0 }}>{idx + 1}</span>
                       <span style={{ fontSize: 15, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ins.profiles.username}</span>
                       {ins.player_id === user.id && (
-                        <span className="mono" style={{ fontSize: 10, color: 'var(--primary)', letterSpacing: '0.1em' }}>TÚ</span>
+                        <span className="mono" style={{ fontSize: 12, color: 'var(--primary)', letterSpacing: '0.1em' }}>TÚ</span>
                       )}
                     </div>
                   ))}
@@ -1037,21 +1039,21 @@ export default function HomePage() {
 
                 {enEspera.length > 0 && (
                   <>
-                    <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', margin: '24px 0 12px' }}>
+                    <div className="mono" style={{ fontSize: 12, letterSpacing: '0.15em', color: 'var(--text-muted)', margin: '24px 0 12px' }}>
                       EN ESPERA
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       {enEspera.map((ins, idx) => (
                         <div key={ins.id} style={{
                           display: 'flex', alignItems: 'center', gap: 12,
-                          padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 3,
+                          padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 10,
                           border: ins.player_id === user.id ? '1px solid var(--warn-line)' : '1px solid transparent',
                           opacity: 0.7
                         }}>
-                          <span className="mono" style={{ fontSize: 11, color: 'var(--amber)', width: 20, flexShrink: 0 }}>#{idx + 1}</span>
+                          <span className="mono" style={{ fontSize: 12, color: 'var(--amber)', width: 20, flexShrink: 0 }}>#{idx + 1}</span>
                           <span style={{ fontSize: 15, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ins.profiles.username}</span>
                           {ins.player_id === user.id && (
-                            <span className="mono" style={{ fontSize: 10, color: 'var(--amber)', letterSpacing: '0.1em' }}>TÚ</span>
+                            <span className="mono" style={{ fontSize: 12, color: 'var(--amber)', letterSpacing: '0.1em' }}>TÚ</span>
                           )}
                         </div>
                       ))}
@@ -1062,30 +1064,30 @@ export default function HomePage() {
                 {/* Invitados waiting list — visible to everyone */}
                 {todosInvitados.length > 0 && (
                   <>
-                    <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', margin: '24px 0 12px' }}>
+                    <div className="mono" style={{ fontSize: 12, letterSpacing: '0.15em', color: 'var(--text-muted)', margin: '24px 0 12px' }}>
                       LISTA DE ESPERA — INVITADOS ({todosInvitados.filter(i => i.estado === 'espera').length})
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       {todosInvitados.map((inv) => (
                         <div key={inv.id} style={{
                           display: 'flex', alignItems: 'center', gap: 12,
-                          padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 3,
+                          padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 10,
                           border: inv.estado === 'confirmado' ? '1px solid var(--pos-line)' : '1px solid transparent',
                           opacity: inv.estado === 'espera' ? 0.7 : 1,
                         }}>
                           <span className="mono" style={{
-                            fontSize: 11, width: 20,
+                            fontSize: 12, width: 20,
                             color: inv.estado === 'confirmado' ? 'var(--pos)' : 'var(--amber)',
                           }}>
                             {inv.estado === 'confirmado' ? '✓' : `#${invitadosEspera.findIndex(i => i.id === inv.id) + 1}`}
                           </span>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <span style={{ fontSize: 15 }}>{inv.nombre}</span>
-                            <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 8 }}>
+                            <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginLeft: 8 }}>
                               inv. de {inv.profiles.username}
                             </span>
                           </div>
-                          <span className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.08em', flexShrink: 0 }}>INVITADO</span>
+                          <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.08em', flexShrink: 0 }}>INVITADO</span>
                         </div>
                       ))}
                     </div>
@@ -1120,16 +1122,24 @@ export default function HomePage() {
           promo, así que en esos días la pantalla era inalcanzable. El pie se
           pinta siempre. */}
       <div style={{ textAlign: 'center', padding: '32px 0 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-        <Link href="/historial" className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.08em', textDecoration: 'none' }}>
+        <Link href="/historial" className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.08em', textDecoration: 'none' }}>
           📋 VER HISTORIAL →
         </Link>
-        <span className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', opacity: 0.5 }}>
+        <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.08em', opacity: 0.5 }}>
           v{process.env.NEXT_PUBLIC_APP_VERSION}
         </span>
       </div>
 
     </div>
   )
+}
+
+/** "MBA FC" con la última palabra en el color del club. */
+function NombreClub({ nombre }: { nombre: string }) {
+  const partes = nombre.trim().split(/\s+/)
+  if (partes.length < 2) return <>{nombre}</>
+  const ultima = partes.pop()
+  return <>{partes.join(' ')} <span style={{ color: 'var(--primary)' }}>{ultima}</span></>
 }
 
 function Header({ club }: { club?: import('@/hooks/useClub').ClubInfo }) {

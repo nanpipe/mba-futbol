@@ -49,7 +49,7 @@ export function AlineacionVoto({ partidoId }: { partidoId: string }) {
   }
 
   const btn = (activo: boolean, color: string): React.CSSProperties => ({
-    flex: 1, padding: '10px 12px', borderRadius: 4, cursor: enviando ? 'default' : 'pointer',
+    flex: 1, padding: '10px 12px', borderRadius: 10, cursor: enviando ? 'default' : 'pointer',
     background: activo ? 'rgba(255,255,255,0.06)' : 'none',
     border: `1px solid ${activo ? color : 'var(--border)'}`,
     color: activo ? color : 'var(--text-muted)',
@@ -61,7 +61,7 @@ export function AlineacionVoto({ partidoId }: { partidoId: string }) {
       marginTop: 14, padding: '14px 16px',
       background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6,
     }}>
-      <div className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--text-dim)', marginBottom: 10 }}>
+      <div className="mono" style={{ fontSize: 12, letterSpacing: '0.1em', color: 'var(--text-dim)', marginBottom: 10 }}>
         ¿LA VES PAREJA?
       </div>
 
@@ -99,20 +99,20 @@ export function AlineacionVoto({ partidoId }: { partidoId: string }) {
             onClick={() => votar(-1, comentario)}
             disabled={enviando}
             className="btn btn-ghost"
-            style={{ marginTop: 8, fontSize: 11, padding: '7px 14px' }}
+            style={{ marginTop: 8, fontSize: 12, padding: '7px 14px' }}
           >
             {enviando ? 'Enviando...' : 'Enviar comentario'}
           </button>
         </div>
       )}
 
-      <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 10 }}>
+      <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 10 }}>
         👍 {aFavor} · ✋ {enContra}
         {miVoto !== null && <span style={{ color: 'var(--pos)', marginLeft: 8 }}>✓ tu voto quedó</span>}
       </div>
 
       {error && (
-        <div className="mono" style={{ fontSize: 11, color: 'var(--red)', marginTop: 8 }}>{error}</div>
+        <div className="mono" style={{ fontSize: 12, color: 'var(--red)', marginTop: 8 }}>{error}</div>
       )}
     </div>
   )

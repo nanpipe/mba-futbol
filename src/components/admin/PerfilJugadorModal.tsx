@@ -47,7 +47,7 @@ function Stat({ valor, etiqueta, color }: { valor: string; etiqueta: string; col
     <div style={{ textAlign: 'center', minWidth: 0 }}>
       <div className="display" style={{ fontSize: 26, color, lineHeight: 1.1 }}>{valor}</div>
       <div className="mono" style={{
-        fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.08em', marginTop: 4,
+        fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.08em', marginTop: 4,
         // Una etiqueta larga parte de línea en vez de meterse debajo de la vecina.
         overflowWrap: 'anywhere', lineHeight: 1.3,
       }}>
@@ -60,7 +60,7 @@ function Stat({ valor, etiqueta, color }: { valor: string; etiqueta: string; col
 function Bloque({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <div style={{ marginTop: 20 }}>
-      <div className="mono" style={{ fontSize: 10, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 8 }}>
+      <div className="mono" style={{ fontSize: 12, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 8 }}>
         {titulo}
       </div>
       {children}
@@ -161,7 +161,7 @@ export function PerfilJugadorModal({ playerId, onClose, onEditar }: {
               <PlayerAvatar url={p.avatar_url} username={p.username} size={56} />
               <div style={{ minWidth: 0 }}>
                 <div className="display" style={{ fontSize: 22 }}>{p.username}</div>
-                <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 3 }}>
+                <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 3 }}>
                   Desde {fechaCorta(p.created_at.slice(0, 10))}
                 </div>
                 <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 6 }}>
@@ -172,18 +172,18 @@ export function PerfilJugadorModal({ playerId, onClose, onEditar }: {
                       tener color. */}
                   {rol.etiqueta && (
                     <span className="mono" style={{
-                      fontSize: 9, color: rol.acento, letterSpacing: '0.1em',
+                      fontSize: 12, color: rol.acento, letterSpacing: '0.1em',
                       background: rol.fondo, border: `1px solid ${rol.acento}`,
-                      padding: '2px 5px', borderRadius: 2,
+                      padding: '2px 5px', borderRadius: 6,
                     }}>
                       {rol.etiqueta}
                     </span>
                   )}
                   {p.uniform && (
-                    <span className="mono" style={{ fontSize: 9, color: 'var(--pos)', letterSpacing: '0.1em', background: 'var(--pos-soft)', padding: '2px 5px', borderRadius: 2 }}>UNIFORME</span>
+                    <span className="mono" style={{ fontSize: 12, color: 'var(--pos)', letterSpacing: '0.1em', background: 'var(--pos-soft)', padding: '2px 5px', borderRadius: 6 }}>UNIFORME</span>
                   )}
                   {ausente && (
-                    <span className="mono" style={{ fontSize: 9, color: 'var(--info)', letterSpacing: '0.1em', background: 'var(--info-soft)', border: '1px solid var(--info-line)', padding: '2px 5px', borderRadius: 2 }}>
+                    <span className="mono" style={{ fontSize: 12, color: 'var(--info)', letterSpacing: '0.1em', background: 'var(--info-soft)', border: '1px solid var(--info-line)', padding: '2px 5px', borderRadius: 6 }}>
                       ✈️ AUSENTE · {fechaCorta(p.ausente_hasta)}
                     </span>
                   )}
@@ -206,14 +206,14 @@ export function PerfilJugadorModal({ playerId, onClose, onEditar }: {
 
             {/* Estado actual — lo único que es accionable */}
             <div style={{
-              marginTop: 14, padding: '12px 14px', borderRadius: 4,
+              marginTop: 14, padding: '12px 14px', borderRadius: 10,
               background: estado.fondo, border: `1px solid ${estado.borde}`,
             }}>
               <div className="mono" style={{ fontSize: 13, color: estado.color, lineHeight: 1.5 }}>
                 {estado.titulo}
               </div>
               {estado.detalle && (
-                <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 5, lineHeight: 1.6 }}>
+                <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 5, lineHeight: 1.6 }}>
                   {estado.detalle}
                 </div>
               )}
@@ -225,7 +225,7 @@ export function PerfilJugadorModal({ playerId, onClose, onEditar }: {
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {(p.posiciones?.length ? p.posiciones : [p.posicion!]).map(pos => (
                     <span key={pos} className="mono" style={{
-                      fontSize: 10, padding: '4px 9px', borderRadius: 2,
+                      fontSize: 12, padding: '4px 9px', borderRadius: 6,
                       background: 'var(--bg-elevated)', border: '1px solid var(--border)',
                       color: 'var(--text-muted)', letterSpacing: '0.06em',
                     }}>
@@ -239,12 +239,12 @@ export function PerfilJugadorModal({ playerId, onClose, onEditar }: {
             {/* Reconocimientos */}
             <Bloque titulo={`RECONOCIMIENTOS (${data.badges.length})`}>
               {agrupados.length === 0 ? (
-                <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>Todavía no tiene ninguno.</div>
+                <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>Todavía no tiene ninguno.</div>
               ) : (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {agrupados.map(t => (
                     <span key={t.badge_id} className="mono" style={{
-                      fontSize: 11, padding: '4px 9px', borderRadius: 2,
+                      fontSize: 12, padding: '4px 9px', borderRadius: 6,
                       background: 'var(--bg-elevated)', border: '1px solid var(--border)',
                     }}>
                       {t.emoji} {t.nombre}
@@ -256,7 +256,7 @@ export function PerfilJugadorModal({ playerId, onClose, onEditar }: {
             </Bloque>
 
             {a && a.ultimo_jugado && (
-              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 18 }}>
+              <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 18 }}>
                 Último partido jugado: {fechaCorta(a.ultimo_jugado)} · {a.jugados} de {a.posibles} desde que entró
               </div>
             )}

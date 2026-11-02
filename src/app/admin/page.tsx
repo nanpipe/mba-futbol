@@ -26,6 +26,14 @@ const MAIN_TABS: { id: Tab; label: string }[] = [
   { id: 'log',       label: 'log' },
 ]
 
+const MAIN_ICON: Record<string, string> = { partidos: '⚽', equipos: '👥', jugadores: '🧑', log: '📋' }
+
+/** Nombre corto en la cuadrícula: tiene que caber en un cuarto de pantalla. */
+const CORTO: Partial<Record<Tab, string>> = {
+  partidos: 'Partidos', equipos: 'Equipos', jugadores: 'Jugadores', log: 'Log',
+  fondo: 'Fondo', ajustes: 'Ajustes', historial: 'Historial', notifs: 'Avisos',
+}
+
 const ICON_TABS: { id: Tab; icon: string; title: string }[] = [
   { id: 'fondo',     icon: '💰', title: 'Fondo MBA' },
   { id: 'ajustes',   icon: '⚙',  title: 'Configuración' },
@@ -126,7 +134,7 @@ export default function AdminPage() {
             <Link href="/" className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', textDecoration: 'none' }}>← INICIO</Link>
             <span className="display" style={{ fontSize: 20, letterSpacing: '0.1em', color: 'var(--amber)' }}>ADMIN</span>
           </div>
-          <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.08em' }}>{(club?.nombre ?? 'FÚTBOL CLUB').toUpperCase()}</span>
+          <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.08em' }}>{(club?.nombre ?? 'FÚTBOL CLUB').toUpperCase()}</span>
         </div>
       </nav>
 
@@ -135,7 +143,7 @@ export default function AdminPage() {
         {/* Flash message */}
         {mensaje && (
           <div className="mono fade-in" style={{
-            fontSize: 13, padding: '12px 16px', borderRadius: 3, marginBottom: 24,
+            fontSize: 13, padding: '12px 16px', borderRadius: 10, marginBottom: 24,
             ...(mensaje.startsWith('Error') ? MSG.error : MSG.ok),
           }}>
             {mensaje}
@@ -150,7 +158,7 @@ export default function AdminPage() {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
               <span style={{ fontSize: 18, lineHeight: 1 }}>🔔</span>
-              <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--amber)' }}>
+              <div className="mono" style={{ fontSize: 12, letterSpacing: '0.15em', color: 'var(--amber)' }}>
                 SOLICITUDES DE ACCESO — {pendientes.length}
               </div>
             </div>
@@ -159,13 +167,13 @@ export default function AdminPage() {
                 <div key={p.id} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '12px 16px', background: 'var(--bg-card)',
-                  border: '1px solid #3a2800', borderRadius: 4, flexWrap: 'wrap', gap: 10,
+                  border: '1px solid #3a2800', borderRadius: 10, flexWrap: 'wrap', gap: 10,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                     <PlayerAvatar url={p.avatar_url} username={p.username} size={36} />
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 15, fontWeight: 500 }}>{p.username}</div>
-                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>
+                      <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>
                         {p.email}
                         {p.ip_registro && <span style={{ marginLeft: 6 }}>· {p.ip_registro}</span>}
                         <span style={{ marginLeft: 6 }}>
@@ -202,45 +210,34 @@ export default function AdminPage() {
         {/* Match close-out — "¿Se jugó?", score, photo. Always visible, never behind a tab. */}
         <CierrePartidoCard onDone={cargarDatos} />
 
-        {/* Icon tabs (utility) */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4, marginBottom: 8 }}>
-          {ICON_TABS.map(({ id, icon, title }) => (
-            <button
-              key={id}
-              onClick={() => setTab(id)}
-              title={title}
-              className="mono"
-              style={{
-                padding: '7px 13px', borderRadius: 6,
-                background: tab === id ? 'var(--bg-card)' : 'none',
-                border: tab === id ? '1px solid var(--border)' : '1px solid transparent',
-                cursor: 'pointer', fontSize: 16, color: '#fff',
-                opacity: tab === id ? 1 : 0.55,
-                transition: 'opacity 0.15s, background 0.15s',
-              }}
-            >
-              {icon}
-            </button>
-          ))}
-        </div>
-
-        {/* Main text tabs */}
-        <div style={{ marginBottom: 40, borderBottom: '1px solid var(--border)' }}>
-          <div className="hide-scrollbar" style={{ display: 'flex', overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
-            {MAIN_TABS.map(({ id, label }) => (
-              <button key={id} onClick={() => setTab(id)} className="mono" style={{
-                padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase',
-                whiteSpace: 'nowrap', flexShrink: 0,
-                color: tab === id ? 'var(--text)' : 'var(--text-muted)',
-                borderBottom: tab === id ? '2px solid var(--primary)' : '2px solid transparent',
-                marginBottom: -1, position: 'relative',
-              }}>
-                {label}
+        {/* Navegación: una cuadrícula de 4×2 con icono y nombre, todo a la
+            vista. Antes eran dos filas: cuatro iconos sin nombre (nadie sabía
+            que 💰 era el Fondo hasta tocarlo) y pestañas de texto que se salían
+            de la pantalla sin aviso ("LOG" no se veía en un celular). */}
+        <nav aria-label="Secciones del panel" style={{
+          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginBottom: 32,
+        }}>
+          {[...MAIN_TABS.map(t => ({ id: t.id, icon: MAIN_ICON[t.id], title: t.label })), ...ICON_TABS].map(({ id, icon, title }) => {
+            const sel = tab === id
+            return (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                aria-current={sel ? 'page' : undefined}
+                style={{
+                  minHeight: 56, padding: '6px 2px', borderRadius: 10, cursor: 'pointer',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+                  background: sel ? 'var(--primary-soft)' : 'var(--bg-card)',
+                  border: `1px solid ${sel ? 'var(--primary-line)' : 'var(--border)'}`,
+                  color: sel ? 'var(--text)' : 'var(--text-muted)',
+                }}
+              >
+                <span aria-hidden style={{ fontSize: 18, lineHeight: 1 }}>{icon}</span>
+                <span style={{ fontSize: 12, fontWeight: sel ? 600 : 400, whiteSpace: 'nowrap' }}>{CORTO[id] ?? title}</span>
               </button>
-            ))}
-          </div>
-        </div>
+            )
+          })}
+        </nav>
 
         {/* Tab content — conditional render keeps state isolated per tab */}
         {tab === 'partidos' && (
@@ -279,7 +276,7 @@ export default function AdminPage() {
 
         {/* Version footer */}
         <div style={{ textAlign: 'center', padding: '48px 0 16px' }}>
-          <span className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', opacity: 0.5 }}>
+          <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.08em', opacity: 0.5 }}>
             v{process.env.NEXT_PUBLIC_APP_VERSION}
           </span>
         </div>

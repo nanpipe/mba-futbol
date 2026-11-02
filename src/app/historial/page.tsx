@@ -35,8 +35,8 @@ const COLOR: Record<Resultado, string> = {
 }
 
 const selectStyle: React.CSSProperties = {
-  background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3,
-  color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: 16,
+  background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
+  color: 'var(--text)', fontFamily: 'var(--font-ui)', fontSize: 16,
   padding: '9px 10px', minWidth: 0, flex: '1 1 140px',
 }
 
@@ -48,7 +48,7 @@ function Chip({ activo, onClick, color, children }: {
       onClick={onClick}
       className="mono"
       style={{
-        padding: '6px 12px', fontSize: 11, cursor: 'pointer', borderRadius: 3,
+        minHeight: 44, padding: '6px 14px', fontSize: 13, cursor: 'pointer', borderRadius: 10,
         letterSpacing: '0.06em', whiteSpace: 'nowrap',
         border: `1px solid ${activo ? (color ?? 'var(--primary)') : 'var(--border)'}`,
         background: activo ? 'var(--bg-elevated)' : 'transparent',
@@ -250,7 +250,7 @@ export default function HistorialPage() {
         {/* ── Ficha del jugador ── */}
         {f && !loading && (
           <div style={{ padding: '14px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, marginBottom: 22 }}>
-            <div className="mono" style={{ fontSize: 9, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 8 }}>
+            <div className="mono" style={{ fontSize: 12, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 8 }}>
               {nombre.toUpperCase()}
               {nombreRival && ` VS ${nombreRival.toUpperCase()}`}
               {anio && ` · ${mes ? `${MESES[Number(mes) - 1]} ` : ''}${anio}`}
@@ -258,7 +258,7 @@ export default function HistorialPage() {
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
               <div>
                 <span className="display" style={{ fontSize: 26 }}>{f.jugados}</span>
-                <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}> jugados</span>
+                <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}> jugados</span>
               </div>
               <div className="mono" style={{ fontSize: 13 }}>
                 <span style={{ color: COLOR['ganó'] }}>{f.ganados}G</span>
@@ -275,7 +275,7 @@ export default function HistorialPage() {
                 // Con tres partidos, un 0-1-2 saldría como "0.0%" y marcaría a
                 // alguien como el peor del club por pura mala suerte. Los
                 // conteos de arriba siguen ahí: son el dato sin interpretar.
-                <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 'auto', textAlign: 'right' }}>
+                <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginLeft: 'auto', textAlign: 'right' }}>
                   pocos partidos<br />para un %
                 </div>
               ) : null}
@@ -284,7 +284,7 @@ export default function HistorialPage() {
             {/* Honestidad sobre la cobertura: no se disimulan los partidos en
                 los que no se guardaron equipos y no se puede saber quién ganó. */}
             {f.sin_datos > 0 && (
-              <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 10, lineHeight: 1.5 }}>
+              <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10, lineHeight: 1.5 }}>
                 {f.sin_datos} {f.sin_datos === 1 ? 'partido no cuenta' : 'partidos no cuentan'} para el marcador:
                 no quedaron guardados los equipos, así que no se puede saber quién ganó.
                 {f.pct_victorias !== null && ` El ${f.pct_victorias}% es sobre los ${f.ganados + f.perdidos + f.empatados} que sí se saben.`}
@@ -292,7 +292,7 @@ export default function HistorialPage() {
             )}
 
             {datos?.cruce && (
-              <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+              <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
                 Juntos <strong style={{ color: 'var(--text)' }}>{datos.cruce.con}</strong>
                 {' · '}En contra <strong style={{ color: 'var(--text)' }}>{datos.cruce.contra}</strong>
               </div>

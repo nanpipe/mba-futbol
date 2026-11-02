@@ -377,14 +377,14 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
           {/* Notification channels — per-event email/push matrix */}
           <Card padding="20px 24px">
             <SectionHeader title="NOTIFICACIONES" icon="🔔" color="var(--amber)" />
-            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
               Elige canal por evento. El email de alertas de admin viene apagado para no saturar — actívalo si lo quieres.
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
                 <div style={{ flex: 1 }} />
-                <div className="mono" style={{ width: 44, textAlign: 'center', fontSize: 10, color: 'var(--text-muted)' }}>📧</div>
-                <div className="mono" style={{ width: 44, textAlign: 'center', fontSize: 10, color: 'var(--text-muted)' }}>🔔</div>
+                <div className="mono" style={{ width: 44, textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>📧</div>
+                <div className="mono" style={{ width: 44, textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>🔔</div>
               </div>
               {NOTIF_EVENTS.map(ev => {
                 const emailOn = chanOn(ev.emailKey, ev.emailDefault)
@@ -393,7 +393,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
                   <div key={ev.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 500 }}>{ev.label}</div>
-                      <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>{ev.desc}</div>
+                      <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>{ev.desc}</div>
                     </div>
                     <div style={{ width: 44, display: 'flex', justifyContent: 'center' }}>
                       <ToggleSwitch checked={emailOn} onChange={v => toggleSetting(ev.emailKey, v)} />
@@ -420,7 +420,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 24 }}>
               {CLUB_TEXT_FIELDS.map(({ key, label, placeholder }) => (
                 <div key={key}>
-                  <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
+                  <label className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
                     {label}
                     {savingText === key && <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>guardando...</span>}
                   </label>
@@ -444,7 +444,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
                 <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 500 }}>{label}</div>
-                    <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{desc}</div>
+                    <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{desc}</div>
                   </div>
                   <ToggleSwitch
                     checked={settings[key] !== false}
@@ -461,7 +461,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {HORARIOS_FIELDS.map(({ key, label, placeholder }) => (
                 <div key={key}>
-                  <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
+                  <label className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
                     {label}
                     {savingText === key && <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>guardando...</span>}
                   </label>
@@ -484,7 +484,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
           {/* Ubicaciones — canchas del club */}
           <Card padding="20px 24px">
             <SectionHeader title="UBICACIONES" icon="📍" color="var(--primary)" />
-            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 10, lineHeight: 1.6 }}>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10, lineHeight: 1.6 }}>
               Una cancha por línea. La primera es la predeterminada al crear partidos.
               {savingText === 'ubicaciones' && <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>guardando...</span>}
             </div>
@@ -510,7 +510,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
           {/* Quórum de reconocimientos */}
           <Card padding="20px 24px">
             <SectionHeader title="QUÓRUM DE RECONOCIMIENTOS" icon="🏅" color="var(--amber)" />
-            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
               Cuánto respaldo necesita una votación para repartir el reconocimiento.
               Se asigna si el ganador llega a los votos mínimos <b>o</b> si votó
               suficiente gente — y nunca por debajo del piso.
@@ -518,7 +518,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
               {RECO_CONFIG.map(({ key, label, desc, def }) => (
                 <div key={key} style={{ minWidth: 0 }}>
-                  <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
+                  <label className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
                     {label}
                     {savingText === key && <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>guardando...</span>}
                   </label>
@@ -531,11 +531,11 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
                     onBlur={e => guardarTexto(key, e.target.value)}
                     style={{ width: '100%', boxSizing: 'border-box' }}
                   />
-                  <div className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 4 }}>{desc}</div>
+                  <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>{desc}</div>
                 </div>
               ))}
             </div>
-            <div className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 12, lineHeight: 1.6 }}>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 12, lineHeight: 1.6 }}>
               Aplica desde el próximo conteo. Los reconocimientos ya asignados no cambian
               salvo que se reabra y vuelva a cerrarse la votación.
             </div>
@@ -546,7 +546,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
             }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 500 }}>Castigar a quien no vota</div>
-                <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.6 }}>
+                <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.6 }}>
                   Jugó el partido y no evaluó a nadie: −0.02. Cuenta cualquier
                   evaluación enviada, incluidos los &ldquo;No aplica&rdquo; y los pulgares sueltos.
                   <br /><br />
@@ -563,7 +563,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
             </div>
 
             <div style={{ marginTop: 14 }}>
-              <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
+              <label className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
                 SOLO PARTIDOS DESDE
                 {savingText === CASTIGO_DESDE_KEY && <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>guardando...</span>}
               </label>
@@ -574,7 +574,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
                 onBlur={e => guardarTexto(CASTIGO_DESDE_KEY, e.target.value)}
                 style={{ width: '100%', boxSizing: 'border-box', maxWidth: 220 }}
               />
-              <div className="mono" style={{ fontSize: 9, color: (settings[CASTIGO_DESDE_KEY] as string) ? 'var(--text-dim)' : 'var(--amber)', marginTop: 6, lineHeight: 1.6 }}>
+              <div className="mono" style={{ fontSize: 12, color: (settings[CASTIGO_DESDE_KEY] as string) ? 'var(--text-dim)' : 'var(--amber)', marginTop: 6, lineHeight: 1.6 }}>
                 {(settings[CASTIGO_DESDE_KEY] as string)
                   ? 'Los partidos anteriores a esta fecha nunca se castigan, ni al recalcular.'
                   : 'Sin fecha no se castiga a nadie. Ponla en el próximo partido para que la regla no sea retroactiva.'}
@@ -586,7 +586,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
           {isSuperAdmin && (
             <Card padding="20px 24px">
               <SectionHeader title="RECALCULAR RATINGS" icon="♻️" color="var(--mini)" />
-              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+              <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
                 Reconstruye el rating de todo el club desde cero, replayando cada
                 partido con las reglas de hoy. Los ratings viejos se calcularon con
                 reglas anteriores (la falta restaba en cada partido, el tope era
@@ -611,7 +611,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
               </button>
               {recalculoResult && (
                 <div className="mono" style={{
-                  fontSize: 10, marginTop: 12, lineHeight: 1.7, whiteSpace: 'pre-wrap',
+                  fontSize: 12, marginTop: 12, lineHeight: 1.7, whiteSpace: 'pre-wrap',
                   color: recalculoResult.ok ? 'var(--pos)' : 'var(--red)',
                 }}>
                   {recalculoResult.msg}
@@ -624,7 +624,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
           {isSuperAdmin && (
             <Card padding="20px 24px">
               <SectionHeader title="RECOMPRIMIR AVATARES" icon="🗜️" color="var(--mini)" />
-              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+              <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
                 Las fotos de perfil viejas se guardaron a 800 px en PNG: cerca de
                 500 KB cada una, para verse del tamaño de una moneda. Abrir la
                 lista de jugadores baja varios MB y por eso los avatares salen a
@@ -651,7 +651,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
               </button>
               {avatarsResult && (
                 <div className="mono" style={{
-                  fontSize: 10, marginTop: 12, lineHeight: 1.7, whiteSpace: 'pre-wrap',
+                  fontSize: 12, marginTop: 12, lineHeight: 1.7, whiteSpace: 'pre-wrap',
                   color: avatarsResult.ok ? 'var(--pos)' : 'var(--amber)',
                 }}>
                   {avatarsResult.msg}
@@ -663,7 +663,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
           {/* Faltas */}
           <Card padding="20px 24px">
             <SectionHeader title="FALTAS" icon="📉" color="var(--amber)" />
-            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
               No inscribirse solo resta cuando ya hay racha. Cualquier señal de
               presencia la corta — jugar, quedar en espera, o una ausencia marcada
               por un admin — así que quien no puede un día fijo de la semana nunca
@@ -672,7 +672,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
               {FALTAS_CONFIG.map(({ key, label, desc, def }) => (
                 <div key={key} style={{ minWidth: 0 }}>
-                  <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
+                  <label className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
                     {label}
                     {savingText === key && <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>guardando...</span>}
                   </label>
@@ -685,7 +685,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
                     onBlur={e => guardarTexto(key, e.target.value)}
                     style={{ width: '100%', boxSizing: 'border-box' }}
                   />
-                  <div className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 4 }}>{desc}</div>
+                  <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>{desc}</div>
                 </div>
               ))}
             </div>
@@ -694,7 +694,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
           {/* Pulgares */}
           <Card padding="20px 24px">
             <SectionHeader title="PULGARES" icon="👍" color="var(--primary)" />
-            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
               Los 👍/👎 de la evaluación mueven el rating por grupos, no de a uno.
               Los dos lados cuentan por separado: 4 👍 y 3 👎 en el mismo partido
               son un escalón arriba y uno abajo.
@@ -702,7 +702,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
               {THUMBS_CONFIG.map(({ key, label, desc, def }) => (
                 <div key={key} style={{ minWidth: 0 }}>
-                  <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
+                  <label className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
                     {label}
                     {savingText === key && <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>guardando...</span>}
                   </label>
@@ -715,7 +715,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
                     onBlur={e => guardarTexto(key, e.target.value)}
                     style={{ width: '100%', boxSizing: 'border-box' }}
                   />
-                  <div className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 4 }}>{desc}</div>
+                  <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>{desc}</div>
                 </div>
               ))}
             </div>
@@ -725,13 +725,13 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
           {isSuperAdmin && (
             <Card padding="20px 24px">
               <SectionHeader title="CONFIGURACIÓN DE JUEGO" icon="🎮" color="var(--mini)" />
-              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+              <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
                 Cómo se arman y juegan los equipos de este club. Solo superadmin.
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
                 {GAME_CONFIG.map(({ key, label, desc, def }) => (
                   <div key={key} style={{ minWidth: 0 }}>
-                    <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
+                    <label className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>
                       {label}
                       {savingText === key && <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>guardando...</span>}
                     </label>
@@ -743,7 +743,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
                       onBlur={e => guardarTexto(key, e.target.value)}
                       style={{ width: '100%', boxSizing: 'border-box' }}
                     />
-                    <div className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 4 }}>{desc}</div>
+                    <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>{desc}</div>
                   </div>
                 ))}
               </div>
@@ -777,7 +777,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
             </ButtonGroup>
             {testEmailResult && (
               <div className="mono" style={{
-                fontSize: 12, marginTop: 10, padding: '8px 12px', borderRadius: 3,
+                fontSize: 12, marginTop: 10, padding: '8px 12px', borderRadius: 10,
                 ...(testEmailResult.ok
                   ? { color: 'var(--pos)', background: 'var(--pos-soft)', border: '1px solid var(--pos-line)' }
                   : { color: 'var(--red)', background: 'var(--neg-soft)', border: '1px solid var(--neg-line)' }),
@@ -802,7 +802,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
                 </button>
                 {notifPruebaResult && (
                   <div className="mono" style={{
-                    fontSize: 11, marginTop: 8, padding: '8px 12px', borderRadius: 3,
+                    fontSize: 12, marginTop: 8, padding: '8px 12px', borderRadius: 10,
                     ...(notifPruebaResult.ok
                       ? { color: 'var(--pos)', background: 'var(--pos-soft)', border: '1px solid var(--pos-line)' }
                       : { color: 'var(--red)', background: 'var(--neg-soft)', border: '1px solid var(--neg-line)' }),
@@ -822,7 +822,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
                 </button>
                 {cronResult && (
                   <div className="mono" style={{
-                    fontSize: 11, marginTop: 8, padding: '8px 12px', borderRadius: 3,
+                    fontSize: 12, marginTop: 8, padding: '8px 12px', borderRadius: 10,
                     ...(cronResult.ok
                       ? { color: 'var(--pos)', background: 'var(--pos-soft)', border: '1px solid var(--pos-line)' }
                       : { color: 'var(--red)', background: 'var(--neg-soft)', border: '1px solid var(--neg-line)' }),
@@ -841,7 +841,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
               <span style={{ color: 'var(--primary)' }}>0 15 * * *</span>
               <span style={{ color: 'var(--text-muted)', marginLeft: 12 }}>→ 10:00 AM Colombia (15:00 UTC)</span>
             </div>
-            <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8 }}>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8 }}>
               Corre diariamente. Envía push + email de apertura e inscripciones. Verifica recordatorio (≤10h antes), cupos y promoción de invitados.
             </div>
           </Card>

@@ -86,7 +86,7 @@ export function TabNotifs({ partidos, players, onFlash }: Props) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Grupo */}
           <div>
-            <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 10 }}>DESTINATARIOS</label>
+            <label className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 10 }}>DESTINATARIOS</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {GRUPOS.map(g => (
                 <button
@@ -94,11 +94,11 @@ export function TabNotifs({ partidos, players, onFlash }: Props) {
                   onClick={() => setPushGroup(g.id)}
                   className="btn"
                   style={{
-                    fontSize: 11, padding: '6px 12px',
+                    fontSize: 12, padding: '6px 12px',
                     background: pushGroup === g.id ? 'var(--primary)' : 'var(--bg-card)',
                     color: pushGroup === g.id ? '#000' : 'var(--text-muted)',
                     border: `1px solid ${pushGroup === g.id ? 'var(--primary)' : 'var(--border)'}`,
-                    fontFamily: 'DM Mono, monospace',
+                    fontFamily: 'var(--font-ui)',
                   }}
                 >
                   {g.label}
@@ -110,11 +110,11 @@ export function TabNotifs({ partidos, players, onFlash }: Props) {
           {/* Partido selector */}
           {['confirmados', 'espera', 'todos_partido'].includes(pushGroup) && (
             <div>
-              <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>PARTIDO</label>
+              <label className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>PARTIDO</label>
               <select
                 value={pushPartidoId || partidos[0]?.id || ''}
                 onChange={e => setPushPartidoId(e.target.value)}
-                style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, padding: '10px 12px', color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: 16 }}
+                style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', color: 'var(--text)', fontFamily: 'var(--font-ui)', fontSize: 16 }}
               >
                 {partidos.map(p => (
                   <option key={p.id} value={p.id}>
@@ -128,11 +128,11 @@ export function TabNotifs({ partidos, players, onFlash }: Props) {
           {/* Individual player */}
           {pushGroup === 'individual' && (
             <div>
-              <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>JUGADOR</label>
+              <label className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>JUGADOR</label>
               <select
                 value={pushTarget}
                 onChange={e => setPushTarget(e.target.value)}
-                style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, padding: '10px 12px', color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: 16 }}
+                style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', color: 'var(--text)', fontFamily: 'var(--font-ui)', fontSize: 16 }}
               >
                 <option value="">— Seleccionar jugador —</option>
                 {players.filter(p => p.aprobado && !p.baneado).map(p => (
@@ -143,11 +143,11 @@ export function TabNotifs({ partidos, players, onFlash }: Props) {
           )}
 
           <div>
-            <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>TÍTULO</label>
+            <label className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>TÍTULO</label>
             <input type="text" value={pushTitle} onChange={e => setPushTitle(e.target.value)} placeholder={club.nombre} />
           </div>
           <div>
-            <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>MENSAJE</label>
+            <label className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>MENSAJE</label>
             <input type="text" value={pushBody} onChange={e => setPushBody(e.target.value)} />
           </div>
 
@@ -166,7 +166,7 @@ export function TabNotifs({ partidos, players, onFlash }: Props) {
           <SectionHeader title="NOTIFICACIONES AUTOMÁTICAS" />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {AUTO_NOTIFS.map((item, i) => (
-              <div key={i} className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item}</div>
+              <div key={i} className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{item}</div>
             ))}
           </div>
         </Card>
@@ -175,17 +175,17 @@ export function TabNotifs({ partidos, players, onFlash }: Props) {
         <Card style={{ marginTop: 16, borderColor: '#1a2a1a' }}>
           <SectionHeader title="DIAGNÓSTICO" />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               <span style={{ color: 'var(--primary)' }}>·</span>{' '}
               Emails (Resend): ver entregas, rebotes y aperturas en{' '}
               <a href="https://resend.com/emails" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>resend.com/emails</a>
             </div>
-            <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               <span style={{ color: 'var(--primary)' }}>·</span>{' '}
               Push y emails: cada envío queda registrado en el LOG de actividad
             </div>
             {DIAGNOSTICO.map((item, i) => (
-              <div key={i} className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 8 }}>
+              <div key={i} className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', gap: 8 }}>
                 <span style={{ color: 'var(--primary)' }}>·</span>
                 <span>{item}</span>
               </div>

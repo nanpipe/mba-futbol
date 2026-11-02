@@ -93,7 +93,7 @@ export function MisInvitados({
   return (
     <div style={{ marginTop: 32 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
+        <div className="mono" style={{ fontSize: 12, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
           MIS INVITADOS ({misInvitados.length}/{maxInvitados})
         </div>
       </div>
@@ -101,7 +101,7 @@ export function MisInvitados({
       {misInvitados.map(inv => (
         <div key={inv.id} style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '10px 14px', background: 'var(--bg-card)', borderRadius: 3,
+          padding: '10px 14px', background: 'var(--bg-card)', borderRadius: 10,
           border: '1px solid #1a2a3a', marginBottom: 4,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
@@ -116,7 +116,7 @@ export function MisInvitados({
             onClick={() => eliminar(inv.id)}
             className="mono"
             aria-label={'Quitar ' + inv.nombre}
-            style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+            style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
           >
             ✕
           </button>
@@ -128,7 +128,7 @@ export function MisInvitados({
           {/* One-tap add from the player's saved guests */}
           {disponibles.length > 0 && (
             <div style={{ marginTop: 10 }}>
-              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 6 }}>
+              <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 6 }}>
                 GUARDADOS
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -140,7 +140,7 @@ export function MisInvitados({
                     className="mono"
                     title={g.email ?? 'Sin correo'}
                     style={{
-                      fontSize: 11, padding: '6px 11px', borderRadius: 999, cursor: 'pointer',
+                      fontSize: 12, padding: '6px 11px', borderRadius: 999, cursor: 'pointer',
                       background: 'none', border: '1px solid var(--border)', color: 'var(--text-muted)',
                     }}
                   >
@@ -181,7 +181,7 @@ export function MisInvitados({
               style={{ width: '100%', boxSizing: 'border-box' }}
             />
 
-            <label className="mono" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--text-dim)', cursor: 'pointer' }}>
+            <label className="mono" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-dim)', cursor: 'pointer' }}>
               <input type="checkbox" checked={guardar} onChange={e => setGuardar(e.target.checked)} style={{ cursor: 'pointer' }} />
               Guardar para próximos partidos
             </label>
@@ -189,7 +189,7 @@ export function MisInvitados({
 
           {error && (
             <div className="mono" style={{
-              fontSize: 12, marginTop: 8, padding: '8px 12px', borderRadius: 3,
+              fontSize: 12, marginTop: 8, padding: '8px 12px', borderRadius: 10,
               color: 'var(--red)', background: 'var(--neg-soft)', border: '1px solid var(--neg-line)',
             }}>
               {error}
@@ -198,7 +198,7 @@ export function MisInvitados({
         </>
       )}
 
-      <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 10, lineHeight: 1.6 }}>
+      <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 10, lineHeight: 1.6 }}>
         Los invitados están en lista de espera. Si quedan cupos a las {horaPromo} del día del partido, entran
         automáticamente. Si dejas su correo, le avisamos a él directamente.
       </div>

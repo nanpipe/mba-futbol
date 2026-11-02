@@ -350,7 +350,7 @@ export default function PerfilPage() {
             </div>
           ) : (
             <div className="mono fade-in" style={{
-              fontSize: 13, padding: '12px 16px', borderRadius: 3, marginBottom: 24,
+              fontSize: 13, padding: '12px 16px', borderRadius: 10, marginBottom: 24,
               background: 'var(--pos-soft)',
               color: 'var(--pos)',
               border: '1px solid var(--pos-line)'
@@ -371,7 +371,7 @@ export default function PerfilPage() {
 
           <div style={{ textAlign: 'center' }}>
             <div className="display" style={{ fontSize: 22, letterSpacing: '0.05em' }}>{profile?.username}</div>
-            <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
               {(profile?.posiciones?.length ? profile.posiciones : [profile?.posicion ?? 'cualquiera'])
                 .map(p => `${posicionEmoji(p)} ${p}`).join('  ·  ')}
             </div>
@@ -380,7 +380,7 @@ export default function PerfilPage() {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
             <label style={{ cursor: uploadingAvatar ? 'not-allowed' : 'pointer' }}>
               <input type="file" accept="image/jpeg,image/png,image/webp" onChange={elegirAvatar} disabled={uploadingAvatar} style={{ display: 'none' }} />
-              <span className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 16px', opacity: uploadingAvatar ? 0.5 : 1 }}>
+              <span className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 16px', opacity: uploadingAvatar ? 0.5 : 1 }}>
                 {uploadingAvatar ? (avatarStatus || 'Procesando...') : '📷 Cambiar foto'}
               </span>
             </label>
@@ -392,13 +392,13 @@ export default function PerfilPage() {
                 onClick={() => reencuadrarMiFoto(profile.avatar_url!)}
                 disabled={uploadingAvatar}
                 className="btn btn-ghost"
-                style={{ fontSize: 11, padding: '6px 16px', opacity: uploadingAvatar ? 0.5 : 1 }}
+                style={{ fontSize: 12, padding: '6px 16px', opacity: uploadingAvatar ? 0.5 : 1 }}
               >
                 ✂️ Reencuadrar
               </button>
             )}
           </div>
-          <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', textAlign: 'center' }}>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'center' }}>
             Se comprime y se remueve el fondo automáticamente ✨
           </div>
         </div>
@@ -407,15 +407,15 @@ export default function PerfilPage() {
         <Card padding="16px 20px" style={{ marginBottom: 28, display: 'flex', gap: 0 }}>
           <div style={{ flex: 1, textAlign: 'center', borderRight: '1px solid var(--border)' }}>
             <div className="display" style={{ fontSize: 28, color: 'var(--primary)' }}>{totalMatches}</div>
-            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>PARTIDOS</div>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>PARTIDOS</div>
           </div>
           <div style={{ flex: 1, textAlign: 'center', borderRight: '1px solid var(--border)' }}>
             <div className="display" style={{ fontSize: 28, color: 'var(--amber)' }}>{badges.length}</div>
-            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>RECONOCIMIENTOS</div>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>RECONOCIMIENTOS</div>
           </div>
           <div style={{ flex: 1, textAlign: 'center' }}>
             <div className="display" style={{ fontSize: 28 }}>★{formatRating(profile?.habilidad)}</div>
-            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
               {ratingTierStyle(profile?.habilidad ?? 3, club?.tiers).label}
             </div>
           </div>
@@ -432,15 +432,15 @@ export default function PerfilPage() {
                   borderRadius: 20, padding: '6px 12px',
                 }}>
                   <span style={{ fontSize: 18 }}>{b.emoji}</span>
-                  <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>{b.nombre}</span>
+                  <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>{b.nombre}</span>
                   {b.veces > 1 && (
-                    <span className="mono" style={{ fontSize: 11, color: 'var(--amber)', fontWeight: 600 }}>×{b.veces}</span>
+                    <span className="mono" style={{ fontSize: 12, color: 'var(--amber)', fontWeight: 600 }}>×{b.veces}</span>
                   )}
                 </div>
               ))}
             </div>
             {profile?.created_at && (
-              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 14 }}>
+              <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 14 }}>
                 Miembro desde {new Date(profile.created_at).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })}
               </div>
             )}
@@ -449,7 +449,7 @@ export default function PerfilPage() {
 
         {esAdmin && (
           <Section title="MI AUSENCIA">
-            <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 12 }}>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 12 }}>
               ¿De viaje o lesionado? Mientras estés ausente no pierdes puntaje por no inscribirte ni te llegan avisos.
               No puedes inscribirte hasta quitarla, y si juegas, el partido cuenta normal.
             </div>
@@ -470,7 +470,7 @@ export default function PerfilPage() {
             ) : null}
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', marginTop: ausenteActiva ? 16 : 0 }}>
               <div style={{ flex: 1, minWidth: 160 }}>
-                <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>
+                <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 4 }}>
                   {ausenteActiva ? 'CAMBIAR FECHA DE REGRESO' : 'AUSENTE HASTA'}
                 </div>
                 <input
@@ -499,7 +499,7 @@ export default function PerfilPage() {
         </Section>
 
         <Section title="MIS POSICIONES">
-          <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 10 }}>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
             Elige hasta 2 posiciones.
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(60px, 1fr))', gap: 6, marginBottom: 14 }}>
@@ -511,7 +511,7 @@ export default function PerfilPage() {
                   onClick={() => togglePos(p)}
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                    padding: '10px 4px', borderRadius: 4, cursor: 'pointer',
+                    padding: '10px 4px', borderRadius: 10, cursor: 'pointer',
                     background: sel ? 'var(--primary-soft)' : 'transparent',
                     border: `1px solid ${sel ? 'var(--primary-line)' : 'var(--border)'}`,
                     color: sel ? 'var(--primary)' : 'var(--text-muted)',
@@ -519,7 +519,7 @@ export default function PerfilPage() {
                   }}
                 >
                   <span style={{ fontSize: 20 }}>{posicionEmoji(p)}</span>
-                  <span className="mono" style={{ fontSize: 9, letterSpacing: '0.06em', textTransform: 'capitalize' }}>{p}</span>
+                  <span className="mono" style={{ fontSize: 12, letterSpacing: '0.06em', textTransform: 'capitalize' }}>{p}</span>
                 </button>
               )
             })}
@@ -528,7 +528,7 @@ export default function PerfilPage() {
             onClick={guardarPosicion}
             disabled={savingPos || posiciones.length === 0 || posiciones.join(',') === (profile?.posiciones?.join(',') ?? profile?.posicion ?? '')}
             className="btn btn-ghost"
-            style={{ fontSize: 11, padding: '8px 16px' }}
+            style={{ fontSize: 12, padding: '8px 16px' }}
           >
             {savingPos ? 'Guardando...' : 'Guardar posiciones'}
           </button>
@@ -538,12 +538,12 @@ export default function PerfilPage() {
         <Section title="NOMBRE DE USUARIO">
           <div style={{
             padding: '10px 14px', background: 'var(--bg-elevated)',
-            border: '1px solid var(--border)', borderRadius: 3,
-            fontFamily: 'DM Mono, monospace', fontSize: 14, color: 'var(--text-muted)',
+            border: '1px solid var(--border)', borderRadius: 10,
+            fontFamily: 'var(--font-ui)', fontSize: 14, color: 'var(--text-muted)',
           }}>
             {profile?.username}
           </div>
-          <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 6 }}>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6 }}>
             El nombre de usuario es permanente. Contacta al admin para cambiarlo.
           </div>
         </Section>
@@ -552,10 +552,10 @@ export default function PerfilPage() {
         <Section title="EMAIL">
           <input type="email" value={newEmail} onChange={e => { setNewEmail(e.target.value); setEmailSent(false) }} placeholder="tu@email.com" />
           {emailSent
-            ? <div className="mono" style={{ fontSize: 11, color: 'var(--amber)', marginTop: 8 }}>✉ Revisa tu bandeja para confirmar.</div>
-            : <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 6 }}>Se enviará un correo de verificación al nuevo email.</div>
+            ? <div className="mono" style={{ fontSize: 12, color: 'var(--amber)', marginTop: 8 }}>✉ Revisa tu bandeja para confirmar.</div>
+            : <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6 }}>Se enviará un correo de verificación al nuevo email.</div>
           }
-          <button onClick={cambiarEmail} disabled={savingEmail || !newEmail.trim() || newEmail.trim() === profile?.email || emailSent} className="btn btn-ghost" style={{ marginTop: 12, fontSize: 11, padding: '8px 16px' }}>
+          <button onClick={cambiarEmail} disabled={savingEmail || !newEmail.trim() || newEmail.trim() === profile?.email || emailSent} className="btn btn-ghost" style={{ marginTop: 12, fontSize: 12, padding: '8px 16px' }}>
             {savingEmail ? 'Enviando...' : 'Cambiar email'}
           </button>
         </Section>
@@ -566,7 +566,7 @@ export default function PerfilPage() {
             <input type="password" value={newPass} onChange={e => setNewPass(e.target.value)} placeholder="Nueva contraseña (mín. 8)" autoComplete="new-password" />
             <input type="password" value={confirmPass} onChange={e => setConfirmPass(e.target.value)} placeholder="Confirmar contraseña" autoComplete="new-password" />
           </div>
-          <button onClick={cambiarPassword} disabled={savingPass || !newPass || !confirmPass} className="btn btn-ghost" style={{ marginTop: 12, fontSize: 11, padding: '8px 16px' }}>
+          <button onClick={cambiarPassword} disabled={savingPass || !newPass || !confirmPass} className="btn btn-ghost" style={{ marginTop: 12, fontSize: 12, padding: '8px 16px' }}>
             {savingPass ? 'Guardando...' : 'Cambiar contraseña'}
           </button>
         </Section>

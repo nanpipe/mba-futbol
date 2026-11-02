@@ -98,16 +98,16 @@ export function ColoresClub({ inicial, clubNombre }: { inicial: Tema; clubNombre
         </div>
         <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 12 }}>
-            <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 8 }}>CUPOS <span style={{ color: 'var(--primary)' }}>13</span>/14</div>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 8 }}>CUPOS <span style={{ color: 'var(--primary)' }}>13</span>/14</div>
             <div style={{ display: 'flex', gap: 3 }}>
               {Array.from({ length: 14 }, (_, i) => (
-                <div key={i} style={{ flex: 1, height: 5, borderRadius: 2, background: i < 13 ? 'var(--primary)' : 'var(--border)' }} />
+                <div key={i} style={{ flex: 1, height: 5, borderRadius: 6, background: i < 13 ? 'var(--primary)' : 'var(--border)' }} />
               ))}
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, background: 'var(--primary-soft)', border: '1px solid var(--primary-line)' }}>
             <span style={{ fontSize: 14, color: 'var(--text)', flex: 1 }}>juli9</span>
-            <span className="mono" style={{ fontSize: 11, color: 'var(--primary)' }}>TÚ</span>
+            <span className="mono" style={{ fontSize: 12, color: 'var(--primary)' }}>TÚ</span>
             <span className="mono" style={{ fontSize: 12, color: 'var(--pos)' }}>+0.02</span>
             <span className="mono" style={{ fontSize: 12, color: 'var(--red)' }}>−0.02</span>
           </div>

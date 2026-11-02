@@ -44,7 +44,7 @@ function ResultadosPanel({ resultados, votantes }: { resultados: Resultado[]; vo
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {votantes > 0 && (
-        <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 4 }}>
+        <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 4 }}>
           {votantes} jugador{votantes !== 1 ? 'es' : ''} votó{votantes !== 1 ? 'aron' : ''} este partido
         </div>
       )}
@@ -57,14 +57,14 @@ function ResultadosPanel({ resultados, votantes }: { resultados: Resultado[]; vo
         }}>
           <span style={{ fontSize: 28, flexShrink: 0 }}>{r.emoji}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 2 }}>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 2 }}>
               {r.nombre}{r.empate && ' · EMPATE'}
             </div>
             <div style={{ fontSize: 16, fontWeight: 600 }}>{r.ganador}</div>
           </div>
           <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', flexShrink: 0, textAlign: 'right' }}>
             {r.votos} voto{r.votos !== 1 ? 's' : ''}
-            {r.empate && <div style={{ fontSize: 10 }}>c/u</div>}
+            {r.empate && <div style={{ fontSize: 12 }}>c/u</div>}
           </div>
         </div>
       ))}
@@ -74,7 +74,7 @@ function ResultadosPanel({ resultados, votantes }: { resultados: Resultado[]; vo
       {sinDueño.length > 0 && (
         <>
           <div className="mono" style={{
-            fontSize: 10, letterSpacing: '0.1em', color: 'var(--text-dim)',
+            fontSize: 12, letterSpacing: '0.1em', color: 'var(--text-dim)',
             marginTop: 12, marginBottom: 2,
           }}>
             SIN ASIGNAR
@@ -87,8 +87,8 @@ function ResultadosPanel({ resultados, votantes }: { resultados: Resultado[]; vo
             }}>
               <span style={{ fontSize: 22, flexShrink: 0, filter: 'grayscale(1)' }}>{r.emoji}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 2 }}>{r.nombre}</div>
-                <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 2 }}>{r.nombre}</div>
+                <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>
                   {r.ganadores.some(g => g.revocado)
                     ? 'Quitado por un admin'
                     : r.motivo}
@@ -304,7 +304,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
         <div className="container" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Link href="/" className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', textDecoration: 'none' }}>← INICIO</Link>
           <span className="display" style={{ fontSize: 18, letterSpacing: '0.08em' }}>RECONOCIMIENTOS</span>
-          {partido && <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 'auto' }}>{partido.dia_semana}</div>}
+          {partido && <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginLeft: 'auto' }}>{partido.dia_semana}</div>}
         </div>
       </nav>
       <div className="container" style={{ paddingTop: 32, maxWidth: 560 }}>
@@ -331,7 +331,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
         <div className="container" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Link href="/" className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', textDecoration: 'none' }}>← INICIO</Link>
           <span className="display" style={{ fontSize: 18, letterSpacing: '0.08em' }}>RECONOCIMIENTOS</span>
-          {partido && <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 'auto' }}>{partido.dia_semana}</div>}
+          {partido && <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginLeft: 'auto' }}>{partido.dia_semana}</div>}
         </div>
       </nav>
       <div className="container" style={{ paddingTop: 32, maxWidth: 560 }}>
@@ -364,7 +364,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
             <span className="display" style={{ fontSize: 18, letterSpacing: '0.08em' }}>RECONOCIMIENTOS</span>
           </div>
           {partido && (
-            <div className="mono nav-hide-sm" style={{ fontSize: 11, color: 'var(--text-dim)', flexShrink: 0, whiteSpace: 'nowrap' }}>
+            <div className="mono nav-hide-sm" style={{ fontSize: 12, color: 'var(--text-dim)', flexShrink: 0, whiteSpace: 'nowrap' }}>
               {partido.dia_semana} {new Date(partido.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}
             </div>
           )}
@@ -374,7 +374,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
       <div className="container" style={{ paddingTop: 32, maxWidth: 560 }}>
 
         {/* Subtitle + progress */}
-        <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 28, lineHeight: 1.7 }}>
+        <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 28, lineHeight: 1.7 }}>
           Vota por un compañero en cada categoría. Es anónimo y opcional.{' '}
           <span style={{ color: votosCount > 0 ? 'var(--primary)' : 'var(--text-dim)' }}>
             {votosCount}/{badges.length} votadas.
@@ -391,8 +391,8 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
             cuesta puntaje si la votación se queda corta. */}
         {partido && (
           <div className="mono" style={{
-            fontSize: 11, lineHeight: 1.7, marginBottom: 24,
-            padding: '12px 14px', borderRadius: 4,
+            fontSize: 12, lineHeight: 1.7, marginBottom: 24,
+            padding: '12px 14px', borderRadius: 10,
             background: 'var(--bg-card)', border: '1px solid var(--border)',
           }}>
             <span style={{ color: 'var(--amber)' }}>⏰ Las votaciones cierran esta noche a medianoche</span>
@@ -433,13 +433,13 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 15, fontWeight: 500 }}>{cat.nombre}</div>
                     {winner && (
-                      <div className="mono" style={{ fontSize: 10, color: 'var(--primary)', letterSpacing: '0.08em', marginTop: 2 }}>
+                      <div className="mono" style={{ fontSize: 12, color: 'var(--primary)', letterSpacing: '0.08em', marginTop: 2 }}>
                         ✓ {winner.username}
                       </div>
                     )}
                   </div>
                   {winner && <span style={{ color: 'var(--primary)', fontSize: 18 }}>✓</span>}
-                  {noAplica && <span className="mono" style={{ color: 'var(--text-dim)', fontSize: 10, letterSpacing: '0.08em' }}>SIN VOTO</span>}
+                  {noAplica && <span className="mono" style={{ color: 'var(--text-dim)', fontSize: 12, letterSpacing: '0.08em' }}>SIN VOTO</span>}
                 </div>
 
                 {/* Player chips */}
@@ -473,10 +473,10 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
 
         {/* Thumbs: rate every teammate */}
         <div style={{ marginTop: 28 }}>
-          <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 6 }}>
+          <div className="mono" style={{ fontSize: 12, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 6 }}>
             ¿CÓMO JUGARON?
           </div>
-          <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
             Pulgar arriba o abajo a cada compañero. Anónimo y opcional.
             {' '}Cada {thumbsPaso} 👍 le suben un escalón de rating, y cada {thumbsPaso} 👎 se lo bajan:
             un pulgar suelto no mueve a nadie.

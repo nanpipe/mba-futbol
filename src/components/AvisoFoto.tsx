@@ -56,8 +56,8 @@ export function AvisoFoto({ tieneFoto, partidosJugados }: {
       style={{
         display: 'flex', alignItems: 'center', gap: 10,
         padding: '10px 14px', marginBottom: 20,
-        background: m.fondo, border: `1px solid ${m.borde}`, borderRadius: 4,
-        color: m.color, fontSize: 11, lineHeight: 1.5, textDecoration: 'none',
+        background: m.fondo, border: `1px solid ${m.borde}`, borderRadius: 10,
+        color: m.color, fontSize: 12, lineHeight: 1.5, textDecoration: 'none',
       }}
     >
       <span style={{ fontSize: 18, flexShrink: 0 }} aria-hidden="true">📸</span>

@@ -147,7 +147,7 @@ export default function RegistroPage() {
           <div className="display" style={{ fontSize: 48, letterSpacing: '0.05em', lineHeight: 1 }}>
             {clubNombre || 'Fútbol Club'}
           </div>
-          <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.15em', marginTop: 8 }}>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.15em', marginTop: 8 }}>
             CREAR CUENTA
           </div>
         </div>
@@ -163,7 +163,7 @@ export default function RegistroPage() {
               required
               autoComplete="username"
             />
-            <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6 }}>
               Solo letras, números y _ · mínimo 3 caracteres
             </div>
           </div>
@@ -178,7 +178,7 @@ export default function RegistroPage() {
               required
               autoComplete="email"
             />
-            <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6 }}>
               Te avisamos aquí si entras desde lista de espera
             </div>
           </div>

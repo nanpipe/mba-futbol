@@ -115,7 +115,7 @@ export default function LoginPage() {
             </span>
           ))}
         </div>
-        <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.15em', marginTop: 8 }}>
+        <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.15em', marginTop: 8 }}>
           INICIAR SESIÓN
         </div>
       </div>

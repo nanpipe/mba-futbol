@@ -23,7 +23,7 @@ function Feedback({ result }: { result: { ok: boolean; msg: string } | null }) {
   if (!result) return null
   return (
     <div className="mono" style={{
-      fontSize: 12, marginTop: 12, padding: '8px 12px', borderRadius: 3,
+      fontSize: 12, marginTop: 12, padding: '8px 12px', borderRadius: 10,
       ...(result.ok
         ? { color: 'var(--pos)', background: 'var(--pos-soft)', border: '1px solid var(--pos-line)' }
         : { color: 'var(--red)', background: 'var(--neg-soft)', border: '1px solid var(--neg-line)' }),
@@ -86,7 +86,7 @@ export function BadgesEditor({ badges, onChange }: { badges: Badge[]; onChange: 
   return (
     <Card padding="20px 24px">
       <SectionHeader title="INSIGNIAS" icon="🏅" color="var(--amber)" />
-      <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 16, lineHeight: 1.6 }}>
+      <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16, lineHeight: 1.6 }}>
         Reconocimientos que los jugadores votan después del partido. Las positivas suben
         el puntaje, las negativas lo bajan y las neutrales solo decoran.
       </div>
@@ -121,7 +121,7 @@ export function BadgesEditor({ badges, onChange }: { badges: Badge[]; onChange: 
                   title={s.hint}
                   className="mono"
                   style={{
-                    fontSize: 10, padding: '6px 9px', borderRadius: 3, cursor: 'pointer',
+                    fontSize: 12, padding: '6px 9px', borderRadius: 10, cursor: 'pointer',
                     background: b.signo === s.id ? 'var(--bg-hover, rgba(255,255,255,0.06))' : 'none',
                     border: `1px solid ${b.signo === s.id ? s.color : 'var(--border)'}`,
                     color: b.signo === s.id ? s.color : 'var(--text-dim)',
@@ -137,7 +137,7 @@ export function BadgesEditor({ badges, onChange }: { badges: Badge[]; onChange: 
               title="Eliminar insignia"
               className="mono"
               style={{
-                fontSize: 14, padding: '5px 9px', borderRadius: 3, cursor: 'pointer',
+                fontSize: 14, padding: '5px 9px', borderRadius: 10, cursor: 'pointer',
                 background: 'none', border: '1px solid var(--border)', color: 'var(--red)', flexShrink: 0,
               }}
             >
@@ -165,7 +165,7 @@ export function BadgesEditor({ badges, onChange }: { badges: Badge[]; onChange: 
 
       <Feedback result={result} />
 
-      <div className="mono" style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 12, lineHeight: 1.6 }}>
+      <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 12, lineHeight: 1.6 }}>
         Al eliminar una insignia, las ya otorgadas se conservan en el historial pero deja de
         poderse votar. Renombrarla no afecta las anteriores.
       </div>
@@ -217,7 +217,7 @@ export function TiersEditor({ tiers, onChange }: { tiers: TierConfig[]; onChange
   return (
     <Card padding="20px 24px">
       <SectionHeader title="RANGOS DE PUNTAJE" icon="⭐" color="var(--mini)" />
-      <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 16, lineHeight: 1.6 }}>
+      <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16, lineHeight: 1.6 }}>
         Nombre que recibe cada jugador según su puntaje (1.0 a 5.0). El &quot;desde&quot; es el mínimo
         para entrar al rango; el más bajo siempre arranca en 1.0.
       </div>
@@ -235,7 +235,7 @@ export function TiersEditor({ tiers, onChange }: { tiers: TierConfig[]; onChange
             }}>
               {/* Look swatch */}
               <div style={{
-                width: 34, height: 34, borderRadius: 4, flexShrink: 0,
+                width: 34, height: 34, borderRadius: 10, flexShrink: 0,
                 background: preview.bg,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 15,
@@ -258,7 +258,7 @@ export function TiersEditor({ tiers, onChange }: { tiers: TierConfig[]; onChange
                 style={{ flex: 1, minWidth: 120 }}
               />
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-                <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>desde</span>
+                <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>desde</span>
                 <input
                   type="number"
                   min={1} max={5} step={0.1}
@@ -268,7 +268,7 @@ export function TiersEditor({ tiers, onChange }: { tiers: TierConfig[]; onChange
                   aria-label="Puntaje mínimo"
                   style={{ width: 68, opacity: esUltimo ? 0.5 : 1 }}
                 />
-                <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
+                <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
                   a {hasta.toFixed(1)}
                 </span>
               </div>
@@ -287,7 +287,7 @@ export function TiersEditor({ tiers, onChange }: { tiers: TierConfig[]; onChange
                 title="Eliminar rango"
                 className="mono"
                 style={{
-                  fontSize: 14, padding: '5px 9px', borderRadius: 3, cursor: 'pointer',
+                  fontSize: 14, padding: '5px 9px', borderRadius: 10, cursor: 'pointer',
                   background: 'none', border: '1px solid var(--border)', color: 'var(--red)', flexShrink: 0,
                 }}
               >

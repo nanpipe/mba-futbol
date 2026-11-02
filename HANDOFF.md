@@ -197,8 +197,9 @@ Auditoría completa en `docs/diseno/INFORME.md` (+ `mockup.html` con editor de c
 1. ✅ Arreglos rápidos (2026-11-02): 11 campos < 16 px, contraste de `--text-dim`/bordes, barra del inicio a 44 px, votación a 44 px, botón principal deshabilitado en gris.
 2. ✅ Tokens sin cambio visual (2026-11-02): `--primary*` (marca) vs `--pos*` (subió/ok), y semánticos fijos `--neg-*`, `--warn-*`, `--info-*`, `--mini*`, `--portero`. Verificado con 13 capturas idénticas byte a byte. **Código nuevo: marca → `--primary`, "subió/ok/confirmado" → `--pos`, nunca `--green` (queda solo como alias).**
 3. ✅ Colores por club (2026-11-02): `lib/tema.ts` (puro: `parseTema`, `derivarTokens`, `chequeosTema`), `lib/temaServidor.ts` (lectura con caché de 60 s), `<style id="tema-club">` en `layout.tsx`, `theme-color` y manifest. Se guarda en `app_settings` clave `tema` con `guardar_tema` (solo superadmin). **Sin migración.** Editor en Ajustes → Club → "Colores del club". Con los colores de MBA no se inyecta nada (manda `globals.css`). `parseTema` es la barrera contra XSS: solo `#rrggbb` y un fondo de la lista.
-4. ⏳ Rediseño "Cancha nocturna" (§4 del informe).
-Pendientes P1/P2 sueltos del informe §3 que no entraron en el paso 1: segmentados de `/puntaje` a 44 px, botones de `/perfil`, `var(--surface)` inexistente en `TabPartidos`, rejilla de inscritos del panel, navegación del admin.
+4. ✅ Rediseño "Cancha nocturna", primera tanda (2026-11-02): letra del sistema para todo (sale DM Serif; `.mono` ahora es letra del sistema con cifras tabulares, `.num` es DM Mono de verdad), nada bajo 12 px, radios `--r-sm/md/lg`, `.btn` con `min-height: var(--tap)` (44 px), sin el "MBA FC" de 64 px en el inicio (el nombre va en la barra con la última palabra en `--primary`), fecha y hora en una línea, marcador en `--text`, navegación del admin en cuadrícula 4×2 con icono y nombre, segmentados y contadores de /puntaje y /historial a 44 px.
+   ⏳ Lo que queda del informe: votación de a una categoría (§2.3), rejilla de inscritos del panel (§2.9), barra inferior de secciones (P2 #19), áreas seguras de iOS (verificar en iPhone primero), correos con el tema (fase 4 opcional), fuentes con `next/font`.
+Pendiente suelto: `var(--surface)` no existe y se usa en `TabPartidos` (esas cajas quedan sin fondo).
 
 ## 6. Decisiones de producto vigentes
 

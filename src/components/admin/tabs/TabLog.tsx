@@ -46,7 +46,7 @@ export function TabLog({ active }: Props) {
           title={`ACTIVIDAD${logFilter !== 'todos' ? ` — ${filteredLogs.length} de ${logs.length}` : ''}`}
           count={logFilter === 'todos' ? filteredLogs.length : null}
         />
-        <button onClick={reload} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>
+        <button onClick={reload} className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }}>
           ↻ Refrescar
         </button>
       </div>
@@ -66,7 +66,7 @@ export function TabLog({ active }: Props) {
             onClick={() => setLogFilter(f.id)}
             className="mono"
             style={{
-              fontSize: 11, padding: '5px 12px', borderRadius: 20, cursor: 'pointer',
+              fontSize: 12, padding: '5px 12px', borderRadius: 20, cursor: 'pointer',
               background: logFilter === f.id ? 'var(--primary)' : 'var(--bg-card)',
               color: logFilter === f.id ? '#000' : 'var(--text-muted)',
               border: `1px solid ${logFilter === f.id ? 'var(--primary)' : 'var(--border)'}`,
@@ -91,16 +91,16 @@ export function TabLog({ active }: Props) {
           {filteredLogs.map(log => (
             <Card key={log.id} padding="14px 16px">
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
-                <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>
+                <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>
                   {new Date(log.created_at).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', timeZone: 'America/Bogota' })}
                   {' '}
                   {new Date(log.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' })}
                 </span>
-                <span className="mono" style={{ fontSize: 11, color: 'var(--amber)', fontWeight: 600 }}>
+                <span className="mono" style={{ fontSize: 12, color: 'var(--amber)', fontWeight: 600 }}>
                   {log.username ?? '—'}
                 </span>
                 {log.ip && (
-                  <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 'auto' }}>
+                  <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginLeft: 'auto' }}>
                     {log.ip}
                   </span>
                 )}
@@ -108,7 +108,7 @@ export function TabLog({ active }: Props) {
               <div style={{ marginBottom: log.detalles && Object.keys(log.detalles).length > 0 ? 8 : 0 }}>
                 <span className="mono" style={{
                   fontSize: 12, letterSpacing: '0.06em', color: 'var(--text)',
-                  background: 'var(--bg)', padding: '3px 8px', borderRadius: 3, border: '1px solid var(--border)',
+                  background: 'var(--bg)', padding: '3px 8px', borderRadius: 10, border: '1px solid var(--border)',
                 }}>
                   {log.accion}
                 </span>
@@ -118,7 +118,7 @@ export function TabLog({ active }: Props) {
                   {Object.entries(log.detalles)
                     .filter(([k]) => !['player_id', 'partido_id'].includes(k))
                     .map(([k, v]) => (
-                      <span key={k} className="mono" style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                      <span key={k} className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                         <span style={{ color: 'var(--text-dim)' }}>{k}:</span> {String(v)}
                       </span>
                     ))}

@@ -221,7 +221,7 @@ export function InstallBanner({ state }: { state: InstallState }) {
           <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>📲</span>
           <div style={{ flex: 1, minWidth: 140 }}>
             <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--primary)' }}>Instala la app</div>
-            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
               Recibe los cupos al instante
             </div>
           </div>
@@ -286,7 +286,7 @@ export function InstallInterstitial({ state }: { state: InstallState }) {
           <div className="display" style={{ fontSize: 28, letterSpacing: '0.04em', lineHeight: 1.15 }}>
             INSTALA LA APP
           </div>
-          <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', marginTop: 8, lineHeight: 1.6 }}>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.1em', marginTop: 8, lineHeight: 1.6 }}>
             Sin la app te vas a perder los cupos
           </div>
         </div>
@@ -303,7 +303,7 @@ export function InstallInterstitial({ state }: { state: InstallState }) {
           className="mono"
           style={{
             background: 'none', border: 'none', padding: '6px 10px',
-            fontSize: 11, color: 'var(--text-dim)',
+            fontSize: 12, color: 'var(--text-dim)',
             cursor: left > 0 ? 'default' : 'pointer',
             opacity: left > 0 ? 0.4 : 0.75,
             textDecoration: left > 0 ? 'none' : 'underline',
@@ -366,7 +366,7 @@ export function InstallNagModal({
           <div className="display" style={{ fontSize: 20, letterSpacing: '0.04em', lineHeight: 1.2 }}>
             ANTES DE INSCRIBIRTE
           </div>
-          <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.6 }}>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.6 }}>
             Instala la app y no te quedas por fuera del próximo partido
           </div>
         </div>

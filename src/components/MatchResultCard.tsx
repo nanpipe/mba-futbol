@@ -81,18 +81,18 @@ function MovimientoDelPartido({ movimientos, miId }: {
         style={{
           width: '100%', display: 'flex', alignItems: 'center', gap: 8,
           padding: '10px 12px', background: 'var(--bg-card)', border: 'none',
-          color: 'var(--text-muted)', fontSize: 10, letterSpacing: '0.12em',
+          color: 'var(--text-muted)', fontSize: 12, letterSpacing: '0.12em',
           cursor: 'pointer', textAlign: 'left',
         }}
       >
         <span style={{ flex: 1, minWidth: 0 }}>PUNTAJE DEL PARTIDO</span>
         {mio && (
-          <span style={{ letterSpacing: 0, fontSize: 11 }}>
+          <span style={{ letterSpacing: 0, fontSize: 12 }}>
             <span style={{ color: 'var(--text-dim)' }}>TÚ </span>
             <span style={{ color: color(mio.delta) }}>{formatDelta(mio.delta)}</span>
           </span>
         )}
-        <span style={{ color: 'var(--text-dim)', fontSize: 9 }}>{abierto ? '▲' : '▼'}</span>
+        <span style={{ color: 'var(--text-dim)', fontSize: 12 }}>{abierto ? '▲' : '▼'}</span>
       </button>
 
       {abierto && (
@@ -118,7 +118,7 @@ function MovimientoDelPartido({ movimientos, miId }: {
               </span>
             </div>
           ))}
-          <div className="mono" style={{ fontSize: 10, padding: '10px 12px', borderTop: '1px solid var(--border)' }}>
+          <div className="mono" style={{ fontSize: 12, padding: '10px 12px', borderTop: '1px solid var(--border)' }}>
             <a href="/puntaje" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
               ¿Cómo se calcula? Simula tu puntaje →
             </a>
@@ -197,11 +197,11 @@ export function MatchResultCard({ titulo, partido, badges, marca, movimientos, m
 
   return (
     <div className="fade-in">
-      <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+      <div className="mono" style={{ fontSize: 12, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <span>{titulo}</span>
         {marca}
       </div>
-      <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 16 }}>
+      <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>
         {new Date(p.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })}
         {hora && ` · ${hora}`}
         {p.lugar && ` · 📍 ${p.lugar}`}
@@ -258,7 +258,7 @@ export function MatchResultCard({ titulo, partido, badges, marca, movimientos, m
             return (
               <div style={{ padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <div className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 4 }}>GANADOR DEL PARTIDO</div>
+                  <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 4 }}>GANADOR DEL PARTIDO</div>
                   <div className="display" style={{ fontSize: 20 }}>{winner.label}</div>
                 </div>
                 <div className="mono" style={{ fontSize: 13, color: 'var(--text-dim)' }}>
@@ -272,10 +272,12 @@ export function MatchResultCard({ titulo, partido, badges, marca, movimientos, m
             return (
               <div style={{ padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <div className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 4 }}>GANADOR DEL PARTIDO</div>
+                  <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 4 }}>GANADOR DEL PARTIDO</div>
                   <div className="display" style={{ fontSize: 20 }}>{winnerLabel}</div>
                 </div>
-                <div className="display" style={{ fontSize: 24, color: 'var(--primary)' }}>
+                {/* En blanco: el verde de marca acá no significaba nada (no es
+                    "ganaste"), y con colores por club sería ruido. */}
+                <div className="display" style={{ fontSize: 28, color: 'var(--text)' }}>
                   {p.goles_a} – {p.goles_b}
                 </div>
               </div>
@@ -305,7 +307,7 @@ export function MatchResultCard({ titulo, partido, badges, marca, movimientos, m
                 <div key={c.badge_id} style={{
                   display: 'flex', alignItems: 'center', gap: 9, minWidth: 0,
                   padding: '8px 10px', background: 'var(--bg-card)',
-                  border: '1px solid var(--border)', borderRadius: 4,
+                  border: '1px solid var(--border)', borderRadius: 10,
                 }}>
                   <span style={{ fontSize: 19, flexShrink: 0 }}>{c.emoji}</span>
                   {/* En un empate se muestran TODOS los ganadores, no "+1": el

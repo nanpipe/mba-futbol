@@ -11,7 +11,7 @@ export function ErrorAlert({ message }: Props) {
     <div className="mono" style={{
       fontSize: 13,
       padding: '10px 14px',
-      borderRadius: 3,
+      borderRadius: 10,
       letterSpacing: '0.05em',
       ...MSG.error,
     }}>

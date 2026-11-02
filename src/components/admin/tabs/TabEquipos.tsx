@@ -324,13 +324,13 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
   }) => (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <div className="mono" style={{ fontSize: 11, letterSpacing: '0.1em', color: accent }}>EQUIPO {equipo}</div>
+        <div className="mono" style={{ fontSize: 12, letterSpacing: '0.1em', color: accent }}>EQUIPO {equipo}</div>
         <span style={{
-          fontSize: 11, padding: '2px 8px', borderRadius: 2,
+          fontSize: 12, padding: '2px 8px', borderRadius: 6,
           background: rotacion.color === 'blanco' ? '#e5e5e5' : '#1a1a1a',
           color: rotacion.color === 'blanco' ? '#111' : '#aaa',
           border: `1px solid ${rotacion.color === 'blanco' ? '#ccc' : '#444'}`,
-          fontFamily: 'DM Mono, monospace',
+          fontFamily: 'var(--font-ui)',
         }}>
           {colorLabel(rotacion.color)}
         </span>
@@ -344,7 +344,7 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
             onChange={e => setRotacion(p => p ? { ...p, porteroFijo: e.target.checked, porteroFijoId: '' } : p)}
             style={{ width: 14, height: 14, accentColor: accent, cursor: 'pointer' }}
           />
-          <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>🧤 Portero fijo</span>
+          <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>🧤 Portero fijo</span>
         </label>
         {rotacion.porteroFijo && (
           <div>
@@ -360,11 +360,11 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
               {jugadores.map(u => <option key={u} value={u}>{u}</option>)}
             </select>
             {rotacion.porteroFijoId && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: accent === 'var(--primary)' ? '#0a1f0f' : '#1a1200', border: `1px solid ${accent === 'var(--primary)' ? 'var(--primary-line)' : 'var(--warn-line)'}`, borderRadius: 4, padding: '8px 12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: accent === 'var(--primary)' ? '#0a1f0f' : '#1a1200', border: `1px solid ${accent === 'var(--primary)' ? 'var(--primary-line)' : 'var(--warn-line)'}`, borderRadius: 10, padding: '8px 12px' }}>
                 <span style={{ fontSize: 18 }}>🧤</span>
                 <div>
                   <div className="mono" style={{ fontSize: 12, color: accent, fontWeight: 600 }}>{rotacion.porteroFijoId}</div>
-                  <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>portero titular — no rota</div>
+                  <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>portero titular — no rota</div>
                 </div>
               </div>
             )}
@@ -374,27 +374,27 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
 
       {rotacion.rotacionBanca.length > 0 ? (
         <div style={{ marginBottom: 12 }}>
-          <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.08em', marginBottom: 6 }}>ROTACIÓN BANCA</div>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.08em', marginBottom: 6 }}>ROTACIÓN BANCA</div>
           {rotacion.rotacionBanca.map((u, i) => (
             <div key={u} className="mono" style={{ fontSize: 12, color: i === 0 ? accent === 'var(--primary)' ? 'var(--amber)' : 'var(--amber)' : 'var(--text-dim)', padding: '3px 0', display: 'flex', gap: 8 }}>
               <span style={{ minWidth: 20, color: 'var(--text-dim)' }}>{i + 1}.</span>
               <span>{u}</span>
-              {i === 0 && <span style={{ fontSize: 10, color: 'var(--amber)' }}>← empieza banca</span>}
+              {i === 0 && <span style={{ fontSize: 12, color: 'var(--amber)' }}>← empieza banca</span>}
             </div>
           ))}
         </div>
       ) : (
-        <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>Presiona 🎲 para generar rotaciones</div>
+        <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 8 }}>Presiona 🎲 para generar rotaciones</div>
       )}
 
       {!rotacion.porteroFijo && rotacion.rotacionPortero.length > 0 && (
         <div>
-          <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.08em', marginBottom: 6 }}>ROTACIÓN PORTERO</div>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.08em', marginBottom: 6 }}>ROTACIÓN PORTERO</div>
           {rotacion.rotacionPortero.map((u, i) => (
             <div key={u} className="mono" style={{ fontSize: 12, color: i === 0 ? accent : 'var(--text-dim)', padding: '3px 0', display: 'flex', gap: 8 }}>
               <span style={{ minWidth: 20, color: 'var(--text-dim)' }}>{i + 1}.</span>
               <span>{u}</span>
-              {i === 0 && <span style={{ fontSize: 10, color: accent }}>← primer portero</span>}
+              {i === 0 && <span style={{ fontSize: 12, color: accent }}>← primer portero</span>}
             </div>
           ))}
         </div>
@@ -410,7 +410,7 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
         <select
           value={equiposPartido?.id ?? ''}
           onChange={e => { const p = partidos.find(pt => pt.id === e.target.value); if (p) cargarEquipos(p) }}
-          style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, padding: '8px 12px', color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: 16 }}
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 12px', color: 'var(--text)', fontFamily: 'var(--font-ui)', fontSize: 16 }}
         >
           <option value="">Seleccionar partido...</option>
           {partidos.map(p => (
@@ -436,7 +436,7 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
             {equiposConfirmado && <span className="badge badge-green">✓ EQUIPOS CONFIRMADOS</span>}
             {evaluacionesAbiertas && <span className="badge badge-amber">📊 EVALUACIONES ABIERTAS</span>}
             {equiposDraft && !equiposConfirmado && (
-              <span className="mono" style={{ fontSize: 10, color: 'var(--amber)', letterSpacing: '0.1em' }}>● BORRADOR SIN GUARDAR</span>
+              <span className="mono" style={{ fontSize: 12, color: 'var(--amber)', letterSpacing: '0.1em' }}>● BORRADOR SIN GUARDAR</span>
             )}
           </div>
 
@@ -444,13 +444,13 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
           {votos && (votos.aFavor + votos.enContra) > 0 && (
             <Card padding="12px 16px" style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-                <div className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--text-dim)' }}>
+                <div className="mono" style={{ fontSize: 12, letterSpacing: '0.1em', color: 'var(--text-dim)' }}>
                   OPINIÓN DE LOS JUGADORES
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginLeft: 'auto' }}>
                   <span className="mono" style={{ fontSize: 13, color: 'var(--pos)' }}>👍 {votos.aFavor}</span>
                   <span className="mono" style={{ fontSize: 13, color: 'var(--amber)' }}>✋ {votos.enContra}</span>
-                  <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                  <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>
                     ({votos.aFavor + votos.enContra}/{votos.total})
                   </span>
                 </div>
@@ -462,9 +462,9 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
                     <div key={i} style={{
                       display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
                       padding: '8px 10px', background: 'var(--bg-elevated)',
-                      border: '1px solid var(--border)', borderRadius: 4,
+                      border: '1px solid var(--border)', borderRadius: 10,
                     }}>
-                      <span className="mono" style={{ fontSize: 11, color: 'var(--amber)', flexShrink: 0 }}>✋ {c.username}</span>
+                      <span className="mono" style={{ fontSize: 12, color: 'var(--amber)', flexShrink: 0 }}>✋ {c.username}</span>
                       <span style={{ fontSize: 12, color: 'var(--text-muted)', flex: 1, minWidth: 120 }}>{c.comentario}</span>
                       <button
                         onClick={() => setFeedbackText(prev => prev ? `${prev}
@@ -472,7 +472,7 @@ ${c.comentario}` : c.comentario)}
                         title="Copiar al feedback del balanceador"
                         className="mono"
                         style={{
-                          fontSize: 10, padding: '4px 8px', borderRadius: 3, cursor: 'pointer',
+                          fontSize: 12, padding: '4px 8px', borderRadius: 10, cursor: 'pointer',
                           background: 'none', border: '1px solid var(--border)', color: 'var(--text-dim)', flexShrink: 0,
                         }}
                       >
@@ -493,20 +493,20 @@ ${c.comentario}` : c.comentario)}
             return (
               <Card padding="12px 16px" style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 16 }}>
                 <div style={{ flex: 1, textAlign: 'center' }}>
-                  <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4 }}>EQUIPO A</div>
+                  <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4 }}>EQUIPO A</div>
                   <div className="display" style={{ fontSize: 22, color: 'var(--primary)' }}>★{formatRating(avgA)}</div>
-                  <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>{equipoA.length} jugadores</div>
+                  <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>{equipoA.length} jugadores</div>
                 </div>
                 <div style={{ textAlign: 'center' }}>
-                  <div className="mono" style={{ fontSize: 9, letterSpacing: '0.1em', color: diff <= 0.3 ? 'var(--pos)' : diff <= 0.6 ? 'var(--amber)' : 'var(--red)' }}>
+                  <div className="mono" style={{ fontSize: 12, letterSpacing: '0.1em', color: diff <= 0.3 ? 'var(--pos)' : diff <= 0.6 ? 'var(--amber)' : 'var(--red)' }}>
                     {diff <= 0.3 ? 'EQUILIBRADO' : diff <= 0.6 ? 'LEVE DIF.' : 'DESBAL.'}
                   </div>
                   <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>Δ {formatRating(diff)}</div>
                 </div>
                 <div style={{ flex: 1, textAlign: 'center' }}>
-                  <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4 }}>EQUIPO B</div>
+                  <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4 }}>EQUIPO B</div>
                   <div className="display" style={{ fontSize: 22, color: 'var(--amber)' }}>★{formatRating(avgB)}</div>
-                  <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>{equipoB.length} jugadores</div>
+                  <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)' }}>{equipoB.length} jugadores</div>
                 </div>
               </Card>
             )
@@ -521,30 +521,30 @@ ${c.comentario}` : c.comentario)}
           >
             <div style={{ display: 'grid', gridTemplateColumns: equiposPartido?.tipo === 'minitorneo' ? 'repeat(auto-fit, minmax(120px, 1fr))' : '1fr 1fr', gap: 16, marginBottom: 24 }}>
               <div>
-                <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--primary)', marginBottom: 8 }}>🤍 BLANCO — {equipoA.length}</div>
+                <div className="mono" style={{ fontSize: 12, letterSpacing: '0.12em', color: 'var(--primary)', marginBottom: 8 }}>🤍 BLANCO — {equipoA.length}</div>
                 <DroppableZone equipo="A" isConfirmado={equiposConfirmado}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {equipoA.map(p => <DraggablePlayerCard key={p.id} jugador={p} equipo="A" confirmado={equiposConfirmado} />)}
-                    {equipoA.length === 0 && <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', textAlign: 'center', padding: '24px 0' }}>Arrastra jugadores aquí</div>}
+                    {equipoA.length === 0 && <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'center', padding: '24px 0' }}>Arrastra jugadores aquí</div>}
                   </div>
                 </DroppableZone>
               </div>
               <div>
-                <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--amber)', marginBottom: 8 }}>🖤 NEGRO — {equipoB.length}</div>
+                <div className="mono" style={{ fontSize: 12, letterSpacing: '0.12em', color: 'var(--amber)', marginBottom: 8 }}>🖤 NEGRO — {equipoB.length}</div>
                 <DroppableZone equipo="B" isConfirmado={equiposConfirmado}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {equipoB.map(p => <DraggablePlayerCard key={p.id} jugador={p} equipo="B" confirmado={equiposConfirmado} />)}
-                    {equipoB.length === 0 && <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', textAlign: 'center', padding: '24px 0' }}>Arrastra jugadores aquí</div>}
+                    {equipoB.length === 0 && <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'center', padding: '24px 0' }}>Arrastra jugadores aquí</div>}
                   </div>
                 </DroppableZone>
               </div>
               {equiposPartido?.tipo === 'minitorneo' && (
                 <div>
-                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--mini)', marginBottom: 8 }}>🟣 MORADO — {equipoC.length}</div>
+                  <div className="mono" style={{ fontSize: 12, letterSpacing: '0.12em', color: 'var(--mini)', marginBottom: 8 }}>🟣 MORADO — {equipoC.length}</div>
                   <DroppableZone equipo="C" isConfirmado={equiposConfirmado}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {equipoC.map(p => <DraggablePlayerCard key={p.id} jugador={p} equipo="C" confirmado={equiposConfirmado} />)}
-                      {equipoC.length === 0 && <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', textAlign: 'center', padding: '24px 0' }}>Arrastra jugadores aquí</div>}
+                      {equipoC.length === 0 && <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'center', padding: '24px 0' }}>Arrastra jugadores aquí</div>}
                     </div>
                   </DroppableZone>
                 </div>
@@ -552,7 +552,7 @@ ${c.comentario}` : c.comentario)}
             </div>
             <DragOverlay>
               {activeDragPlayer ? (
-                <div style={{ padding: '8px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--primary)', borderRadius: 3, display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+                <div style={{ padding: '8px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--primary)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
                   <PlayerAvatar url={activeDragPlayer.avatar_url} username={activeDragPlayer.username} size={26} />
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 500 }}>{activeDragPlayer.username}</div>
@@ -577,7 +577,7 @@ ${c.comentario}` : c.comentario)}
             </ButtonGroup>
           )}
           <div style={{ marginBottom: 28 }}>
-            <button onClick={resetearEquiposAction} disabled={equiposLoading} className="mono" style={{ fontSize: 11, padding: '8px 14px', background: 'none', border: '1px solid var(--neg-line)', borderRadius: 3, color: 'var(--red)', cursor: 'pointer', letterSpacing: '0.08em' }}>
+            <button onClick={resetearEquiposAction} disabled={equiposLoading} className="mono" style={{ fontSize: 12, padding: '8px 14px', background: 'none', border: '1px solid var(--neg-line)', borderRadius: 10, color: 'var(--red)', cursor: 'pointer', letterSpacing: '0.08em' }}>
               ✕ Resetear equipos
             </button>
           </div>
@@ -586,13 +586,13 @@ ${c.comentario}` : c.comentario)}
           {(rotacionA || rotacionB) && (
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginBottom: 24 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
-                <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)' }}>⚽ COLORES Y ROTACIONES</div>
+                <div className="mono" style={{ fontSize: 12, letterSpacing: '0.12em', color: 'var(--text-muted)' }}>⚽ COLORES Y ROTACIONES</div>
                 <ButtonGroup gap={8} style={{ flexWrap: 'wrap' }}>
-                  <button onClick={swapColores} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>↔ Cambiar colores</button>
-                  <button onClick={() => { aleatorizarRotacion('A'); aleatorizarRotacion('B') }} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px', color: 'var(--amber)', borderColor: 'var(--warn-line)' }}>
+                  <button onClick={swapColores} className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }}>↔ Cambiar colores</button>
+                  <button onClick={() => { aleatorizarRotacion('A'); aleatorizarRotacion('B') }} className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', color: 'var(--amber)', borderColor: 'var(--warn-line)' }}>
                     🎲 Aleatorizar rotaciones
                   </button>
-                  <button onClick={guardarRotaciones} disabled={savingRotacion} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px', color: 'var(--primary)', borderColor: 'var(--primary-line)' }}>
+                  <button onClick={guardarRotaciones} disabled={savingRotacion} className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px', color: 'var(--primary)', borderColor: 'var(--primary-line)' }}>
                     {savingRotacion ? '...' : '💾 Guardar'}
                   </button>
                 </ButtonGroup>
@@ -607,18 +607,18 @@ ${c.comentario}` : c.comentario)}
           {/* Gemini razon + feedback */}
           {balancerSource !== null && (
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginBottom: 24 }}>
-              <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>
+              <div className="mono" style={{ fontSize: 12, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>
                 🤖 BALANCEADOR IA
                 {balancerSource === 'gemini' && <span style={{ marginLeft: 8, color: 'var(--primary)' }}>· Gemini</span>}
                 {balancerSource === 'fallback' && <span style={{ marginLeft: 8, color: 'var(--amber)' }}>· Snake-draft (fallback)</span>}
               </div>
               {balancerRazon && (
-                <div style={{ background: '#0a1a0f', border: '1px solid var(--primary-line)', borderRadius: 4, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.6 }}>
+                <div style={{ background: '#0a1a0f', border: '1px solid var(--primary-line)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.6 }}>
                   &ldquo;{balancerRazon}&rdquo;
                 </div>
               )}
               <div style={{ marginBottom: 16 }}>
-                <label className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--text-dim)', display: 'block', marginBottom: 8 }}>
+                <label className="mono" style={{ fontSize: 12, letterSpacing: '0.1em', color: 'var(--text-dim)', display: 'block', marginBottom: 8 }}>
                   FEEDBACK PARA EL PRÓXIMO BALANCEO
                 </label>
                 <textarea
@@ -626,21 +626,21 @@ ${c.comentario}` : c.comentario)}
                   onChange={e => setFeedbackText(e.target.value)}
                   placeholder={'Ej: "Juli y Mauricio no deben ir juntos"\nEj: "Magic y Mati siempre en el mismo equipo"'}
                   rows={3}
-                  style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, padding: '10px 12px', color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: 16, resize: 'vertical', boxSizing: 'border-box' }}
+                  style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', color: 'var(--text)', fontFamily: 'var(--font-ui)', fontSize: 16, resize: 'vertical', boxSizing: 'border-box' }}
                 />
-                <button onClick={guardarFeedback} disabled={savingFeedback || !feedbackText.trim()} className="btn btn-ghost" style={{ marginTop: 8, fontSize: 11, padding: '8px 16px', color: 'var(--primary)', borderColor: 'var(--primary-line)' }}>
+                <button onClick={guardarFeedback} disabled={savingFeedback || !feedbackText.trim()} className="btn btn-ghost" style={{ marginTop: 8, fontSize: 12, padding: '8px 16px', color: 'var(--primary)', borderColor: 'var(--primary-line)' }}>
                   {savingFeedback ? 'Guardando...' : '💾 Guardar feedback'}
                 </button>
               </div>
               {feedbackHistory.length > 0 && (
                 <div>
-                  <div className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--text-dim)', marginBottom: 8 }}>
+                  <div className="mono" style={{ fontSize: 12, letterSpacing: '0.1em', color: 'var(--text-dim)', marginBottom: 8 }}>
                     CONTEXTO ACUMULADO — {feedbackHistory.length} entradas
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 240, overflowY: 'auto' }}>
                     {feedbackHistory.map(f => (
-                      <div key={f.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3 }}>
-                        <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', whiteSpace: 'nowrap', minWidth: 60, paddingTop: 1 }}>
+                      <div key={f.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10 }}>
+                        <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', whiteSpace: 'nowrap', minWidth: 60, paddingTop: 1 }}>
                           {new Date(f.created_at).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
                         </div>
                         <div style={{ flex: 1, fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>{f.feedback}</div>
@@ -655,7 +655,7 @@ ${c.comentario}` : c.comentario)}
 
           {/* Resultado */}
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginBottom: 24 }}>
-            <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>RESULTADO DEL PARTIDO</div>
+            <div className="mono" style={{ fontSize: 12, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>RESULTADO DEL PARTIDO</div>
             {equiposPartido.tipo === 'minitorneo' ? (
               <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                 {([
@@ -664,7 +664,7 @@ ${c.comentario}` : c.comentario)}
                   { label: '🟣 Morado', val: puntosMoredo, set: setPuntosMoredo },
                 ] as { label: string; val: string; set: (v: string) => void }[]).map(({ label, val, set }) => (
                   <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>{label}</span>
+                    <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{label}</span>
                     <input type="number" min={0} max={999} value={val} onChange={e => set(e.target.value)} placeholder="0" style={{ width: 64, textAlign: 'center' }} />
                   </div>
                 ))}
@@ -680,7 +680,7 @@ ${c.comentario}` : c.comentario)}
             ) : (
               <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span className="mono" style={{ fontSize: 10, color: 'var(--primary)' }}>
+                  <span className="mono" style={{ fontSize: 12, color: 'var(--primary)' }}>
                     {rotacionA ? (rotacionA.color === 'blanco' ? '🤍' : '🖤') : 'A'}
                   </span>
                   <input type="number" min={0} max={99} value={golesA} onChange={e => setGolesA(e.target.value)} placeholder="0" style={{ width: 56, textAlign: 'center' }} />
@@ -688,7 +688,7 @@ ${c.comentario}` : c.comentario)}
                 <span className="mono" style={{ fontSize: 14, color: 'var(--text-dim)' }}>—</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <input type="number" min={0} max={99} value={golesB} onChange={e => setGolesB(e.target.value)} placeholder="0" style={{ width: 56, textAlign: 'center' }} />
-                  <span className="mono" style={{ fontSize: 10, color: 'var(--amber)' }}>
+                  <span className="mono" style={{ fontSize: 12, color: 'var(--amber)' }}>
                     {rotacionB ? (rotacionB.color === 'blanco' ? '🤍' : '🖤') : 'B'}
                   </span>
                 </div>
@@ -706,7 +706,7 @@ ${c.comentario}` : c.comentario)}
 
           {/* Evaluaciones */}
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24 }}>
-            <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>EVALUACIONES ENTRE PARES</div>
+            <div className="mono" style={{ fontSize: 12, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>EVALUACIONES ENTRE PARES</div>
             <ButtonGroup gap={8} style={{ flexWrap: 'wrap', marginBottom: 8 }}>
               {!evaluacionesAbiertas ? (
                 <>
@@ -725,7 +725,7 @@ ${c.comentario}` : c.comentario)}
                 </button>
               )}
             </ButtonGroup>
-            <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.6 }}>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.6 }}>
               {evaluacionesAbiertas
                 ? 'Los jugadores pueden votar reconocimientos. Al cerrar, se asignan badges.'
                 : 'Al abrir, los jugadores confirmados pueden votar reconocimientos entre pares.'}

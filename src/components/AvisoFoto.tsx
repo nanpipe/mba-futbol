@@ -33,12 +33,12 @@ function mensaje(jugados: number): { texto: string; color: string; borde: string
   if (restantes === 1) {
     return {
       texto: `Te queda UN partido para subir tu foto. Después la escogen ${EDITORES}.`,
-      color: 'var(--amber)', borde: '#92400e', fondo: '#1a1000',
+      color: 'var(--amber)', borde: 'var(--warn-line)', fondo: 'var(--warn-bg)',
     }
   }
   return {
     texto: `Se te acabó el plazo. ${EDITORES} ya pueden elegirte la foto, y no la vas a poder cambiar. Todavía estás a tiempo.`,
-    color: '#f87171', borde: '#7f1d1d', fondo: '#2a0f0f',
+    color: 'var(--red)', borde: 'var(--neg-line)', fondo: '#2a0f0f',
   }
 }
 

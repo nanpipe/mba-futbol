@@ -86,7 +86,7 @@ export default function ActualizarPasswordPage() {
         <div className="display" style={{ fontSize: 48, letterSpacing: '0.05em', lineHeight: 1 }}>
           {nombreLines.map((line, i) => (
             <span key={i}>
-              {i === 1 ? <span style={{ color: 'var(--green)' }}>{line}</span> : line}
+              {i === 1 ? <span style={{ color: 'var(--primary)' }}>{line}</span> : line}
               {i < nombreLines.length - 1 && ' '}
             </span>
           ))}
@@ -103,7 +103,7 @@ export default function ActualizarPasswordPage() {
           </div>
           <p className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 16, lineHeight: 1.6 }}>
             Si llegaste aquí directamente, el enlace puede haber expirado.{' '}
-            <a href="/recuperar" style={{ color: 'var(--green)', textDecoration: 'none' }}>Solicita uno nuevo.</a>
+            <a href="/recuperar" style={{ color: 'var(--primary)', textDecoration: 'none' }}>Solicita uno nuevo.</a>
           </p>
         </div>
       ) : (

@@ -360,7 +360,7 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
               {jugadores.map(u => <option key={u} value={u}>{u}</option>)}
             </select>
             {rotacion.porteroFijoId && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: accent === 'var(--green)' ? '#0a1f0f' : '#1a1200', border: `1px solid ${accent === 'var(--green)' ? '#16a34a' : '#92400e'}`, borderRadius: 4, padding: '8px 12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: accent === 'var(--primary)' ? '#0a1f0f' : '#1a1200', border: `1px solid ${accent === 'var(--primary)' ? 'var(--primary-line)' : 'var(--warn-line)'}`, borderRadius: 4, padding: '8px 12px' }}>
                 <span style={{ fontSize: 18 }}>🧤</span>
                 <div>
                   <div className="mono" style={{ fontSize: 12, color: accent, fontWeight: 600 }}>{rotacion.porteroFijoId}</div>
@@ -376,7 +376,7 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
         <div style={{ marginBottom: 12 }}>
           <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.08em', marginBottom: 6 }}>ROTACIÓN BANCA</div>
           {rotacion.rotacionBanca.map((u, i) => (
-            <div key={u} className="mono" style={{ fontSize: 12, color: i === 0 ? accent === 'var(--green)' ? 'var(--amber)' : 'var(--amber)' : 'var(--text-dim)', padding: '3px 0', display: 'flex', gap: 8 }}>
+            <div key={u} className="mono" style={{ fontSize: 12, color: i === 0 ? accent === 'var(--primary)' ? 'var(--amber)' : 'var(--amber)' : 'var(--text-dim)', padding: '3px 0', display: 'flex', gap: 8 }}>
               <span style={{ minWidth: 20, color: 'var(--text-dim)' }}>{i + 1}.</span>
               <span>{u}</span>
               {i === 0 && <span style={{ fontSize: 10, color: 'var(--amber)' }}>← empieza banca</span>}
@@ -448,7 +448,7 @@ export function TabEquipos({ partidos, accionAdmin, onFlash, onRecargarPartidos 
                   OPINIÓN DE LOS JUGADORES
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginLeft: 'auto' }}>
-                  <span className="mono" style={{ fontSize: 13, color: 'var(--green)' }}>👍 {votos.aFavor}</span>
+                  <span className="mono" style={{ fontSize: 13, color: 'var(--pos)' }}>👍 {votos.aFavor}</span>
                   <span className="mono" style={{ fontSize: 13, color: 'var(--amber)' }}>✋ {votos.enContra}</span>
                   <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
                     ({votos.aFavor + votos.enContra}/{votos.total})
@@ -494,11 +494,11 @@ ${c.comentario}` : c.comentario)}
               <Card padding="12px 16px" style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 16 }}>
                 <div style={{ flex: 1, textAlign: 'center' }}>
                   <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em', marginBottom: 4 }}>EQUIPO A</div>
-                  <div className="display" style={{ fontSize: 22, color: 'var(--green)' }}>★{formatRating(avgA)}</div>
+                  <div className="display" style={{ fontSize: 22, color: 'var(--primary)' }}>★{formatRating(avgA)}</div>
                   <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>{equipoA.length} jugadores</div>
                 </div>
                 <div style={{ textAlign: 'center' }}>
-                  <div className="mono" style={{ fontSize: 9, letterSpacing: '0.1em', color: diff <= 0.3 ? 'var(--green)' : diff <= 0.6 ? 'var(--amber)' : 'var(--red)' }}>
+                  <div className="mono" style={{ fontSize: 9, letterSpacing: '0.1em', color: diff <= 0.3 ? 'var(--pos)' : diff <= 0.6 ? 'var(--amber)' : 'var(--red)' }}>
                     {diff <= 0.3 ? 'EQUILIBRADO' : diff <= 0.6 ? 'LEVE DIF.' : 'DESBAL.'}
                   </div>
                   <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>Δ {formatRating(diff)}</div>
@@ -521,7 +521,7 @@ ${c.comentario}` : c.comentario)}
           >
             <div style={{ display: 'grid', gridTemplateColumns: equiposPartido?.tipo === 'minitorneo' ? 'repeat(auto-fit, minmax(120px, 1fr))' : '1fr 1fr', gap: 16, marginBottom: 24 }}>
               <div>
-                <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--green)', marginBottom: 8 }}>🤍 BLANCO — {equipoA.length}</div>
+                <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--primary)', marginBottom: 8 }}>🤍 BLANCO — {equipoA.length}</div>
                 <DroppableZone equipo="A" isConfirmado={equiposConfirmado}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {equipoA.map(p => <DraggablePlayerCard key={p.id} jugador={p} equipo="A" confirmado={equiposConfirmado} />)}
@@ -540,7 +540,7 @@ ${c.comentario}` : c.comentario)}
               </div>
               {equiposPartido?.tipo === 'minitorneo' && (
                 <div>
-                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: '#a78bfa', marginBottom: 8 }}>🟣 MORADO — {equipoC.length}</div>
+                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--mini)', marginBottom: 8 }}>🟣 MORADO — {equipoC.length}</div>
                   <DroppableZone equipo="C" isConfirmado={equiposConfirmado}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {equipoC.map(p => <DraggablePlayerCard key={p.id} jugador={p} equipo="C" confirmado={equiposConfirmado} />)}
@@ -552,7 +552,7 @@ ${c.comentario}` : c.comentario)}
             </div>
             <DragOverlay>
               {activeDragPlayer ? (
-                <div style={{ padding: '8px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--green)', borderRadius: 3, display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+                <div style={{ padding: '8px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--primary)', borderRadius: 3, display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
                   <PlayerAvatar url={activeDragPlayer.avatar_url} username={activeDragPlayer.username} size={26} />
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 500 }}>{activeDragPlayer.username}</div>
@@ -568,7 +568,7 @@ ${c.comentario}` : c.comentario)}
               <button onClick={balancearAutomatico} disabled={equiposLoading} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px' }}>
                 ⚖️ Balancear automáticamente
               </button>
-              <button onClick={guardarEquiposAction} disabled={equiposLoading || !equiposDraft || (equipoA.length + equipoB.length + equipoC.length === 0)} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px', color: 'var(--green)', borderColor: '#16a34a' }}>
+              <button onClick={guardarEquiposAction} disabled={equiposLoading || !equiposDraft || (equipoA.length + equipoB.length + equipoC.length === 0)} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px', color: 'var(--primary)', borderColor: 'var(--primary-line)' }}>
                 💾 Guardar borrador
               </button>
               <button onClick={confirmarEquiposAction} disabled={equiposLoading || equiposDraft || (equipoA.length + equipoB.length + equipoC.length === 0)} className="btn btn-primary" style={{ fontSize: 12, padding: '10px 16px' }}>
@@ -577,7 +577,7 @@ ${c.comentario}` : c.comentario)}
             </ButtonGroup>
           )}
           <div style={{ marginBottom: 28 }}>
-            <button onClick={resetearEquiposAction} disabled={equiposLoading} className="mono" style={{ fontSize: 11, padding: '8px 14px', background: 'none', border: '1px solid #7f1d1d', borderRadius: 3, color: 'var(--red)', cursor: 'pointer', letterSpacing: '0.08em' }}>
+            <button onClick={resetearEquiposAction} disabled={equiposLoading} className="mono" style={{ fontSize: 11, padding: '8px 14px', background: 'none', border: '1px solid var(--neg-line)', borderRadius: 3, color: 'var(--red)', cursor: 'pointer', letterSpacing: '0.08em' }}>
               ✕ Resetear equipos
             </button>
           </div>
@@ -589,16 +589,16 @@ ${c.comentario}` : c.comentario)}
                 <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)' }}>⚽ COLORES Y ROTACIONES</div>
                 <ButtonGroup gap={8} style={{ flexWrap: 'wrap' }}>
                   <button onClick={swapColores} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px' }}>↔ Cambiar colores</button>
-                  <button onClick={() => { aleatorizarRotacion('A'); aleatorizarRotacion('B') }} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px', color: 'var(--amber)', borderColor: '#92400e' }}>
+                  <button onClick={() => { aleatorizarRotacion('A'); aleatorizarRotacion('B') }} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px', color: 'var(--amber)', borderColor: 'var(--warn-line)' }}>
                     🎲 Aleatorizar rotaciones
                   </button>
-                  <button onClick={guardarRotaciones} disabled={savingRotacion} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px', color: 'var(--green)', borderColor: '#16a34a' }}>
+                  <button onClick={guardarRotaciones} disabled={savingRotacion} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px', color: 'var(--primary)', borderColor: 'var(--primary-line)' }}>
                     {savingRotacion ? '...' : '💾 Guardar'}
                   </button>
                 </ButtonGroup>
               </div>
               <div className="form-2col">
-                {rotacionA && <RotacionPanel equipo="A" rotacion={rotacionA} setRotacion={setRotacionA} accent="var(--green)" jugadores={equipoA.map(j => j.username)} />}
+                {rotacionA && <RotacionPanel equipo="A" rotacion={rotacionA} setRotacion={setRotacionA} accent="var(--primary)" jugadores={equipoA.map(j => j.username)} />}
                 {rotacionB && <RotacionPanel equipo="B" rotacion={rotacionB} setRotacion={setRotacionB} accent="var(--amber)" jugadores={equipoB.map(j => j.username)} />}
               </div>
             </div>
@@ -609,11 +609,11 @@ ${c.comentario}` : c.comentario)}
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginBottom: 24 }}>
               <div className="mono" style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: 12 }}>
                 🤖 BALANCEADOR IA
-                {balancerSource === 'gemini' && <span style={{ marginLeft: 8, color: 'var(--green)' }}>· Gemini</span>}
+                {balancerSource === 'gemini' && <span style={{ marginLeft: 8, color: 'var(--primary)' }}>· Gemini</span>}
                 {balancerSource === 'fallback' && <span style={{ marginLeft: 8, color: 'var(--amber)' }}>· Snake-draft (fallback)</span>}
               </div>
               {balancerRazon && (
-                <div style={{ background: '#0a1a0f', border: '1px solid #16a34a', borderRadius: 4, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.6 }}>
+                <div style={{ background: '#0a1a0f', border: '1px solid var(--primary-line)', borderRadius: 4, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.6 }}>
                   &ldquo;{balancerRazon}&rdquo;
                 </div>
               )}
@@ -628,7 +628,7 @@ ${c.comentario}` : c.comentario)}
                   rows={3}
                   style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 3, padding: '10px 12px', color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: 16, resize: 'vertical', boxSizing: 'border-box' }}
                 />
-                <button onClick={guardarFeedback} disabled={savingFeedback || !feedbackText.trim()} className="btn btn-ghost" style={{ marginTop: 8, fontSize: 11, padding: '8px 16px', color: 'var(--green)', borderColor: '#16a34a' }}>
+                <button onClick={guardarFeedback} disabled={savingFeedback || !feedbackText.trim()} className="btn btn-ghost" style={{ marginTop: 8, fontSize: 11, padding: '8px 16px', color: 'var(--primary)', borderColor: 'var(--primary-line)' }}>
                   {savingFeedback ? 'Guardando...' : '💾 Guardar feedback'}
                 </button>
               </div>
@@ -680,7 +680,7 @@ ${c.comentario}` : c.comentario)}
             ) : (
               <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span className="mono" style={{ fontSize: 10, color: 'var(--green)' }}>
+                  <span className="mono" style={{ fontSize: 10, color: 'var(--primary)' }}>
                     {rotacionA ? (rotacionA.color === 'blanco' ? '🤍' : '🖤') : 'A'}
                   </span>
                   <input type="number" min={0} max={99} value={golesA} onChange={e => setGolesA(e.target.value)} placeholder="0" style={{ width: 56, textAlign: 'center' }} />
@@ -710,7 +710,7 @@ ${c.comentario}` : c.comentario)}
             <ButtonGroup gap={8} style={{ flexWrap: 'wrap', marginBottom: 8 }}>
               {!evaluacionesAbiertas ? (
                 <>
-                  <button onClick={abrirEvaluacionesAction} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px', color: 'var(--amber)', borderColor: '#92400e' }}>
+                  <button onClick={abrirEvaluacionesAction} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px', color: 'var(--amber)', borderColor: 'var(--warn-line)' }}>
                     📊 Abrir evaluaciones
                   </button>
                   {equiposPartido?.evaluaciones_abiertas === false && (
@@ -720,7 +720,7 @@ ${c.comentario}` : c.comentario)}
                   )}
                 </>
               ) : (
-                <button onClick={cerrarEvaluacionesAction} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px', color: 'var(--red)', borderColor: '#7f1d1d' }}>
+                <button onClick={cerrarEvaluacionesAction} className="btn btn-ghost" style={{ fontSize: 12, padding: '10px 16px', color: 'var(--red)', borderColor: 'var(--neg-line)' }}>
                   🏅 Cerrar y calcular badges
                 </button>
               )}

@@ -375,7 +375,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
             return (
               <button
                 className="btn btn-ghost"
-                style={{ fontSize: 10, padding: '4px 10px', color: 'var(--amber)', borderColor: '#92400e' }}
+                style={{ fontSize: 10, padding: '4px 10px', color: 'var(--amber)', borderColor: 'var(--warn-line)' }}
                 onClick={async () => {
                   const ok = await accionAdmin('forzar_notif_apertura', { partido_id: partidoId })
                   if (ok) await onRecargarPartidos()
@@ -387,7 +387,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
           })()}
           <button
             className="btn btn-ghost"
-            style={{ fontSize: 10, padding: '4px 10px', color: 'var(--green)', borderColor: '#14532d' }}
+            style={{ fontSize: 10, padding: '4px 10px', color: 'var(--primary)', borderColor: '#14532d' }}
             onClick={() => { setAgregarPlayerId(''); setAgregarEstado('confirmado'); setAgregarModal(true) }}
           >
             + Agregar jugador
@@ -416,7 +416,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                     <div style={{ fontSize: 15, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       {ins.profiles.username}
                       {ins.added_by_profile && (
-                        <span className="mono" style={{ fontSize: 9, color: 'var(--amber)', background: '#1a1500', border: '1px solid #78350f', borderRadius: 2, padding: '1px 5px', letterSpacing: '0.05em' }}>
+                        <span className="mono" style={{ fontSize: 9, color: 'var(--amber)', background: 'var(--warn-soft)', border: '1px solid #78350f', borderRadius: 2, padding: '1px 5px', letterSpacing: '0.05em' }}>
                           por {ins.added_by_profile.username}
                         </span>
                       )}
@@ -457,7 +457,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                         }
                       }}
                       className="mono"
-                      style={{ fontSize: 11, color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
+                      style={{ fontSize: 11, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.05em' }}
                     >
                       PROMOVER
                     </button>
@@ -481,7 +481,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
               <div key={inv.id} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '10px 14px', background: 'var(--bg-card)',
-                border: '1px solid #16a34a', borderRadius: 3,
+                border: '1px solid var(--pos-line)', borderRadius: 3,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span className="badge badge-green">✓</span>
@@ -526,7 +526,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                       onClick={() => confirmarInvitado(inv.id)}
                       disabled={confirmandoInvitado === inv.id}
                       className="btn btn-ghost"
-                      style={{ fontSize: 11, padding: '6px 12px', color: 'var(--green)', borderColor: '#16a34a', flexShrink: 0 }}
+                      style={{ fontSize: 11, padding: '6px 12px', color: 'var(--primary)', borderColor: 'var(--primary-line)', flexShrink: 0 }}
                     >
                       {confirmandoInvitado === inv.id ? '...' : '✓ Confirmar'}
                     </button>
@@ -569,7 +569,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                 setCrearModal(true)
               }}
               className="btn btn-ghost"
-              style={{ fontSize: 11, padding: '6px 12px', color: 'var(--green)', borderColor: '#16a34a' }}
+              style={{ fontSize: 11, padding: '6px 12px', color: 'var(--primary)', borderColor: 'var(--primary-line)' }}
             >
               + Nuevo
             </button>
@@ -599,7 +599,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
               return (
                 <div key={p.id} style={{
                   background: abierto ? 'var(--bg-elevated)' : 'var(--bg-card)',
-                  border: `1px solid ${abierto ? 'var(--green)' : 'var(--border)'}`,
+                  border: `1px solid ${abierto ? 'var(--primary)' : 'var(--border)'}`,
                   borderRadius: 4, overflow: 'hidden',
                 }}>
                   {/* La tarjeta entera abre y cierra, como en Jugadores. Los
@@ -616,7 +616,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                     }}
                   >
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="display" style={{ fontSize: 18, letterSpacing: '0.05em', color: abierto ? 'var(--green)' : 'var(--text)' }}>
+                      <div className="display" style={{ fontSize: 18, letterSpacing: '0.05em', color: abierto ? 'var(--primary)' : 'var(--text)' }}>
                         {p.dia_semana.toUpperCase()}
                         {p.tipo === 'minitorneo' && <span style={{ fontSize: 12, marginLeft: 6, verticalAlign: 'middle' }}>🟣</span>}
                         {/* Este día se repite solo: el siguiente ya está (o va
@@ -635,13 +635,13 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div className="mono" style={{ fontSize: 13 }}>
-                        <span style={{ color: confirmados >= cupos ? 'var(--red)' : 'var(--green)' }}>{confirmados}</span>
+                        <span style={{ color: confirmados >= cupos ? 'var(--red)' : 'var(--primary)' }}>{confirmados}</span>
                         <span style={{ color: 'var(--text-dim)' }}>/{cupos}</span>
                       </div>
                       {espera > 0 && <div className="mono" style={{ fontSize: 11, color: 'var(--amber)' }}>+{espera} espera</div>}
                       {/* Antes decía "🔕 notif pendiente", que se leía como "no
                           hay ninguna". Ahora dice a qué hora sale. */}
-                      <div className="mono" style={{ fontSize: 9, color: p.notif_apertura_sent ? 'var(--green)' : 'var(--text-dim)', marginTop: 2 }}>
+                      <div className="mono" style={{ fontSize: 9, color: p.notif_apertura_sent ? 'var(--pos)' : 'var(--text-dim)', marginTop: 2 }}>
                         {p.notif_apertura_sent ? '🔔 aviso enviado' : `🔔 ${fechaHoraCortaCO(apertura.cuando)}`}
                       </div>
                     </div>
@@ -840,10 +840,10 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                     className="mono"
                     style={{
                       flex: 1, padding: '8px',
-                      border: `1px solid ${agregarEstado === e ? (e === 'confirmado' ? '#16a34a' : '#92400e') : 'var(--border)'}`,
+                      border: `1px solid ${agregarEstado === e ? (e === 'confirmado' ? 'var(--pos-line)' : 'var(--warn-line)') : 'var(--border)'}`,
                       borderRadius: 3,
-                      background: agregarEstado === e ? (e === 'confirmado' ? '#0f2d1a' : '#1a1000') : 'none',
-                      color: agregarEstado === e ? (e === 'confirmado' ? 'var(--green)' : 'var(--amber)') : 'var(--text-muted)',
+                      background: agregarEstado === e ? (e === 'confirmado' ? 'var(--pos-soft)' : 'var(--warn-bg)') : 'none',
+                      color: agregarEstado === e ? (e === 'confirmado' ? 'var(--pos)' : 'var(--amber)') : 'var(--text-muted)',
                       cursor: 'pointer', fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase',
                     }}
                   >
@@ -896,8 +896,8 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                       className="btn btn-ghost mono"
                       style={{
                         flex: 1, fontSize: 11, padding: '8px',
-                        borderColor: nuevoTipo === t ? (t === 'minitorneo' ? '#7c3aed' : 'var(--green)') : undefined,
-                        color: nuevoTipo === t ? (t === 'minitorneo' ? '#a78bfa' : 'var(--green)') : undefined,
+                        borderColor: nuevoTipo === t ? (t === 'minitorneo' ? 'var(--mini-line)' : 'var(--primary)') : undefined,
+                        color: nuevoTipo === t ? (t === 'minitorneo' ? 'var(--mini)' : 'var(--primary)') : undefined,
                       }}
                     >
                       {t === 'minitorneo' ? '🟣 Minitorneo' : '⚽ Normal'}
@@ -932,7 +932,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
               </div>
               <div>
                 <label className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>
-                  CUPOS {nuevoTipo === 'minitorneo' && <span style={{ color: '#a78bfa' }}>(3 × 7)</span>}
+                  CUPOS {nuevoTipo === 'minitorneo' && <span style={{ color: 'var(--mini)' }}>(3 × 7)</span>}
                 </label>
                 <input type="number" min="1" max="30" value={nuevosCupos} onChange={e => setNuevosCupos(e.target.value)} />
               </div>
@@ -952,7 +952,7 @@ export function TabPartidos({ partidos, players, accionAdmin, onFlash, onRecarga
                     type="checkbox"
                     checked={repetirSemanal}
                     onChange={e => setRepetirSemanal(e.target.checked)}
-                    style={{ width: 16, height: 16, accentColor: 'var(--green)', cursor: 'pointer' }}
+                    style={{ width: 16, height: 16, accentColor: 'var(--primary)', cursor: 'pointer' }}
                   />
                   <span className="mono" style={{ fontSize: 12, color: 'var(--text)' }}>🔁 Repetir cada semana</span>
                 </label>

@@ -216,7 +216,7 @@ export default function RegistroPage() {
 
         <p className="mono" style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginTop: 32 }}>
           ¿Ya tienes cuenta?{' '}
-          <Link href="/login" style={{ color: 'var(--green)', textDecoration: 'none' }}>Inicia sesión</Link>
+          <Link href="/login" style={{ color: 'var(--primary)', textDecoration: 'none' }}>Inicia sesión</Link>
         </p>
       </div>
     </FormCenterLayout>

@@ -38,7 +38,7 @@ export function PlayerAvatar({ url, username, size = 32, borderColor }: PlayerAv
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%',
-      background: muestraFoto ? 'transparent' : '#0f2d1a',
+      background: muestraFoto ? 'transparent' : 'var(--primary-soft)',
       border: `1px solid ${borderColor ?? 'var(--border)'}`,
       overflow: 'hidden',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -55,7 +55,7 @@ export function PlayerAvatar({ url, username, size = 32, borderColor }: PlayerAv
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
       ) : (
-        <span className="display" style={{ fontSize: size * escala, color: 'var(--green)', lineHeight: 1 }}>
+        <span className="display" style={{ fontSize: size * escala, color: 'var(--primary)', lineHeight: 1 }}>
           {etiqueta}
         </span>
       )}

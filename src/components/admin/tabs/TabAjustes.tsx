@@ -356,7 +356,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
                   padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer',
                   fontSize: 12, letterSpacing: '0.06em',
                   color: sub === id ? 'var(--text)' : 'var(--text-muted)',
-                  borderBottom: sub === id ? '2px solid var(--green)' : '2px solid transparent',
+                  borderBottom: sub === id ? '2px solid var(--primary)' : '2px solid transparent',
                   marginBottom: -1, whiteSpace: 'nowrap',
                 }}
               >
@@ -408,7 +408,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
 
           {/* Club settings */}
           <Card padding="20px 24px">
-            <SectionHeader title="CONFIGURACIÓN DEL CLUB" icon="⚽" color="var(--green)" />
+            <SectionHeader title="CONFIGURACIÓN DEL CLUB" icon="⚽" color="var(--primary)" />
 
             {/* Text fields */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 24 }}>
@@ -473,7 +473,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
 
           {/* Ubicaciones — canchas del club */}
           <Card padding="20px 24px">
-            <SectionHeader title="UBICACIONES" icon="📍" color="var(--green)" />
+            <SectionHeader title="UBICACIONES" icon="📍" color="var(--primary)" />
             <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 10, lineHeight: 1.6 }}>
               Una cancha por línea. La primera es la predeterminada al crear partidos.
               {savingText === 'ubicaciones' && <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>guardando...</span>}
@@ -575,7 +575,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
           {/* Recalcular ratings — superadmin */}
           {isSuperAdmin && (
             <Card padding="20px 24px">
-              <SectionHeader title="RECALCULAR RATINGS" icon="♻️" color="#a78bfa" />
+              <SectionHeader title="RECALCULAR RATINGS" icon="♻️" color="var(--mini)" />
               <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
                 Reconstruye el rating de todo el club desde cero, replayando cada
                 partido con las reglas de hoy. Los ratings viejos se calcularon con
@@ -595,14 +595,14 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
                 onClick={recalcular}
                 disabled={recalculando}
                 className="btn"
-                style={{ fontSize: 12, borderColor: '#a78bfa', color: '#a78bfa' }}
+                style={{ fontSize: 12, borderColor: 'var(--mini)', color: 'var(--mini)' }}
               >
                 {recalculando ? 'Recalculando...' : '♻️ Recalcular todo'}
               </button>
               {recalculoResult && (
                 <div className="mono" style={{
                   fontSize: 10, marginTop: 12, lineHeight: 1.7, whiteSpace: 'pre-wrap',
-                  color: recalculoResult.ok ? 'var(--green)' : 'var(--red, #f87171)',
+                  color: recalculoResult.ok ? 'var(--pos)' : 'var(--red)',
                 }}>
                   {recalculoResult.msg}
                 </div>
@@ -613,7 +613,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
           {/* Recomprimir avatares — superadmin */}
           {isSuperAdmin && (
             <Card padding="20px 24px">
-              <SectionHeader title="RECOMPRIMIR AVATARES" icon="🗜️" color="#a78bfa" />
+              <SectionHeader title="RECOMPRIMIR AVATARES" icon="🗜️" color="var(--mini)" />
               <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
                 Las fotos de perfil viejas se guardaron a 800 px en PNG: cerca de
                 500 KB cada una, para verse del tamaño de una moneda. Abrir la
@@ -635,14 +635,14 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
                 onClick={recomprimirAvatares}
                 disabled={avatarsRunning}
                 className="btn"
-                style={{ fontSize: 12, borderColor: '#a78bfa', color: '#a78bfa' }}
+                style={{ fontSize: 12, borderColor: 'var(--mini)', color: 'var(--mini)' }}
               >
                 {avatarsRunning ? 'Procesando...' : '🗜️ Recomprimir avatares'}
               </button>
               {avatarsResult && (
                 <div className="mono" style={{
                   fontSize: 10, marginTop: 12, lineHeight: 1.7, whiteSpace: 'pre-wrap',
-                  color: avatarsResult.ok ? 'var(--green)' : 'var(--amber)',
+                  color: avatarsResult.ok ? 'var(--pos)' : 'var(--amber)',
                 }}>
                   {avatarsResult.msg}
                 </div>
@@ -683,7 +683,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
 
           {/* Pulgares */}
           <Card padding="20px 24px">
-            <SectionHeader title="PULGARES" icon="👍" color="var(--green)" />
+            <SectionHeader title="PULGARES" icon="👍" color="var(--primary)" />
             <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
               Los 👍/👎 de la evaluación mueven el rating por grupos, no de a uno.
               Los dos lados cuentan por separado: 4 👍 y 3 👎 en el mismo partido
@@ -714,7 +714,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
           {/* Configuración de juego — superadmin only */}
           {isSuperAdmin && (
             <Card padding="20px 24px">
-              <SectionHeader title="CONFIGURACIÓN DE JUEGO" icon="🎮" color="#a78bfa" />
+              <SectionHeader title="CONFIGURACIÓN DE JUEGO" icon="🎮" color="var(--mini)" />
               <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.6 }}>
                 Cómo se arman y juegan los equipos de este club. Solo superadmin.
               </div>
@@ -769,8 +769,8 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
               <div className="mono" style={{
                 fontSize: 12, marginTop: 10, padding: '8px 12px', borderRadius: 3,
                 ...(testEmailResult.ok
-                  ? { color: 'var(--green)', background: '#0f2d1a', border: '1px solid #16a34a' }
-                  : { color: 'var(--red)', background: '#2d0a0a', border: '1px solid #7f1d1d' }),
+                  ? { color: 'var(--pos)', background: 'var(--pos-soft)', border: '1px solid var(--pos-line)' }
+                  : { color: 'var(--red)', background: 'var(--neg-soft)', border: '1px solid var(--neg-line)' }),
               }}>
                 {testEmailResult.ok ? '✓ ' : '✕ '}{testEmailResult.msg}
             </div>
@@ -794,8 +794,8 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
                   <div className="mono" style={{
                     fontSize: 11, marginTop: 8, padding: '8px 12px', borderRadius: 3,
                     ...(notifPruebaResult.ok
-                      ? { color: 'var(--green)', background: '#0f2d1a', border: '1px solid #16a34a' }
-                      : { color: 'var(--red)', background: '#2d0a0a', border: '1px solid #7f1d1d' }),
+                      ? { color: 'var(--pos)', background: 'var(--pos-soft)', border: '1px solid var(--pos-line)' }
+                      : { color: 'var(--red)', background: 'var(--neg-soft)', border: '1px solid var(--neg-line)' }),
                   }}>
                     {notifPruebaResult.ok ? '✓ ' : '✕ '}{notifPruebaResult.msg}
                   </div>
@@ -814,8 +814,8 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
                   <div className="mono" style={{
                     fontSize: 11, marginTop: 8, padding: '8px 12px', borderRadius: 3,
                     ...(cronResult.ok
-                      ? { color: 'var(--green)', background: '#0f2d1a', border: '1px solid #16a34a' }
-                      : { color: 'var(--red)', background: '#2d0a0a', border: '1px solid #7f1d1d' }),
+                      ? { color: 'var(--pos)', background: 'var(--pos-soft)', border: '1px solid var(--pos-line)' }
+                      : { color: 'var(--red)', background: 'var(--neg-soft)', border: '1px solid var(--neg-line)' }),
                   }}>
                     {cronResult.ok ? '✓ ' : '✕ '}{cronResult.msg}
                   </div>
@@ -828,7 +828,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
           <Card padding="16px 24px">
             <SectionHeader title="CRON SCHEDULE" icon="⏱" color="var(--text-muted)" />
             <div className="mono" style={{ fontSize: 13 }}>
-              <span style={{ color: 'var(--green)' }}>0 15 * * *</span>
+              <span style={{ color: 'var(--primary)' }}>0 15 * * *</span>
               <span style={{ color: 'var(--text-muted)', marginLeft: 12 }}>→ 10:00 AM Colombia (15:00 UTC)</span>
             </div>
             <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 8 }}>

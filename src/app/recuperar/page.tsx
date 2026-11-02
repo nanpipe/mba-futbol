@@ -93,7 +93,7 @@ export default function RecuperarPage() {
         <div className="display" style={{ fontSize: 48, letterSpacing: '0.05em', lineHeight: 1 }}>
           {nombreLines.map((line, i) => (
             <span key={i}>
-              {i === 1 ? <span style={{ color: 'var(--green)' }}>{line}</span> : line}
+              {i === 1 ? <span style={{ color: 'var(--primary)' }}>{line}</span> : line}
               {i < nombreLines.length - 1 && ' '}
             </span>
           ))}
@@ -117,7 +117,7 @@ export default function RecuperarPage() {
               flex: 1, padding: '10px 0', background: 'none', border: 'none', cursor: 'pointer',
               fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase',
               color: mode === m.id ? 'var(--text)' : 'var(--text-muted)',
-              borderBottom: mode === m.id ? '2px solid var(--green)' : '2px solid transparent',
+              borderBottom: mode === m.id ? '2px solid var(--primary)' : '2px solid transparent',
               marginBottom: -1,
             }}
           >
@@ -132,8 +132,8 @@ export default function RecuperarPage() {
           <div style={{ textAlign: 'center' }}>
             <div style={{
               padding: '20px 24px', borderRadius: 3, marginBottom: 24,
-              background: '#0f2d1a', border: '1px solid #16a34a',
-              color: 'var(--green)', fontFamily: 'DM Mono, monospace', fontSize: 13, lineHeight: 1.6
+              background: 'var(--pos-soft)', border: '1px solid var(--pos-line)',
+              color: 'var(--pos)', fontFamily: 'DM Mono, monospace', fontSize: 13, lineHeight: 1.6
             }}>
               ✓ Te enviamos un correo con el enlace para restablecer tu contraseña.
               <br /><br />
@@ -175,8 +175,8 @@ export default function RecuperarPage() {
           <div style={{ textAlign: 'center' }}>
             <div style={{
               padding: '20px 24px', borderRadius: 3, marginBottom: 24,
-              background: '#0f2d1a', border: '1px solid #16a34a',
-              color: 'var(--green)', fontFamily: 'DM Mono, monospace', fontSize: 13, lineHeight: 1.6
+              background: 'var(--pos-soft)', border: '1px solid var(--pos-line)',
+              color: 'var(--pos)', fontFamily: 'DM Mono, monospace', fontSize: 13, lineHeight: 1.6
             }}>
               ✓ Si ese correo está registrado, te enviamos tu usuario.
               <br /><br />

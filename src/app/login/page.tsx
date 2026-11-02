@@ -110,7 +110,7 @@ export default function LoginPage() {
         <div className="display" style={{ fontSize: 48, letterSpacing: '0.05em', lineHeight: 1 }}>
           {nombreLines.map((line, i) => (
             <span key={i}>
-              {i === 1 ? <span style={{ color: 'var(--green)' }}>{line}</span> : line}
+              {i === 1 ? <span style={{ color: 'var(--primary)' }}>{line}</span> : line}
               {i < nombreLines.length - 1 && ' '}
             </span>
           ))}
@@ -159,7 +159,7 @@ export default function LoginPage() {
 
       <p className="mono" style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginTop: 12 }}>
         ¿No tienes cuenta?{' '}
-        <Link href="/registro" style={{ color: 'var(--green)', textDecoration: 'none' }}>Regístrate</Link>
+        <Link href="/registro" style={{ color: 'var(--primary)', textDecoration: 'none' }}>Regístrate</Link>
       </p>
     </FormCenterLayout>
 
@@ -173,11 +173,11 @@ export default function LoginPage() {
         <div style={{ maxWidth: 420, width: '100%', textAlign: 'center' }}>
           {/* Mensaje principal */}
           <div style={{
-            background: '#1a0000', border: '2px solid #7f1d1d',
+            background: '#1a0000', border: '2px solid var(--neg-line)',
             borderRadius: 6, padding: '28px 24px', marginBottom: 24,
           }}>
             <div style={{ fontSize: 36, marginBottom: 16 }}>🚨🍺🍺🍺🚨</div>
-            <p className="mono" style={{ color: '#f87171', fontSize: 15, fontWeight: 700, lineHeight: 1.8, margin: 0 }}>
+            <p className="mono" style={{ color: 'var(--red)', fontSize: 15, fontWeight: 700, lineHeight: 1.8, margin: 0 }}>
               NO PUEDES REGISTRAR<br />
               A NADIE QUE NO SEAS TÚ MISMO.<br />
               <br />
@@ -208,11 +208,11 @@ export default function LoginPage() {
           {/* Post-countdown */}
           {sapeado && (
             <div style={{ animation: 'fadeIn 0.4s ease' }}>
-              <div className="mono" style={{ fontSize: 14, color: '#4ade80', marginBottom: 20, lineHeight: 1.8 }}>
+              <div className="mono" style={{ fontSize: 14, color: 'var(--pos)', marginBottom: 20, lineHeight: 1.8 }}>
                 PODRÍA NO DECIR NADA 🤫😶🤐<br />
                 <br />
-                <span style={{ color: '#fbbf24' }}>¿Quisieras pagar $5.000 a Nequi</span><br />
-                <span style={{ color: '#fbbf24' }}>por nuestro silencio?</span>
+                <span style={{ color: 'var(--amber)' }}>¿Quisieras pagar $5.000 a Nequi</span><br />
+                <span style={{ color: 'var(--amber)' }}>por nuestro silencio?</span>
               </div>
 
               {pagarRespuesta === null && (
@@ -235,9 +235,9 @@ export default function LoginPage() {
               )}
 
               {pagarRespuesta === 'no' && (
-                <div style={{ background: '#1a0a00', border: '1px solid #92400e', borderRadius: 6, padding: '20px 24px' }}>
+                <div style={{ background: '#1a0a00', border: '1px solid var(--warn-line)', borderRadius: 6, padding: '20px 24px' }}>
                   <div style={{ fontSize: 28, marginBottom: 8 }}>😤🍺</div>
-                  <div className="mono" style={{ fontSize: 13, color: '#fbbf24', lineHeight: 1.8 }}>
+                  <div className="mono" style={{ fontSize: 13, color: 'var(--amber)', lineHeight: 1.8 }}>
                     Decisión anotada.<br />
                     Los admins ya fueron notificados.<br />
                     <br />
@@ -259,9 +259,9 @@ export default function LoginPage() {
         padding: 24, zIndex: 999,
       }}>
         <div style={{ maxWidth: 360, width: '100%', textAlign: 'center' }}>
-          <div style={{ background: '#0f2d1a', border: '1px solid #16a34a', borderRadius: 6, padding: '28px 24px' }}>
+          <div style={{ background: 'var(--pos-soft)', border: '1px solid var(--pos-line)', borderRadius: 6, padding: '28px 24px' }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>🍺💚</div>
-            <div className="mono" style={{ fontSize: 14, color: '#4ade80', lineHeight: 1.8 }}>
+            <div className="mono" style={{ fontSize: 14, color: 'var(--pos)', lineHeight: 1.8 }}>
               Nequi: <strong style={{ fontSize: 20, color: '#fff' }}>318 810 9368</strong><br />
               <br />
               Envía tu comprobante<br />

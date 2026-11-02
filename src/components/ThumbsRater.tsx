@@ -11,8 +11,8 @@ export interface ThumbTeammate {
 // 44×44: el mínimo para el pulgar. Sin elegir, los tres van a opacidad plena
 // (apagados parecían deshabilitados al sol); al elegir uno se apagan los otros.
 function thumbStyle(active: boolean, kind: 'up' | 'neutral' | 'down', algunoElegido: boolean): React.CSSProperties {
-  const color = kind === 'up' ? 'var(--green)' : kind === 'down' ? 'var(--red)' : 'var(--text-muted)'
-  const bg = kind === 'up' ? '#0f2d1a' : kind === 'down' ? '#2d0a0a' : 'var(--bg-elevated)'
+  const color = kind === 'up' ? 'var(--pos)' : kind === 'down' ? 'var(--red)' : 'var(--text-muted)'
+  const bg = kind === 'up' ? 'var(--pos-soft)' : kind === 'down' ? 'var(--neg-soft)' : 'var(--bg-elevated)'
   return {
     fontSize: 20,
     lineHeight: 1,

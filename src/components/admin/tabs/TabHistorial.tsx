@@ -53,7 +53,7 @@ function ProgresoVotacion({ progreso, cerrada }: {
   if (!progreso || progreso.total === 0) return null
   const { votaron, total } = progreso
   const pct = Math.round((votaron / total) * 100)
-  const color = votaron === total ? 'var(--green)' : votaron >= total / 2 ? 'var(--amber)' : 'var(--text-dim)'
+  const color = votaron === total ? 'var(--pos)' : votaron >= total / 2 ? 'var(--amber)' : 'var(--text-dim)'
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -70,7 +70,7 @@ function ProgresoVotacion({ progreso, cerrada }: {
 const EQUIPO_LABEL: Record<string, { titulo: string; color: string }> = {
   blanco: { titulo: '🤍 BLANCOS', color: '#e5e5e5' },
   negro: { titulo: '🖤 NEGROS', color: 'var(--text-muted)' },
-  morado: { titulo: '💜 MORADOS', color: '#a78bfa' },
+  morado: { titulo: '💜 MORADOS', color: 'var(--mini)' },
 }
 
 /**
@@ -478,7 +478,7 @@ export function TabHistorial({ active }: Props) {
       {flash && (
         <div className="mono" style={{
           position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)',
-          background: '#0f2d1a', border: '1px solid #16a34a', color: 'var(--green)',
+          background: 'var(--pos-soft)', border: '1px solid var(--pos-line)', color: 'var(--pos)',
           padding: '10px 20px', borderRadius: 3, fontSize: 13, zIndex: 200,
         }}>
           {flash}
@@ -529,7 +529,7 @@ export function TabHistorial({ active }: Props) {
                   <div>
                     {/* En verde: es lo que separa un partido del siguiente en
                         una lista larga, y en gris se perdía entre el resto. */}
-                    <div className="display" style={{ fontSize: 20, letterSpacing: '0.05em', color: 'var(--green)' }}>
+                    <div className="display" style={{ fontSize: 20, letterSpacing: '0.05em', color: 'var(--primary)' }}>
                       {p.dia_semana.toUpperCase()}
                       {esMinitorneo && <span style={{ fontSize: 12, marginLeft: 6, verticalAlign: 'middle' }}>🟣</span>}
                       <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 10 }}>
@@ -546,13 +546,13 @@ export function TabHistorial({ active }: Props) {
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
                     {p.jugado === true && (
-                      <span className="mono" style={{ fontSize: 10, color: 'var(--green)', border: '1px solid #16a34a', padding: '2px 8px', borderRadius: 2 }}>JUGADO</span>
+                      <span className="mono" style={{ fontSize: 10, color: 'var(--pos)', border: '1px solid var(--pos-line)', padding: '2px 8px', borderRadius: 2 }}>JUGADO</span>
                     )}
                     {p.jugado === false && (
                       <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', border: '1px solid var(--border)', padding: '2px 8px', borderRadius: 2 }}>NO JUGADO</span>
                     )}
                     {p.evaluaciones_abiertas && (
-                      <span className="mono" style={{ fontSize: 10, color: '#a78bfa', border: '1px solid #7c3aed', padding: '2px 8px', borderRadius: 2 }}>EVAL ✓</span>
+                      <span className="mono" style={{ fontSize: 10, color: 'var(--mini)', border: '1px solid var(--mini-line)', padding: '2px 8px', borderRadius: 2 }}>EVAL ✓</span>
                     )}
                     <span className="mono" style={{ fontSize: 14, color: 'var(--text-dim)' }}>{isExpanded ? '▲' : '▼'}</span>
                   </div>
@@ -692,9 +692,9 @@ export function TabHistorial({ active }: Props) {
                               className="mono"
                               style={{
                                 padding: '6px 12px', fontSize: 11, border: '1px solid',
-                                borderColor: modo === m ? (m === 'agregar' ? '#16a34a' : '#7f1d1d') : 'var(--border)',
-                                background: modo === m ? (m === 'agregar' ? '#0f2d1a' : '#2a0f0f') : 'none',
-                                color: modo === m ? (m === 'agregar' ? 'var(--green)' : 'var(--red)') : 'var(--text-dim)',
+                                borderColor: modo === m ? (m === 'agregar' ? 'var(--pos-line)' : 'var(--neg-line)') : 'var(--border)',
+                                background: modo === m ? (m === 'agregar' ? 'var(--pos-soft)' : '#2a0f0f') : 'none',
+                                color: modo === m ? (m === 'agregar' ? 'var(--pos)' : 'var(--red)') : 'var(--text-dim)',
                                 borderRadius: 3, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase',
                               }}
                             >
@@ -731,9 +731,9 @@ export function TabHistorial({ active }: Props) {
                                   className="mono"
                                   style={{
                                     padding: '7px 10px', fontSize: 11, border: '1px solid',
-                                    borderColor: addEstado === e ? (e === 'confirmado' ? '#16a34a' : '#92400e') : 'var(--border)',
-                                    background: addEstado === e ? (e === 'confirmado' ? '#0f2d1a' : '#1a1000') : 'none',
-                                    color: addEstado === e ? (e === 'confirmado' ? 'var(--green)' : 'var(--amber)') : 'var(--text-muted)',
+                                    borderColor: addEstado === e ? (e === 'confirmado' ? 'var(--pos-line)' : 'var(--warn-line)') : 'var(--border)',
+                                    background: addEstado === e ? (e === 'confirmado' ? 'var(--pos-soft)' : 'var(--warn-bg)') : 'none',
+                                    color: addEstado === e ? (e === 'confirmado' ? 'var(--pos)' : 'var(--amber)') : 'var(--text-muted)',
                                     borderRadius: 3, cursor: 'pointer', letterSpacing: '0.05em', textTransform: 'uppercase',
                                   }}
                                 >
@@ -753,8 +753,8 @@ export function TabHistorial({ active }: Props) {
                             className="btn btn-ghost"
                             style={{
                               fontSize: 12, padding: '8px 14px',
-                              color: modo === 'agregar' ? 'var(--green)' : 'var(--red)',
-                              borderColor: modo === 'agregar' ? '#16a34a' : '#7f1d1d',
+                              color: modo === 'agregar' ? 'var(--pos)' : 'var(--red)',
+                              borderColor: modo === 'agregar' ? 'var(--pos-line)' : 'var(--neg-line)',
                             }}
                           >
                             {savingAdd || removingId ? '...' : modo === 'agregar' ? '+ Agregar' : '− Remover'}
@@ -879,7 +879,7 @@ export function TabHistorial({ active }: Props) {
                       <SectionHeader title="EVALUACIONES" color="var(--text-muted)" />
                       {p.evaluaciones_abiertas ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          <div className="mono" style={{ fontSize: 12, color: '#a78bfa' }}>📊 Votación abierta — jugadores pueden evaluar.</div>
+                          <div className="mono" style={{ fontSize: 12, color: 'var(--mini)' }}>📊 Votación abierta — jugadores pueden evaluar.</div>
                           <ProgresoVotacion progreso={progreso[p.id]} />
                           <button
                             onClick={() => handleCerrarVotacion(p.id)}
@@ -900,7 +900,7 @@ export function TabHistorial({ active }: Props) {
                             onClick={() => handleAbrirEval(p.id)}
                             disabled={savingEval}
                             className="btn btn-ghost"
-                            style={{ fontSize: 12, padding: '8px 16px', color: '#a78bfa', borderColor: '#7c3aed', alignSelf: 'flex-start' }}
+                            style={{ fontSize: 12, padding: '8px 16px', color: 'var(--mini)', borderColor: 'var(--mini-line)', alignSelf: 'flex-start' }}
                           >
                             {savingEval ? '...' : '📊 Abrir evaluaciones ahora'}
                           </button>

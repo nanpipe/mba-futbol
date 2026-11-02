@@ -29,8 +29,8 @@ interface Jugador { id: string; username: string }
 const TAM = 15
 
 const COLOR: Record<Resultado, string> = {
-  'ganó': 'var(--green)',
-  'perdió': '#f87171',
+  'ganó': 'var(--pos)',
+  'perdió': 'var(--red)',
   'empató': 'var(--amber)',
 }
 
@@ -50,9 +50,9 @@ function Chip({ activo, onClick, color, children }: {
       style={{
         padding: '6px 12px', fontSize: 11, cursor: 'pointer', borderRadius: 3,
         letterSpacing: '0.06em', whiteSpace: 'nowrap',
-        border: `1px solid ${activo ? (color ?? 'var(--green)') : 'var(--border)'}`,
+        border: `1px solid ${activo ? (color ?? 'var(--primary)') : 'var(--border)'}`,
         background: activo ? 'var(--bg-elevated)' : 'transparent',
-        color: activo ? (color ?? 'var(--green)') : 'var(--text-dim)',
+        color: activo ? (color ?? 'var(--primary)') : 'var(--text-dim)',
       }}
     >
       {children}
@@ -240,7 +240,7 @@ export default function HistorialPage() {
               {rival && (
                 <div style={{ display: 'flex', gap: 6 }}>
                   <Chip activo={relacion === 'con'} onClick={() => setRelacion(relacion === 'con' ? '' : 'con')}>JUNTOS</Chip>
-                  <Chip activo={relacion === 'contra'} color="#f87171" onClick={() => setRelacion(relacion === 'contra' ? '' : 'contra')}>EN CONTRA</Chip>
+                  <Chip activo={relacion === 'contra'} color="var(--red)" onClick={() => setRelacion(relacion === 'contra' ? '' : 'contra')}>EN CONTRA</Chip>
                 </div>
               )}
             </div>
@@ -268,7 +268,7 @@ export default function HistorialPage() {
                 <span style={{ color: COLOR['empató'] }}>{f.empatados}E</span>
               </div>
               {f.pct_victorias !== null ? (
-                <div className="display" style={{ fontSize: 18, color: 'var(--green)', marginLeft: 'auto' }}>
+                <div className="display" style={{ fontSize: 18, color: 'var(--primary)', marginLeft: 'auto' }}>
                   {f.pct_victorias}%
                 </div>
               ) : f.decididos > 0 ? (

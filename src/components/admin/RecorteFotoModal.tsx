@@ -106,7 +106,7 @@ export function RecorteFotoModal({
             onChange={e => setZoom(Number(e.target.value))}
             disabled={procesando}
             aria-label="Acercar"
-            style={{ flex: 1, accentColor: 'var(--green)' }}
+            style={{ flex: 1, accentColor: 'var(--primary)' }}
           />
           <span className="mono" style={{ fontSize: 14, color: 'var(--text-dim)' }}>+</span>
         </div>

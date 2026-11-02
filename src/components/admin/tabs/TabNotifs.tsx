@@ -95,9 +95,9 @@ export function TabNotifs({ partidos, players, onFlash }: Props) {
                   className="btn"
                   style={{
                     fontSize: 11, padding: '6px 12px',
-                    background: pushGroup === g.id ? 'var(--green)' : 'var(--bg-card)',
+                    background: pushGroup === g.id ? 'var(--primary)' : 'var(--bg-card)',
                     color: pushGroup === g.id ? '#000' : 'var(--text-muted)',
-                    border: `1px solid ${pushGroup === g.id ? 'var(--green)' : 'var(--border)'}`,
+                    border: `1px solid ${pushGroup === g.id ? 'var(--primary)' : 'var(--border)'}`,
                     fontFamily: 'DM Mono, monospace',
                   }}
                 >
@@ -176,17 +176,17 @@ export function TabNotifs({ partidos, players, onFlash }: Props) {
           <SectionHeader title="DIAGNÓSTICO" />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              <span style={{ color: 'var(--green)' }}>·</span>{' '}
+              <span style={{ color: 'var(--primary)' }}>·</span>{' '}
               Emails (Resend): ver entregas, rebotes y aperturas en{' '}
-              <a href="https://resend.com/emails" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--green)', textDecoration: 'underline' }}>resend.com/emails</a>
+              <a href="https://resend.com/emails" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>resend.com/emails</a>
             </div>
             <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              <span style={{ color: 'var(--green)' }}>·</span>{' '}
+              <span style={{ color: 'var(--primary)' }}>·</span>{' '}
               Push y emails: cada envío queda registrado en el LOG de actividad
             </div>
             {DIAGNOSTICO.map((item, i) => (
               <div key={i} className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 8 }}>
-                <span style={{ color: 'var(--green)' }}>·</span>
+                <span style={{ color: 'var(--primary)' }}>·</span>
                 <span>{item}</span>
               </div>
             ))}

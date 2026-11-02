@@ -16,6 +16,9 @@ const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
 const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'es-CO', timezoneId: 'America/Bogota' })
 await ctx.addCookies([{ name: 'sb-localhost-auth-token', value: 'base64-' + b64(session), domain: 'localhost', path: '/' }])
 await ctx.addInitScript(() => { Object.defineProperty(window.navigator, 'standalone', { get: () => true }) })
+// RELOJ=2026-11-02T15:00:00-05:00 congela la hora del navegador: sin esto la
+// cuenta regresiva cambia entre dos capturas y un diff de píxeles nunca da 0.
+if (process.env.RELOJ) await ctx.clock.setFixedTime(new Date(process.env.RELOJ))
 const p = await ctx.newPage()
 const errs = []
 p.on('pageerror', e => errs.push(String(e)))

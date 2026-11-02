@@ -151,7 +151,7 @@ function HowTo({ state, big }: { state: InstallState; big: boolean }) {
     return (
       <div className="mono" style={{
         fontSize: 12, color: 'var(--amber)', lineHeight: 1.7, textAlign: 'center',
-        background: '#2d2508', border: '1px solid #92400e', borderRadius: 6, padding: '14px 16px',
+        background: '#2d2508', border: '1px solid var(--warn-line)', borderRadius: 6, padding: '14px 16px',
       }}>
         Estás en el navegador de otra app y aquí no se puede instalar.<br />
         Toca <strong>···</strong> y elige <strong>&quot;Abrir en {isIos ? 'Safari' : 'Chrome'}&quot;</strong>.
@@ -174,8 +174,8 @@ function HowTo({ state, big }: { state: InstallState; big: boolean }) {
   // No prompt available — manual steps, worded for the actual platform.
   return (
     <div className="mono" style={{
-      fontSize: 12, color: 'var(--green)', lineHeight: 1.8, textAlign: 'center',
-      background: '#0f2d1a', border: '1px solid #16a34a', borderRadius: 6, padding: '14px 16px',
+      fontSize: 12, color: 'var(--primary)', lineHeight: 1.8, textAlign: 'center',
+      background: 'var(--primary-soft)', border: '1px solid var(--primary-line)', borderRadius: 6, padding: '14px 16px',
     }}>
       {isIos ? (
         <>
@@ -220,7 +220,7 @@ export function InstallBanner({ state }: { state: InstallState }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>📲</span>
           <div style={{ flex: 1, minWidth: 140 }}>
-            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--green)' }}>Instala la app</div>
+            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--primary)' }}>Instala la app</div>
             <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>
               Recibe los cupos al instante
             </div>

@@ -9,14 +9,14 @@ interface Props {
 }
 
 const COLORS: Record<'A' | 'B' | 'C', string> = {
-  A: 'var(--green)',
+  A: 'var(--primary)',
   B: 'var(--amber)',
-  C: '#7c3aed',
+  C: 'var(--mini-line)',
 }
 
 const BG_OVER: Record<'A' | 'B' | 'C', string> = {
   A: '#0a1f0f',
-  B: '#1a1500',
+  B: 'var(--warn-soft)',
   C: '#1a0f2e',
 }
 

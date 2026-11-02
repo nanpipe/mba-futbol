@@ -14,7 +14,7 @@ export function ToggleSwitch({ checked, onChange }: Props) {
         width: 44,
         height: 24,
         borderRadius: 12,
-        background: checked ? 'var(--green)' : 'var(--border)',
+        background: checked ? 'var(--primary)' : 'var(--border)',
         border: 'none',
         cursor: 'pointer',
         position: 'relative',

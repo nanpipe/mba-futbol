@@ -48,7 +48,7 @@ export function PullToRefresh({ children }: { children: React.ReactNode }) {
             justifyContent: 'center',
             height: Math.min(pullY, PULL_THRESHOLD + 24),
             background: 'var(--bg)',
-            borderBottom: pullY >= PULL_THRESHOLD ? '1px solid var(--green)' : '1px solid var(--border)',
+            borderBottom: pullY >= PULL_THRESHOLD ? '1px solid var(--primary)' : '1px solid var(--border)',
             transition: 'border-color 0.15s',
             overflow: 'hidden',
           }}
@@ -57,7 +57,7 @@ export function PullToRefresh({ children }: { children: React.ReactNode }) {
             className="mono"
             style={{
               fontSize: 12,
-              color: pullY >= PULL_THRESHOLD ? 'var(--green)' : 'var(--text-muted)',
+              color: pullY >= PULL_THRESHOLD ? 'var(--primary)' : 'var(--text-muted)',
               letterSpacing: '0.1em',
               opacity: Math.min(pullY / PULL_THRESHOLD, 1),
               transition: 'color 0.15s',

@@ -126,8 +126,8 @@ function PlayerChip({
         minHeight: 44,
         padding: '6px 14px 6px 8px',
         borderRadius: 22,
-        background: selected ? 'var(--green)' : 'var(--bg-card)',
-        border: `1px solid ${selected ? 'var(--green)' : 'var(--border-light)'}`,
+        background: selected ? 'var(--primary)' : 'var(--bg-card)',
+        border: `1px solid ${selected ? 'var(--primary)' : 'var(--border-light)'}`,
         color: selected ? '#000' : 'var(--text)',
         cursor: 'pointer',
         fontSize: 14,
@@ -312,7 +312,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
           <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
           <div className="display" style={{ fontSize: 24, marginBottom: 8 }}>¡Ya votaste!</div>
           {resultados ? (
-            <div className="mono" style={{ fontSize: 12, color: 'var(--green)' }}>Votación cerrada — estos son los ganadores:</div>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--primary)' }}>Votación cerrada — estos son los ganadores:</div>
           ) : (
             <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               Los reconocimientos se revelarán cuando cierre la votación.
@@ -376,7 +376,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
         {/* Subtitle + progress */}
         <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 28, lineHeight: 1.7 }}>
           Vota por un compañero en cada categoría. Es anónimo y opcional.{' '}
-          <span style={{ color: votosCount > 0 ? 'var(--green)' : 'var(--text-dim)' }}>
+          <span style={{ color: votosCount > 0 ? 'var(--primary)' : 'var(--text-dim)' }}>
             {votosCount}/{badges.length} votadas.
           </span>
           {progreso && (
@@ -423,7 +423,7 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
                 key={cat.id}
                 padding="16px 20px"
                 style={{
-                  border: winner ? '1px solid #16a34a' : noAplica ? '1px solid var(--border-light)' : '1px solid var(--border)',
+                  border: winner ? '1px solid var(--primary-line)' : noAplica ? '1px solid var(--border-light)' : '1px solid var(--border)',
                   transition: 'border-color 0.15s',
                 }}
               >
@@ -433,12 +433,12 @@ export default function EvaluarPage({ params }: { params: Promise<{ partido_id: 
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 15, fontWeight: 500 }}>{cat.nombre}</div>
                     {winner && (
-                      <div className="mono" style={{ fontSize: 10, color: 'var(--green)', letterSpacing: '0.08em', marginTop: 2 }}>
+                      <div className="mono" style={{ fontSize: 10, color: 'var(--primary)', letterSpacing: '0.08em', marginTop: 2 }}>
                         ✓ {winner.username}
                       </div>
                     )}
                   </div>
-                  {winner && <span style={{ color: 'var(--green)', fontSize: 18 }}>✓</span>}
+                  {winner && <span style={{ color: 'var(--primary)', fontSize: 18 }}>✓</span>}
                   {noAplica && <span className="mono" style={{ color: 'var(--text-dim)', fontSize: 10, letterSpacing: '0.08em' }}>SIN VOTO</span>}
                 </div>
 

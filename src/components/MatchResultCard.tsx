@@ -20,7 +20,7 @@ export interface MatchBadge {
 const COLOR_EQUIPO: Record<string, { fondo: string; borde: string }> = {
   blanco: { fondo: '#e5e5e5', borde: 'rgba(0,0,0,0.35)' },
   negro:  { fondo: '#4a4a4a', borde: 'rgba(255,255,255,0.55)' },
-  morado: { fondo: '#a78bfa', borde: 'rgba(255,255,255,0.25)' },
+  morado: { fondo: 'var(--mini)', borde: 'rgba(255,255,255,0.25)' },
 }
 
 function PuntoEquipo({ color }: { color?: string | null }) {
@@ -129,7 +129,7 @@ function MovimientoDelPartido({ movimientos, miId }: {
   )
 }
 
-const color = (n: number) => (n > 0 ? 'var(--green)' : n < 0 ? '#f87171' : 'var(--text-dim)')
+const color = (n: number) => (n > 0 ? 'var(--pos)' : n < 0 ? 'var(--red)' : 'var(--text-dim)')
 
 export interface MatchResult {
   fecha: string
@@ -275,7 +275,7 @@ export function MatchResultCard({ titulo, partido, badges, marca, movimientos, m
                   <div className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.12em', marginBottom: 4 }}>GANADOR DEL PARTIDO</div>
                   <div className="display" style={{ fontSize: 20 }}>{winnerLabel}</div>
                 </div>
-                <div className="display" style={{ fontSize: 24, color: 'var(--green)' }}>
+                <div className="display" style={{ fontSize: 24, color: 'var(--primary)' }}>
                   {p.goles_a} – {p.goles_b}
                 </div>
               </div>

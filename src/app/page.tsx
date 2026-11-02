@@ -595,12 +595,12 @@ export default function HomePage() {
               texto para que el nombre del club no se corte a "M". */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             {(profile?.role === 'admin' || profile?.role === 'superadmin') && (
-              <Link href="/admin" className="mono" style={{ fontSize: 12, color: 'var(--amber)', letterSpacing: '0.08em', textDecoration: 'none', minHeight: 44, padding: '0 8px', display: 'flex', alignItems: 'center' }}>
+              <Link href="/admin" className="mono" style={{ fontSize: 12, color: 'var(--accent)', letterSpacing: '0.08em', textDecoration: 'none', minHeight: 44, padding: '0 8px', display: 'flex', alignItems: 'center' }}>
                 ADMIN
               </Link>
             )}
             {pushPermission !== 'granted' && pushPermission !== null && 'PushManager' in window && (
-              <button onClick={activarPush} aria-label="Activar notificaciones" title="Activar notificaciones" style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid #92400e', borderRadius: 22, fontSize: 18, cursor: 'pointer', padding: 0 }}>
+              <button onClick={activarPush} aria-label="Activar notificaciones" title="Activar notificaciones" style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid var(--warn-line)', borderRadius: 22, fontSize: 18, cursor: 'pointer', padding: 0 }}>
                 🔔
               </button>
             )}
@@ -671,7 +671,7 @@ export default function HomePage() {
                 </p>
               )}
               {countdown && (
-                <div className="display" style={{ fontSize: 36, color: 'var(--green)', marginTop: 24, fontFamily: 'DM Mono, monospace' }}>
+                <div className="display" style={{ fontSize: 36, color: 'var(--primary)', marginTop: 24, fontFamily: 'DM Mono, monospace' }}>
                   {countdown}
                 </div>
               )}
@@ -694,8 +694,8 @@ export default function HomePage() {
                       className="btn btn-ghost mono"
                       style={{
                         fontSize: 12, padding: '8px 16px', letterSpacing: '0.06em',
-                        borderColor: sel ? (esMiniP ? '#7c3aed' : 'var(--green)') : undefined,
-                        color: sel ? (esMiniP ? '#a78bfa' : 'var(--green)') : 'var(--text-muted)',
+                        borderColor: sel ? (esMiniP ? 'var(--mini-line)' : 'var(--primary)') : undefined,
+                        color: sel ? (esMiniP ? 'var(--mini)' : 'var(--primary)') : 'var(--text-muted)',
                       }}
                     >
                       {esMiniP && '🏆 '}
@@ -710,12 +710,12 @@ export default function HomePage() {
             <div style={{ marginBottom: 24 }}>
               {ventana.partido?.tipo === 'minitorneo' ? (
                 <>
-                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: '#a78bfa', marginBottom: 8 }}>
+                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--mini)', marginBottom: 8 }}>
                     PRÓXIMO EVENTO
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 48, lineHeight: 1 }}>🏆</span>
-                    <h2 className="display" style={{ fontSize: 46, lineHeight: 1, color: '#a78bfa' }}>
+                    <h2 className="display" style={{ fontSize: 46, lineHeight: 1, color: 'var(--mini)' }}>
                       MINITORNEO
                     </h2>
                   </div>
@@ -727,7 +727,7 @@ export default function HomePage() {
                 </>
               ) : (
                 <>
-                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: enJuego ? 'var(--green)' : 'var(--text-muted)', marginBottom: 8 }}>
+                  <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: enJuego ? 'var(--primary)' : 'var(--text-muted)', marginBottom: 8 }}>
                     {enJuego ? '🟢 EN JUEGO' : 'PRÓXIMO PARTIDO'}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
@@ -754,7 +754,7 @@ export default function HomePage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <span className="mono" style={{ fontSize: 12, letterSpacing: '0.08em', color: 'var(--text-muted)' }}>CUPOS</span>
                 <span className="mono" style={{ fontSize: 13 }}>
-                  <strong style={{ color: totalConfirmados >= cuposTotal ? 'var(--red)' : 'var(--green)' }}>{totalConfirmados}</strong>
+                  <strong style={{ color: totalConfirmados >= cuposTotal ? 'var(--red)' : 'var(--primary)' }}>{totalConfirmados}</strong>
                   <span style={{ color: 'var(--text-dim)' }}>/{cuposTotal}</span>
                 </span>
               </div>
@@ -762,7 +762,7 @@ export default function HomePage() {
                 {Array.from({ length: cuposTotal }, (_, i) => (
                   <div key={i} style={{
                     height: 8, borderRadius: 2,
-                    background: i < totalConfirmados ? 'var(--green)' : 'var(--border)'
+                    background: i < totalConfirmados ? 'var(--primary)' : 'var(--border)'
                   }} />
                 ))}
               </div>
@@ -777,9 +777,9 @@ export default function HomePage() {
             {mensaje && (
               <div style={{
                 padding: '12px 16px', borderRadius: 3, marginBottom: 20,
-                background: mensaje.tipo === 'ok' ? '#0f2d1a' : '#2d0a0a',
-                border: `1px solid ${mensaje.tipo === 'ok' ? '#16a34a' : '#7f1d1d'}`,
-                color: mensaje.tipo === 'ok' ? 'var(--green)' : 'var(--red)',
+                background: mensaje.tipo === 'ok' ? 'var(--pos-soft)' : 'var(--neg-soft)',
+                border: `1px solid ${mensaje.tipo === 'ok' ? 'var(--pos-line)' : 'var(--neg-line)'}`,
+                color: mensaje.tipo === 'ok' ? 'var(--pos)' : 'var(--red)',
                 fontFamily: 'DM Mono, monospace', fontSize: 13
               }}>
                 {mensaje.texto}
@@ -788,7 +788,7 @@ export default function HomePage() {
 
             {/* Acción del usuario */}
             {profile?.baneado ? (
-              <div className="card" style={{ borderColor: '#3a1a1a', textAlign: 'center', padding: '24px' }}>
+              <div className="card" style={{ borderColor: 'var(--neg-deep)', textAlign: 'center', padding: '24px' }}>
                 <span className="badge badge-red" style={{ marginBottom: 8 }}>SUSPENDIDO</span>
                 <p className="mono" style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>
                   Contacta al admin para regularizar tu situación.
@@ -797,7 +797,7 @@ export default function HomePage() {
             ) : miInscripcion ? (
               <div className="card" style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                borderColor: miInscripcion.estado === 'confirmado' ? '#16a34a' : '#92400e'
+                borderColor: miInscripcion.estado === 'confirmado' ? 'var(--pos-line)' : 'var(--warn-line)'
               }}>
                 <div>
                   <span className={`badge ${miInscripcion.estado === 'confirmado' ? 'badge-green' : 'badge-amber'}`}>
@@ -838,13 +838,13 @@ export default function HomePage() {
               const myUsername = profile?.username ?? ''
               // Teams exist but the admin hasn't locked them in yet.
               const esBorrador = !ventana?.partido?.equipos_confirmados
-              const colorAccent = (eq: Equipo) => eq.nombre === 'A' ? 'var(--green)' : 'var(--amber)'
-              const colorBorder = (eq: Equipo) => eq.nombre === 'A' ? '#16a34a' : '#92400e'
+              const colorAccent = (eq: Equipo) => eq.nombre === 'A' ? 'var(--primary)' : 'var(--amber)'
+              const colorBorder = (eq: Equipo) => eq.nombre === 'A' ? 'var(--primary-line)' : 'var(--warn-line)'
               const colorBg = (eq: Equipo) => eq.nombre === 'A' ? '#0a1f0a' : '#1a0e00'
 
               const getMyRole = (eq: Equipo): { label: string; sub?: string; color: string } => {
                 if (eq.portero_fijo && eq.portero_fijo_id === myUsername) {
-                  return { label: '🧤 Portero titular', sub: 'no rota', color: '#818cf8' }
+                  return { label: '🧤 Portero titular', sub: 'no rota', color: 'var(--portero)' }
                 }
                 const bancaIdx = (eq.rotacion_banca ?? []).indexOf(myUsername)
                 if (bancaIdx >= 0) {
@@ -859,7 +859,7 @@ export default function HomePage() {
                   return {
                     label: porteroIdx === 0 ? '🧤 Primer portero' : `🧤 Portero — turno #${porteroIdx + 1}`,
                     sub: porteroIdx === 0 ? 'primer turno en arco' : undefined,
-                    color: '#818cf8',
+                    color: 'var(--portero)',
                   }
                 }
                 return { label: '⚽ Titular', sub: 'empieza en cancha', color: colorAccent(eq) }
@@ -877,7 +877,7 @@ export default function HomePage() {
                       </div>
                     </>
                   ) : (
-                    <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--green)', marginBottom: 20 }}>
+                    <div className="mono" style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--primary)', marginBottom: 20 }}>
                       ⚽ EQUIPOS CONFIRMADOS
                     </div>
                   )}
@@ -917,7 +917,7 @@ export default function HomePage() {
                         {/* Goalkeeper info */}
                         {eq.portero_fijo && eq.portero_fijo_id && (
                           <div style={{ padding: '8px 16px', background: '#0d0d1a', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span className="mono" style={{ fontSize: 10, color: '#818cf8', letterSpacing: '0.1em' }}>🧤 PORTERO FIJO</span>
+                            <span className="mono" style={{ fontSize: 10, color: 'var(--portero)', letterSpacing: '0.1em' }}>🧤 PORTERO FIJO</span>
                             <span className="mono" style={{ fontSize: 12, color: 'var(--text)' }}>{eq.portero_fijo_id}</span>
                             <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>— no rota</span>
                           </div>
@@ -967,8 +967,8 @@ export default function HomePage() {
                                   {(eq.rotacion_portero ?? []).map((u, i) => (
                                     <div key={u} className="mono" style={{ fontSize: 11, display: 'flex', gap: 8, alignItems: 'center' }}>
                                       <span style={{ color: 'var(--text-dim)', width: 14, textAlign: 'right' }}>{i + 1}.</span>
-                                      <span style={{ color: u === myUsername ? '#818cf8' : 'var(--text-muted)', fontWeight: u === myUsername ? 700 : 400 }}>{u}</span>
-                                      {i === 0 && <span style={{ fontSize: 10, color: '#818cf8' }}>← primer portero</span>}
+                                      <span style={{ color: u === myUsername ? 'var(--portero)' : 'var(--text-muted)', fontWeight: u === myUsername ? 700 : 400 }}>{u}</span>
+                                      {i === 0 && <span style={{ fontSize: 10, color: 'var(--portero)' }}>← primer portero</span>}
                                     </div>
                                   ))}
                                 </div>
@@ -1015,7 +1015,7 @@ export default function HomePage() {
                     donde están las reglas y el simulador. */}
                 <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 16, lineHeight: 1.6 }}>
                   ⭐ Tu puntaje se gana en la cancha: sube si juegas y ganas, baja si faltas o pierdes.{' '}
-                  <Link href="/puntaje" style={{ color: 'var(--green)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                  <Link href="/puntaje" style={{ color: 'var(--primary)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
                     Ver las reglas y simular →
                   </Link>
                 </div>
@@ -1024,12 +1024,12 @@ export default function HomePage() {
                     <div key={ins.id} style={{
                       display: 'flex', alignItems: 'center', gap: 12,
                       padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 3,
-                      border: ins.player_id === user.id ? '1px solid #16a34a' : '1px solid transparent'
+                      border: ins.player_id === user.id ? '1px solid var(--primary-line)' : '1px solid transparent'
                     }}>
                       <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', width: 20, flexShrink: 0 }}>{idx + 1}</span>
                       <span style={{ fontSize: 15, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ins.profiles.username}</span>
                       {ins.player_id === user.id && (
-                        <span className="mono" style={{ fontSize: 10, color: 'var(--green)', letterSpacing: '0.1em' }}>TÚ</span>
+                        <span className="mono" style={{ fontSize: 10, color: 'var(--primary)', letterSpacing: '0.1em' }}>TÚ</span>
                       )}
                     </div>
                   ))}
@@ -1045,7 +1045,7 @@ export default function HomePage() {
                         <div key={ins.id} style={{
                           display: 'flex', alignItems: 'center', gap: 12,
                           padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 3,
-                          border: ins.player_id === user.id ? '1px solid #92400e' : '1px solid transparent',
+                          border: ins.player_id === user.id ? '1px solid var(--warn-line)' : '1px solid transparent',
                           opacity: 0.7
                         }}>
                           <span className="mono" style={{ fontSize: 11, color: 'var(--amber)', width: 20, flexShrink: 0 }}>#{idx + 1}</span>
@@ -1070,12 +1070,12 @@ export default function HomePage() {
                         <div key={inv.id} style={{
                           display: 'flex', alignItems: 'center', gap: 12,
                           padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 3,
-                          border: inv.estado === 'confirmado' ? '1px solid #16a34a' : '1px solid transparent',
+                          border: inv.estado === 'confirmado' ? '1px solid var(--pos-line)' : '1px solid transparent',
                           opacity: inv.estado === 'espera' ? 0.7 : 1,
                         }}>
                           <span className="mono" style={{
                             fontSize: 11, width: 20,
-                            color: inv.estado === 'confirmado' ? 'var(--green)' : 'var(--amber)',
+                            color: inv.estado === 'confirmado' ? 'var(--pos)' : 'var(--amber)',
                           }}>
                             {inv.estado === 'confirmado' ? '✓' : `#${invitadosEspera.findIndex(i => i.id === inv.id) + 1}`}
                           </span>
@@ -1140,7 +1140,7 @@ function Header({ club }: { club?: import('@/hooks/useClub').ClubInfo }) {
       <div className="display" style={{ fontSize: 64, lineHeight: 0.9, letterSpacing: '0.03em' }}>
         {lines.map((line, i) => (
           <span key={i}>
-            {i === 1 ? <span style={{ color: 'var(--green)' }}>{line}</span> : line}
+            {i === 1 ? <span style={{ color: 'var(--primary)' }}>{line}</span> : line}
             {i < lines.length - 1 && <br />}
           </span>
         ))}

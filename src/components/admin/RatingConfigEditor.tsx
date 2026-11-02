@@ -7,7 +7,7 @@ import { DEFAULT_BADGES, type Badge, type BadgeSigno } from '@/lib/categorias'
 import { DEFAULT_TIERS, TIER_LOOKS, ratingTierStyle, type TierConfig } from '@/lib/tier'
 
 const SIGNOS: { id: BadgeSigno; label: string; color: string; hint: string }[] = [
-  { id: 'positivo', label: '+ Sube',  color: 'var(--green)',     hint: 'Sube el puntaje del jugador' },
+  { id: 'positivo', label: '+ Sube',  color: 'var(--pos)',     hint: 'Sube el puntaje del jugador' },
   { id: 'negativo', label: '− Baja',  color: 'var(--red)',       hint: 'Baja el puntaje del jugador' },
   { id: 'neutral',  label: '= Nada',  color: 'var(--text-dim)',  hint: 'Solo decorativa, no afecta el puntaje' },
 ]
@@ -25,8 +25,8 @@ function Feedback({ result }: { result: { ok: boolean; msg: string } | null }) {
     <div className="mono" style={{
       fontSize: 12, marginTop: 12, padding: '8px 12px', borderRadius: 3,
       ...(result.ok
-        ? { color: 'var(--green)', background: '#0f2d1a', border: '1px solid #16a34a' }
-        : { color: 'var(--red)', background: '#2d0a0a', border: '1px solid #7f1d1d' }),
+        ? { color: 'var(--pos)', background: 'var(--pos-soft)', border: '1px solid var(--pos-line)' }
+        : { color: 'var(--red)', background: 'var(--neg-soft)', border: '1px solid var(--neg-line)' }),
     }}>
       {result.msg}
     </div>
@@ -216,7 +216,7 @@ export function TiersEditor({ tiers, onChange }: { tiers: TierConfig[]; onChange
 
   return (
     <Card padding="20px 24px">
-      <SectionHeader title="RANGOS DE PUNTAJE" icon="⭐" color="#a78bfa" />
+      <SectionHeader title="RANGOS DE PUNTAJE" icon="⭐" color="var(--mini)" />
       <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 16, lineHeight: 1.6 }}>
         Nombre que recibe cada jugador según su puntaje (1.0 a 5.0). El &quot;desde&quot; es el mínimo
         para entrar al rango; el más bajo siempre arranca en 1.0.

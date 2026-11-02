@@ -178,7 +178,7 @@ export default function AdminPage() {
                     <button
                       onClick={() => accionAdmin('aprobar_jugador', { player_id: p.id })}
                       className="btn btn-ghost"
-                      style={{ fontSize: 12, padding: '8px 18px', color: 'var(--green)', borderColor: '#16a34a' }}
+                      style={{ fontSize: 12, padding: '8px 18px', color: 'var(--primary)', borderColor: 'var(--primary-line)' }}
                     >
                       ✓ Aprobar
                     </button>
@@ -188,7 +188,7 @@ export default function AdminPage() {
                           accionAdmin('rechazar_jugador', { player_id: p.id })
                       }}
                       className="btn btn-ghost"
-                      style={{ fontSize: 12, padding: '8px 14px', color: 'var(--red)', borderColor: '#7f1d1d' }}
+                      style={{ fontSize: 12, padding: '8px 14px', color: 'var(--red)', borderColor: 'var(--neg-line)' }}
                     >
                       ✕
                     </button>
@@ -233,7 +233,7 @@ export default function AdminPage() {
                 fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase',
                 whiteSpace: 'nowrap', flexShrink: 0,
                 color: tab === id ? 'var(--text)' : 'var(--text-muted)',
-                borderBottom: tab === id ? '2px solid var(--green)' : '2px solid transparent',
+                borderBottom: tab === id ? '2px solid var(--primary)' : '2px solid transparent',
                 marginBottom: -1, position: 'relative',
               }}>
                 {label}

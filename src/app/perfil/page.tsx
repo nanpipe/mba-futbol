@@ -351,9 +351,9 @@ export default function PerfilPage() {
           ) : (
             <div className="mono fade-in" style={{
               fontSize: 13, padding: '12px 16px', borderRadius: 3, marginBottom: 24,
-              background: '#0f2d1a',
-              color: 'var(--green)',
-              border: '1px solid #16a34a'
+              background: 'var(--pos-soft)',
+              color: 'var(--pos)',
+              border: '1px solid var(--pos-line)'
             }}>
               {mensaje.texto}
             </div>
@@ -406,7 +406,7 @@ export default function PerfilPage() {
         {/* Stats */}
         <Card padding="16px 20px" style={{ marginBottom: 28, display: 'flex', gap: 0 }}>
           <div style={{ flex: 1, textAlign: 'center', borderRight: '1px solid var(--border)' }}>
-            <div className="display" style={{ fontSize: 28, color: 'var(--green)' }}>{totalMatches}</div>
+            <div className="display" style={{ fontSize: 28, color: 'var(--primary)' }}>{totalMatches}</div>
             <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>PARTIDOS</div>
           </div>
           <div style={{ flex: 1, textAlign: 'center', borderRight: '1px solid var(--border)' }}>
@@ -455,7 +455,7 @@ export default function PerfilPage() {
             </div>
             {ausenteActiva ? (
               <>
-                <div className="mono" style={{ fontSize: 13, color: '#7dd3fc', marginBottom: 12 }}>
+                <div className="mono" style={{ fontSize: 13, color: 'var(--info)', marginBottom: 12 }}>
                   ✈️ Ausente hasta el {fechaLarga(profile!.ausente_hasta!)}
                 </div>
                 <button
@@ -512,9 +512,9 @@ export default function PerfilPage() {
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                     padding: '10px 4px', borderRadius: 4, cursor: 'pointer',
-                    background: sel ? '#0f2d1a' : 'transparent',
-                    border: `1px solid ${sel ? '#16a34a' : 'var(--border)'}`,
-                    color: sel ? 'var(--green)' : 'var(--text-muted)',
+                    background: sel ? 'var(--primary-soft)' : 'transparent',
+                    border: `1px solid ${sel ? 'var(--primary-line)' : 'var(--border)'}`,
+                    color: sel ? 'var(--primary)' : 'var(--text-muted)',
                     transition: 'all 0.15s',
                   }}
                 >

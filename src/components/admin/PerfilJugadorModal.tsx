@@ -110,10 +110,10 @@ export function PerfilJugadorModal({ playerId, onClose, onEditar }: {
   const gap = data?.faltas_gap ?? 3
   const estado = (() => {
     const gris  = { color: 'var(--text-muted)', fondo: 'var(--bg-elevated)', borde: 'var(--border)' }
-    const verde = { color: 'var(--green)',      fondo: '#0f2d1a',           borde: '#166534' }
-    const azul  = { color: '#7dd3fc',           fondo: '#082f49',           borde: '#0369a1' }
-    const ambar = { color: 'var(--amber)',      fondo: '#2d1f00',           borde: '#92400e' }
-    const rojo  = { color: '#f87171',           fondo: '#1a0808',           borde: '#7f1d1d' }
+    const verde = { color: 'var(--pos)',      fondo: 'var(--pos-soft)',           borde: 'var(--pos-deep)' }
+    const azul  = { color: 'var(--info)',           fondo: 'var(--info-soft)',           borde: 'var(--info-line)' }
+    const ambar = { color: 'var(--amber)',      fondo: '#2d1f00',           borde: 'var(--warn-line)' }
+    const rojo  = { color: 'var(--red)',           fondo: 'var(--neg-bg)',           borde: 'var(--neg-line)' }
 
     if (!a) return { ...gris, titulo: '', detalle: '' }
 
@@ -180,10 +180,10 @@ export function PerfilJugadorModal({ playerId, onClose, onEditar }: {
                     </span>
                   )}
                   {p.uniform && (
-                    <span className="mono" style={{ fontSize: 9, color: 'var(--green)', letterSpacing: '0.1em', background: '#0f2d1a', padding: '2px 5px', borderRadius: 2 }}>UNIFORME</span>
+                    <span className="mono" style={{ fontSize: 9, color: 'var(--pos)', letterSpacing: '0.1em', background: 'var(--pos-soft)', padding: '2px 5px', borderRadius: 2 }}>UNIFORME</span>
                   )}
                   {ausente && (
-                    <span className="mono" style={{ fontSize: 9, color: '#7dd3fc', letterSpacing: '0.1em', background: '#082f49', border: '1px solid #0369a1', padding: '2px 5px', borderRadius: 2 }}>
+                    <span className="mono" style={{ fontSize: 9, color: 'var(--info)', letterSpacing: '0.1em', background: 'var(--info-soft)', border: '1px solid var(--info-line)', padding: '2px 5px', borderRadius: 2 }}>
                       ✈️ AUSENTE · {fechaCorta(p.ausente_hasta)}
                     </span>
                   )}
@@ -198,7 +198,7 @@ export function PerfilJugadorModal({ playerId, onClose, onEditar }: {
               padding: '16px 0',
               borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)',
             }}>
-              <Stat valor={String(data.asistencia.jugados)} etiqueta="PARTIDOS" color="var(--green)" />
+              <Stat valor={String(data.asistencia.jugados)} etiqueta="PARTIDOS" color="var(--primary)" />
               <Stat valor={data.asistencia.porcentaje === null ? '—' : `${data.asistencia.porcentaje}%`} etiqueta="ASISTENCIA" />
               <Stat valor={String(data.badges.length)} etiqueta="RECONOCIMIENTOS" color="var(--amber)" />
               <Stat valor={`★${formatRating(p.habilidad)}`} etiqueta={tier?.label.toUpperCase() ?? 'RATING'} />

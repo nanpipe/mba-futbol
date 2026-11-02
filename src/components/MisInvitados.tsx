@@ -190,7 +190,7 @@ export function MisInvitados({
           {error && (
             <div className="mono" style={{
               fontSize: 12, marginTop: 8, padding: '8px 12px', borderRadius: 3,
-              color: 'var(--red)', background: '#2d0a0a', border: '1px solid #7f1d1d',
+              color: 'var(--red)', background: 'var(--neg-soft)', border: '1px solid var(--neg-line)',
             }}>
               {error}
             </div>

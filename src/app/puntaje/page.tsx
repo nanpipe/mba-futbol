@@ -33,8 +33,8 @@ interface Datos {
   mi_puntaje: number
 }
 
-const VERDE = 'var(--green)'
-const ROJO = '#f87171'
+const VERDE = 'var(--pos)'
+const ROJO = 'var(--red)'
 // Alto de la barra de arriba, que también está pegada: el resultado se pega
 // justo debajo y no encima de ella.
 const ALTO_NAV = 54
@@ -243,7 +243,7 @@ export default function PuntajePage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'flex', gap: 6 }}>
               <Chip flex activo={!esMini} onClick={() => setEsMini(false)}>PARTIDO NORMAL</Chip>
-              <Chip flex activo={esMini} color="#a78bfa" onClick={() => setEsMini(true)}>🏆 MINITORNEO</Chip>
+              <Chip flex activo={esMini} color="var(--mini)" onClick={() => setEsMini(true)}>🏆 MINITORNEO</Chip>
             </div>
 
             <div style={{ display: 'flex', gap: 6 }}>

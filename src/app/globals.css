@@ -14,11 +14,45 @@
   /* 5.5:1 sobre --bg-card. Era #666 (3.3:1) y es el gris más usado de la
      app, casi siempre en letra chica: explicaciones, motivos del puntaje. */
   --text-dim: #8a8a8a;
-  --green: #4ade80;
-  --green-dim: #16a34a;
-  --amber: #fbbf24;
+  /* ── Marca del club (configurable: ver lib/tema.ts) ──────────────────────
+     Botones principales, selección, barra de cupos, nombre del club, tu fila.
+     Los valores de acá son los de MBA; el tema del club los pisa desde el
+     servidor con un <style> en <head> (layout.tsx). */
+  --primary: #4ade80;
+  --primary-hover: #22c55e;
+  --on-primary: #080808;     /* texto sobre el botón principal */
+  --primary-line: #16a34a;   /* borde de algo seleccionado o de marca */
+  --primary-deep: #166534;
+  --primary-soft: #0f2d1a;   /* fondo tenue: tu fila, chip elegido */
+  --accent: #fbbf24;         /* segundo color de marca (ADMIN, títulos del panel) */
+
+  /* ── Semánticos (FIJOS, no los cambia el tema) ───────────────────────────
+     Son el idioma de la app: verde = subió/ok/confirmado, rojo = bajó/error/
+     cancelar, ámbar = espera/aviso. Si un club los moviera, "+0.02" dejaría
+     de leerse igual en todas partes. */
+  --pos: #4ade80;
+  --pos-line: #16a34a;
+  --pos-deep: #166534;
+  --pos-soft: #0f2d1a;
   --red: #f87171;
-  --accent: #4ade80;
+  --neg-line: #7f1d1d;
+  --neg-deep: #3a1a1a;
+  --neg-soft: #2d0a0a;
+  --neg-bg: #1a0808;
+  --amber: #fbbf24;
+  --warn-line: #92400e;
+  --warn-soft: #1a1500;
+  --warn-bg: #1a1000;
+  --info: #7dd3fc;
+  --info-line: #0369a1;
+  --info-soft: #082f49;
+  --mini: #a78bfa;           /* minitorneo / superadmin */
+  --mini-line: #7c3aed;
+  --portero: #818cf8;
+
+  /* Alias viejos: no usar en código nuevo. */
+  --green: var(--primary);
+  --green-dim: var(--primary-line);
 }
 
 * {
@@ -83,7 +117,7 @@ input, select, textarea {
   transition: border-color 0.15s;
 }
 input:focus, select:focus {
-  border-color: var(--green);
+  border-color: var(--primary);
 }
 input::placeholder { color: var(--text-dim); }
 
@@ -105,11 +139,11 @@ input::placeholder { color: var(--text-dim); }
   text-decoration: none;
 }
 .btn-primary {
-  background: var(--green);
-  color: #080808;
+  background: var(--primary);
+  color: var(--on-primary);
   font-weight: 500;
 }
-.btn-primary:hover { background: #22c55e; }
+.btn-primary:hover { background: var(--primary-hover); }
 .btn-ghost {
   background: transparent;
   color: var(--text-muted);
@@ -119,9 +153,9 @@ input::placeholder { color: var(--text-dim); }
 .btn-danger {
   background: transparent;
   color: var(--red);
-  border: 1px solid #3a1a1a;
+  border: 1px solid var(--neg-deep);
 }
-.btn-danger:hover { background: #1a0808; }
+.btn-danger:hover { background: var(--neg-bg); }
 .btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -145,9 +179,9 @@ input::placeholder { color: var(--text-dim); }
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.badge-green { background: #0f2d1a; color: var(--green); }
+.badge-green { background: var(--pos-soft); color: var(--pos); }
 .badge-amber { background: #2d1f0a; color: var(--amber); }
-.badge-red { background: #2d0a0a; color: var(--red); }
+.badge-red { background: var(--neg-soft); color: var(--red); }
 .badge-gray { background: #1a1a1a; color: var(--text-muted); }
 
 /* Dividers */
@@ -241,5 +275,5 @@ input[type="checkbox"], input[type="radio"] {
   max-width: none;
   padding: 0;
   flex-shrink: 0;
-  accent-color: var(--green);
+  accent-color: var(--primary);
 }

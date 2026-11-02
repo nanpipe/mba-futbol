@@ -28,9 +28,9 @@ function ChipFiltro({ activo, onClick, color, children }: {
       style={{
         padding: '6px 12px', fontSize: 11, cursor: 'pointer', borderRadius: 3,
         letterSpacing: '0.06em', whiteSpace: 'nowrap',
-        border: `1px solid ${activo ? (color ?? 'var(--green)') : 'var(--border)'}`,
+        border: `1px solid ${activo ? (color ?? 'var(--primary)') : 'var(--border)'}`,
         background: activo ? 'var(--bg-elevated)' : 'transparent',
-        color: activo ? (color ?? 'var(--green)') : 'var(--text-dim)',
+        color: activo ? (color ?? 'var(--primary)') : 'var(--text-dim)',
       }}
     >
       {children}
@@ -181,8 +181,8 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
               {baneados.map(p => (
                 <div key={p.id} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '14px 16px', background: '#1a0808',
-                  border: '1px solid #3a1a1a', borderRadius: 3,
+                  padding: '14px 16px', background: 'var(--neg-bg)',
+                  border: '1px solid var(--neg-deep)', borderRadius: 3,
                   flexWrap: 'wrap', gap: 12,
                 }}>
                   <div>
@@ -202,7 +202,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                     <button
                       onClick={() => accionAdmin('liberar', { player_id: p.id })}
                       className="btn btn-ghost"
-                      style={{ fontSize: 12, padding: '8px 16px', color: 'var(--green)', borderColor: '#16a34a' }}
+                      style={{ fontSize: 12, padding: '8px 16px', color: 'var(--primary)', borderColor: 'var(--primary-line)' }}
                     >
                       Liberar
                     </button>
@@ -226,7 +226,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
             <ChipFiltro activo={filtros.has('push')} color="var(--amber)" onClick={() => alternarFiltro('push')}>
               🔔 AVISOS {conPush}
             </ChipFiltro>
-            <ChipFiltro activo={porPuntaje} color="#a78bfa" onClick={() => setPorPuntaje(v => !v)}>
+            <ChipFiltro activo={porPuntaje} color="var(--mini)" onClick={() => setPorPuntaje(v => !v)}>
               ★ MAYOR PUNTAJE
             </ChipFiltro>
             {(filtros.size > 0 || porPuntaje) && (
@@ -285,8 +285,8 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                       </div>
                       {ausenteActiva(p) && (
                         <div className="mono" style={{
-                          fontSize: 9, color: '#7dd3fc', letterSpacing: '0.1em', marginTop: 5,
-                          background: '#082f49', border: '1px solid #0369a1',
+                          fontSize: 9, color: 'var(--info)', letterSpacing: '0.1em', marginTop: 5,
+                          background: 'var(--info-soft)', border: '1px solid var(--info-line)',
                           padding: '2px 5px', borderRadius: 2, display: 'inline-block',
                         }}>
                           ✈️ AUSENTE · {fechaCorta(p.ausente_hasta!)}
@@ -347,7 +347,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
               </div>
 
               {ausenteActiva(editModal) && (
-                <div className="mono" style={{ fontSize: 11, color: '#7dd3fc', marginBottom: 12 }}>
+                <div className="mono" style={{ fontSize: 11, color: 'var(--info)', marginBottom: 12 }}>
                   Ausente desde el {fechaCorta(editModal.ausente_desde!)} hasta el {fechaCorta(editModal.ausente_hasta!)}.
                 </div>
               )}
@@ -388,7 +388,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                   <span style={{ fontSize: 16, lineHeight: 1 }}>👕</span>
                   {editModal.uniform ? (
-                    <span className="mono" style={{ fontSize: 9, color: 'var(--green)', letterSpacing: '0.1em', background: '#0f2d1a', padding: '2px 5px', borderRadius: 2 }}>UNIFORME</span>
+                    <span className="mono" style={{ fontSize: 9, color: 'var(--pos)', letterSpacing: '0.1em', background: 'var(--pos-soft)', padding: '2px 5px', borderRadius: 2 }}>UNIFORME</span>
                   ) : (
                     <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>Sin uniforme</span>
                   )}
@@ -431,7 +431,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
             {/* Danger zone — no aplica a admins: el API rechaza suspenderlos y
                 eliminarlos, así que mostrar los botones sería mentir. */}
             {!isPrivileged(editModal.role) && (
-            <div style={{ marginTop: 28, borderTop: '1px solid #3a1a1a', paddingTop: 20 }}>
+            <div style={{ marginTop: 28, borderTop: '1px solid var(--neg-deep)', paddingTop: 20 }}>
               <SectionHeader title="ZONA DE RIESGO" color="var(--red)" />
 
               {!editModal.baneado && (
@@ -444,7 +444,7 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                     {editSuspenderOpen ? '↑ Cancelar suspensión' : 'Suspender jugador'}
                   </button>
                   {editSuspenderOpen && (
-                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12, background: '#1a0808', border: '1px solid #3a1a1a', borderRadius: 3, padding: 14 }}>
+                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12, background: 'var(--neg-bg)', border: '1px solid var(--neg-deep)', borderRadius: 3, padding: 14 }}>
                       <div>
                         <FormLabel label="RAZÓN" />
                         <input type="text" value={editBanRazon} onChange={e => setEditBanRazon(e.target.value)} placeholder="Multa pendiente, no asistió..." />
@@ -466,12 +466,12 @@ export function TabJugadores({ players, playerIdsWithPush, accionAdmin, isSuperA
                 <button
                   onClick={() => { setEditDeleteOpen(o => !o); setEditSuspenderOpen(false); setEditDeleteConfirm('') }}
                   className="mono"
-                  style={{ fontSize: 11, padding: '8px 16px', width: '100%', textAlign: 'center', background: 'none', border: '1px solid #7f1d1d', borderRadius: 3, color: 'var(--red)', cursor: 'pointer', letterSpacing: '0.08em' }}
+                  style={{ fontSize: 11, padding: '8px 16px', width: '100%', textAlign: 'center', background: 'none', border: '1px solid var(--neg-line)', borderRadius: 3, color: 'var(--red)', cursor: 'pointer', letterSpacing: '0.08em' }}
                 >
                   {editDeleteOpen ? '↑ Cancelar' : 'Eliminar jugador permanentemente'}
                 </button>
                 {editDeleteOpen && (
-                  <div style={{ marginTop: 12, background: '#1a0808', border: '1px solid #7f1d1d', borderRadius: 3, padding: 14 }}>
+                  <div style={{ marginTop: 12, background: 'var(--neg-bg)', border: '1px solid var(--neg-line)', borderRadius: 3, padding: 14 }}>
                     <p className="mono" style={{ fontSize: 12, color: 'var(--red)', marginBottom: 12, lineHeight: 1.5 }}>
                       Esta acción es <strong>irreversible</strong>. Se eliminará la cuenta y todas sus inscripciones históricas.
                     </p>

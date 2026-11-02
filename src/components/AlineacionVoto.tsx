@@ -70,7 +70,7 @@ export function AlineacionVoto({ partidoId }: { partidoId: string }) {
           className="mono"
           disabled={enviando}
           onClick={() => votar(1)}
-          style={btn(miVoto === 1, 'var(--green)')}
+          style={btn(miVoto === 1, 'var(--pos)')}
         >
           👍 Está pareja
         </button>
@@ -108,7 +108,7 @@ export function AlineacionVoto({ partidoId }: { partidoId: string }) {
 
       <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 10 }}>
         👍 {aFavor} · ✋ {enContra}
-        {miVoto !== null && <span style={{ color: 'var(--green)', marginLeft: 8 }}>✓ tu voto quedó</span>}
+        {miVoto !== null && <span style={{ color: 'var(--pos)', marginLeft: 8 }}>✓ tu voto quedó</span>}
       </div>
 
       {error && (

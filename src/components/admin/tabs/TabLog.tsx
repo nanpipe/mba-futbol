@@ -67,9 +67,9 @@ export function TabLog({ active }: Props) {
             className="mono"
             style={{
               fontSize: 11, padding: '5px 12px', borderRadius: 20, cursor: 'pointer',
-              background: logFilter === f.id ? 'var(--green)' : 'var(--bg-card)',
+              background: logFilter === f.id ? 'var(--primary)' : 'var(--bg-card)',
               color: logFilter === f.id ? '#000' : 'var(--text-muted)',
-              border: `1px solid ${logFilter === f.id ? 'var(--green)' : 'var(--border)'}`,
+              border: `1px solid ${logFilter === f.id ? 'var(--primary)' : 'var(--border)'}`,
               letterSpacing: '0.06em',
             }}
           >

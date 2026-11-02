@@ -19,9 +19,9 @@ export interface ColorRol {
 }
 
 export const COLOR_ROL: Record<string, ColorRol> = {
-  superadmin: { acento: '#a78bfa', fondo: '#150b26', borde: '#3f2370', etiqueta: 'SUPERADMIN' },
-  admin:      { acento: '#fbbf24', fondo: '#1c1503', borde: '#4d3a10', etiqueta: 'ADMIN' },
-  player:     { acento: '#4ade80', fondo: 'var(--bg-card)', borde: 'var(--border)', etiqueta: null },
+  superadmin: { acento: 'var(--mini)', fondo: '#150b26', borde: '#3f2370', etiqueta: 'SUPERADMIN' },
+  admin:      { acento: 'var(--amber)', fondo: '#1c1503', borde: '#4d3a10', etiqueta: 'ADMIN' },
+  player:     { acento: 'var(--primary)', fondo: 'var(--bg-card)', borde: 'var(--border)', etiqueta: null },
 }
 
 export const colorDeRol = (role: string): ColorRol => COLOR_ROL[role] ?? COLOR_ROL.player

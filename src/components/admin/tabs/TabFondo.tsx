@@ -50,12 +50,12 @@ export function TabFondo() {
       {/* ── El total ── */}
       <div style={{
         padding: '18px 18px 16px', marginBottom: 28, borderRadius: 6,
-        background: 'var(--bg-card)', border: '1px solid #166534',
+        background: 'var(--bg-card)', border: '1px solid var(--primary-deep)',
       }}>
         <div className="mono" style={{ fontSize: 10, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
           FONDO MBA
         </div>
-        <div className="display" style={{ fontSize: 44, lineHeight: 1.1, color: 'var(--green)', marginTop: 6 }}>
+        <div className="display" style={{ fontSize: 44, lineHeight: 1.1, color: 'var(--primary)', marginTop: 6 }}>
           {formatoPesos(datos.total)}
         </div>
         <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.6 }}>
@@ -102,7 +102,7 @@ export function TabFondo() {
             return (
               <div key={a.player_id} style={{
                 background: 'var(--bg-card)', borderRadius: 4, overflow: 'hidden',
-                border: `1px solid ${abierto ? 'var(--green)' : 'var(--border)'}`,
+                border: `1px solid ${abierto ? 'var(--primary)' : 'var(--border)'}`,
               }}>
                 <button
                   onClick={() => setAbiertoId(abierto ? null : a.player_id)}
@@ -128,7 +128,7 @@ export function TabFondo() {
                       {a.partidos} partido{a.partidos !== 1 ? 's' : ''}
                     </div>
                   </div>
-                  <span className="mono" style={{ fontSize: 14, color: podio ? 'var(--green)' : 'var(--text-muted)', flexShrink: 0 }}>
+                  <span className="mono" style={{ fontSize: 14, color: podio ? 'var(--primary)' : 'var(--text-muted)', flexShrink: 0 }}>
                     {formatoPesos(a.total)}
                   </span>
                 </button>
@@ -138,7 +138,7 @@ export function TabFondo() {
                   <div style={{
                     height: '100%', borderRadius: 2,
                     width: `${max ? Math.max(2, (a.total / max) * 100) : 0}%`,
-                    background: podio ? 'var(--green)' : '#2f5d3f',
+                    background: podio ? 'var(--primary)' : '#2f5d3f',
                   }} />
                 </div>
 

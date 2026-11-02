@@ -82,7 +82,7 @@ export function CierrePartidoCard({ onDone }: { onDone?: () => void }) {
     return (
       <div className="mono fade-in" style={{
         fontSize: 13, padding: '14px 18px', borderRadius: 6, marginBottom: 32,
-        background: '#0f2d1a', border: '1px solid #16a34a', color: 'var(--green)', lineHeight: 1.5,
+        background: 'var(--pos-soft)', border: '1px solid var(--pos-line)', color: 'var(--pos)', lineHeight: 1.5,
       }}>
         {hecho}
       </div>
@@ -164,7 +164,7 @@ export function CierrePartidoCard({ onDone }: { onDone?: () => void }) {
       </div>
       <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.6 }}>
         {p.dia_semana} {fechaTxt} · {pendiente.confirmados} confirmados
-        {yaJugado && p.evaluaciones_abiertas && <span style={{ color: '#a78bfa' }}> · votaciones abiertas</span>}
+        {yaJugado && p.evaluaciones_abiertas && <span style={{ color: 'var(--mini)' }}> · votaciones abiertas</span>}
       </div>
 
       {!yaJugado ? (

@@ -17,7 +17,8 @@ export interface InvitadoGuardado {
 
 /**
  * The "mis invitados" block on the home screen: current guests for this match
- * plus a form to add one. Email is optional and exists only so the guest can be
+ * plus a form to add one. El formulario va plegado detrás de "+ Invitado": casi
+ * nadie trae invitado, y abierto ocupaba ~300 px de cada visita al inicio. Email is optional and exists only so the guest can be
  * told directly when they get a spot. Saved guests can be added in one tap.
  */
 export function MisInvitados({
@@ -41,6 +42,7 @@ export function MisInvitados({
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState('')
   const [guardados, setGuardados] = useState<InvitadoGuardado[]>([])
+  const [abierto, setAbierto] = useState(false)
 
   const cargarGuardados = useCallback(async () => {
     try {
@@ -72,6 +74,7 @@ export function MisInvitados({
       setNombre('')
       setEmail('')
       setGuardar(false)
+      setAbierto(false)
       if (recordar) cargarGuardados()
       onChanged()
     }
@@ -92,10 +95,20 @@ export function MisInvitados({
 
   return (
     <div style={{ marginTop: 32 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: misInvitados.length || abierto ? 12 : 0 }}>
         <div className="mono" style={{ fontSize: 12, letterSpacing: '0.15em', color: 'var(--text-muted)' }}>
-          MIS INVITADOS ({misInvitados.length}/{maxInvitados})
+          {misInvitados.length > 0 ? `MIS INVITADOS (${misInvitados.length}/${maxInvitados})` : '¿TRAES INVITADO?'}
         </div>
+        {!lleno && (
+          <button
+            onClick={() => { setAbierto(a => !a); setError('') }}
+            aria-expanded={abierto}
+            className="btn btn-ghost"
+            style={{ fontSize: 12, padding: '8px 14px', whiteSpace: 'nowrap' }}
+          >
+            {abierto ? 'Cerrar' : '+ Invitado'}
+          </button>
+        )}
       </div>
 
       {misInvitados.map(inv => (
@@ -116,14 +129,14 @@ export function MisInvitados({
             onClick={() => eliminar(inv.id)}
             className="mono"
             aria-label={'Quitar ' + inv.nombre}
-            style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+            style={{ fontSize: 14, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, minWidth: 44, minHeight: 44 }}
           >
             ✕
           </button>
         </div>
       ))}
 
-      {!lleno && (
+      {!lleno && abierto && (
         <>
           {/* One-tap add from the player's saved guests */}
           {disponibles.length > 0 && (
@@ -140,8 +153,8 @@ export function MisInvitados({
                     className="mono"
                     title={g.email ?? 'Sin correo'}
                     style={{
-                      fontSize: 12, padding: '6px 11px', borderRadius: 999, cursor: 'pointer',
-                      background: 'none', border: '1px solid var(--border)', color: 'var(--text-muted)',
+                      fontSize: 13, minHeight: 44, padding: '6px 14px', borderRadius: 999, cursor: 'pointer',
+                      background: 'none', border: '1px solid var(--border-light)', color: 'var(--text-muted)',
                     }}
                   >
                     + {g.nombre}
@@ -198,10 +211,12 @@ export function MisInvitados({
         </>
       )}
 
-      <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 10, lineHeight: 1.6 }}>
-        Los invitados están en lista de espera. Si quedan cupos a las {horaPromo} del día del partido, entran
-        automáticamente. Si dejas su correo, le avisamos a él directamente.
-      </div>
+      {(abierto || misInvitados.length > 0) && (
+        <div className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 10, lineHeight: 1.6 }}>
+          Los invitados están en lista de espera. Si quedan cupos a las {horaPromo} del día del partido, entran
+          automáticamente. Si dejas su correo, le avisamos a él directamente.
+        </div>
+      )}
     </div>
   )
 }

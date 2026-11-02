@@ -751,8 +751,17 @@ export default function HomePage() {
               )}
             </div>
 
-            {/* Barra de cupos */}
-            <div className="card" style={{ marginBottom: 24 }}>
+            {/* Barra de cupos. Tocarla baja a la lista de quiénes van: es lo
+                primero que uno quiere saber al ver "13/14". */}
+            <div
+              className="card"
+              role="button"
+              tabIndex={0}
+              aria-label="Ver la lista de jugadores del partido"
+              onClick={() => document.getElementById('lista-jugadores')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.getElementById('lista-jugadores')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) } }}
+              style={{ marginBottom: 24, cursor: 'pointer' }}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <span className="mono" style={{ fontSize: 12, letterSpacing: '0.08em', color: 'var(--text-muted)' }}>CUPOS</span>
                 <span className="mono" style={{ fontSize: 13 }}>
@@ -768,11 +777,10 @@ export default function HomePage() {
                   }} />
                 ))}
               </div>
-              {enEspera.length > 0 && (
-                <div className="mono" style={{ fontSize: 12, color: 'var(--amber)', marginTop: 12, letterSpacing: '0.05em' }}>
-                  {enEspera.length} en lista de espera
-                </div>
-              )}
+              <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, marginTop: 12, letterSpacing: '0.05em' }}>
+                <span style={{ color: 'var(--amber)' }}>{enEspera.length > 0 ? `${enEspera.length} en lista de espera` : ''}</span>
+                {inscripciones.length > 0 && <span style={{ color: 'var(--text-muted)' }}>Ver quiénes van ↓</span>}
+              </div>
             </div>
 
             {/* Mensaje */}
@@ -1007,7 +1015,8 @@ export default function HomePage() {
 
             {/* Lista de jugadores */}
             {inscripciones.length > 0 && (
-              <div style={{ marginTop: 40 }}>
+              // scrollMarginTop: que la barra fija de arriba no tape el título.
+              <div id="lista-jugadores" style={{ marginTop: 40, scrollMarginTop: 72 }}>
                 <div className="mono" style={{ fontSize: 12, letterSpacing: '0.15em', color: 'var(--text-muted)', marginBottom: 8 }}>
                   JUGADORES — {totalConfirmados} CONFIRMADOS
                 </div>
@@ -1021,17 +1030,19 @@ export default function HomePage() {
                     Ver las reglas y simular →
                   </Link>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {/* Dos columnas: catorce nombres en una sola eran 14 filas de
+                    desplazamiento. Los usuarios son cortos y caben. */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 4 }}>
                   {confirmados.map((ins, idx) => (
                     <div key={ins.id} style={{
-                      display: 'flex', alignItems: 'center', gap: 12,
-                      padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 10,
+                      display: 'flex', alignItems: 'center', gap: 8, minWidth: 0,
+                      padding: '10px 12px', background: 'var(--bg-card)', borderRadius: 10,
                       border: ins.player_id === user.id ? '1px solid var(--primary-line)' : '1px solid transparent'
                     }}>
-                      <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', width: 20, flexShrink: 0 }}>{idx + 1}</span>
+                      <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', width: 18, flexShrink: 0 }}>{idx + 1}</span>
                       <span style={{ fontSize: 15, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ins.profiles.username}</span>
                       {ins.player_id === user.id && (
-                        <span className="mono" style={{ fontSize: 12, color: 'var(--primary)', letterSpacing: '0.1em' }}>TÚ</span>
+                        <span className="mono" style={{ fontSize: 12, color: 'var(--primary)', letterSpacing: '0.1em', flexShrink: 0 }}>TÚ</span>
                       )}
                     </div>
                   ))}
@@ -1042,18 +1053,18 @@ export default function HomePage() {
                     <div className="mono" style={{ fontSize: 12, letterSpacing: '0.15em', color: 'var(--text-muted)', margin: '24px 0 12px' }}>
                       EN ESPERA
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 4 }}>
                       {enEspera.map((ins, idx) => (
                         <div key={ins.id} style={{
-                          display: 'flex', alignItems: 'center', gap: 12,
-                          padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 10,
+                          display: 'flex', alignItems: 'center', gap: 8, minWidth: 0,
+                          padding: '10px 12px', background: 'var(--bg-card)', borderRadius: 10,
                           border: ins.player_id === user.id ? '1px solid var(--warn-line)' : '1px solid transparent',
                           opacity: 0.7
                         }}>
-                          <span className="mono" style={{ fontSize: 12, color: 'var(--amber)', width: 20, flexShrink: 0 }}>#{idx + 1}</span>
+                          <span className="mono" style={{ fontSize: 12, color: 'var(--amber)', width: 22, flexShrink: 0 }}>#{idx + 1}</span>
                           <span style={{ fontSize: 15, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ins.profiles.username}</span>
                           {ins.player_id === user.id && (
-                            <span className="mono" style={{ fontSize: 12, color: 'var(--amber)', letterSpacing: '0.1em' }}>TÚ</span>
+                            <span className="mono" style={{ fontSize: 12, color: 'var(--amber)', letterSpacing: '0.1em', flexShrink: 0 }}>TÚ</span>
                           )}
                         </div>
                       ))}

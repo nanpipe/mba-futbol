@@ -195,8 +195,8 @@ Medido en producción: **storage 56 MB de 1 GB (5,5%), creciendo 119 MB/año →
 ### 5.9 Diseño — en curso (desde 2026-11-02)
 Auditoría completa en `docs/diseno/INFORME.md` (+ `mockup.html` con editor de colores, + arnés de capturas en `docs/diseno/arnes/`). Orden acordado con el usuario:
 1. ✅ Arreglos rápidos (2026-11-02): 11 campos < 16 px, contraste de `--text-dim`/bordes, barra del inicio a 44 px, votación a 44 px, botón principal deshabilitado en gris.
-2. ⏳ Pasar los colores sueltos a tokens **sin cambio visual** (fase 1 del §5.8 del informe), separando "marca" de "subió/ok" en `--green`. Verificar comparando capturas con el arnés.
-3. ⏳ Colores por club: `app_settings.tema`, acción `guardar_tema` (solo superadmin), inyectado en `layout.tsx`. Validar el hex con regex estricta (si no, XSS persistente).
+2. ✅ Tokens sin cambio visual (2026-11-02): `--primary*` (marca) vs `--pos*` (subió/ok), y semánticos fijos `--neg-*`, `--warn-*`, `--info-*`, `--mini*`, `--portero`. Verificado con 13 capturas idénticas byte a byte. **Código nuevo: marca → `--primary`, "subió/ok/confirmado" → `--pos`, nunca `--green` (queda solo como alias).**
+3. ✅ Colores por club (2026-11-02): `lib/tema.ts` (puro: `parseTema`, `derivarTokens`, `chequeosTema`), `lib/temaServidor.ts` (lectura con caché de 60 s), `<style id="tema-club">` en `layout.tsx`, `theme-color` y manifest. Se guarda en `app_settings` clave `tema` con `guardar_tema` (solo superadmin). **Sin migración.** Editor en Ajustes → Club → "Colores del club". Con los colores de MBA no se inyecta nada (manda `globals.css`). `parseTema` es la barrera contra XSS: solo `#rrggbb` y un fondo de la lista.
 4. ⏳ Rediseño "Cancha nocturna" (§4 del informe).
 Pendientes P1/P2 sueltos del informe §3 que no entraron en el paso 1: segmentados de `/puntaje` a 44 px, botones de `/perfil`, `var(--surface)` inexistente en `TabPartidos`, rejilla de inscritos del panel, navegación del admin.
 

@@ -6,6 +6,7 @@ const CLUB = 'a0000000-0000-0000-0000-000000000001'
 const uid = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
 const ME = uid(1)
 let scenario = 'abierto'
+let tema = null
 
 const nombres = ['pipes22','alexis16','guerrero44','juli9','jbravo30','marin5','magic80','hernan14','danielb3','melo8','jsanchez17','jj21','mendieta7','ortiz97','aizaga11','camilo10','pipesolarte','ramirez23']
 const roles = { 'pipes22':'superadmin', 'juli9':'admin', 'jbravo30':'admin' }
@@ -85,7 +86,7 @@ const activity_log = () => Array.from({ length: 12 }, (_, i) => ({ id: uid(4000 
 const push_subscriptions = () => profiles.slice(0, 10).map(p => ({ id: p.id, player_id: p.id, club_id: CLUB, endpoint: 'x' }))
 const clubs = () => [{ id: CLUB, nombre: 'MBA FC', slug: 'mbafc', timezone: 'America/Bogota', plan: 'free', subscription_status: 'active', ciudad: 'Bogotá', logo_url: null, color_primary: '#22c55e', dias_juego: ['martes'], hora_default: '19:00', hora_apertura_default: '10:00', dias_antes_apertura_default: 2 }]
 
-const TABLES = { profiles: () => profiles, partidos, inscripciones, invitados, equipos, equipo_jugadores, player_badges, rating_events, activity_log, push_subscriptions, clubs, app_settings: () => [], votos_reconocimiento: () => [], player_thumbs: () => [], badges_revocados: () => [], alineacion_votos: () => [], invitados_guardados: () => [], player_knowledge: () => [], balancer_feedback: () => [] }
+const TABLES = { profiles: () => profiles, partidos, inscripciones, invitados, equipos, equipo_jugadores, player_badges, rating_events, activity_log, push_subscriptions, clubs, app_settings: () => (tema ? [{ club_id: CLUB, key: 'tema', value: tema, updated_at: '2026-11-01T00:00:00Z' }] : []), votos_reconocimiento: () => [], player_thumbs: () => [], badges_revocados: () => [], alineacion_votos: () => [], invitados_guardados: () => [], player_knowledge: () => [], balancer_feedback: () => [] }
 
 function parseVal(v) {
   if (v === 'null') return null; if (v === 'true') return true; if (v === 'false') return false
@@ -149,6 +150,8 @@ http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x')
   const send = (code, body, headers = {}) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*', 'Access-Control-Expose-Headers': 'Content-Range', ...headers }); res.end(body === undefined ? '' : typeof body === 'string' ? body : JSON.stringify(body)) }
   if (req.method === 'OPTIONS') return send(204)
+  // GET /__tema/<json urlencoded> pone un tema guardado; /__tema/null lo quita.
+  if (url.pathname.startsWith('/__tema/')) { tema = JSON.parse(decodeURIComponent(url.pathname.slice(8))); return send(200, { tema }) }
   if (url.pathname.startsWith('/__scenario/')) { scenario = url.pathname.split('/')[2]; return send(200, { scenario }) }
   if (url.pathname === '/foto.svg') { res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Access-Control-Allow-Origin': '*' }); return res.end(SVG) }
   if (url.pathname.startsWith('/auth/v1/user')) return send(200, USER)

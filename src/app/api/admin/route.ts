@@ -27,6 +27,8 @@ import { leerTodo } from '@/lib/paginar'
 import { calcularFondo, APORTE_POR_PERSONA, type AporteFila } from '@/lib/fondo'
 import { sincronizarAlineacion } from '@/lib/alineacion'
 import { cancelarInvitadosDe } from '@/lib/invitados'
+import { TEMA_KEY, TEMA_DEFAULT, parseTema } from '@/lib/tema'
+import { olvidarTemaClub } from '@/lib/temaServidor'
 import {
   RECURRENCIA_KEY, parsePlantillas, diaDeFecha, nombreDia, DIAS_SEMANA, MAX_PLANTILLAS,
 } from '@/lib/recurrencia'
@@ -48,7 +50,7 @@ async function verificarAdmin(supabase: Awaited<ReturnType<typeof createClient>>
   }
 }
 
-const SUPERADMIN_ONLY = new Set(['eliminar_jugador', 'editar_jugador', 'cambiar_password', 'recalcular_ratings'])
+const SUPERADMIN_ONLY = new Set(['eliminar_jugador', 'editar_jugador', 'cambiar_password', 'recalcular_ratings', 'guardar_tema'])
 const PRIVILEGED_ROLES = new Set(['admin', 'superadmin'])
 const isPrivileged = (role: string | undefined | null) => PRIVILEGED_ROLES.has(role ?? '')
 const ERR_PRIVILEGED = NextResponse.json({ error: 'No se puede aplicar esta acción a un administrador o superadmin' }, { status: 403 })
@@ -336,6 +338,7 @@ export async function GET(req: NextRequest) {
       badges: parseBadges(settings[BADGES_SETTING_KEY]),
       tiers: parseTiers(settings[TIERS_SETTING_KEY]),
       quorum: quorumDeSettings(settings),
+      tema: parseTema(settings[TEMA_KEY]) ?? TEMA_DEFAULT,
     })
   }
 
@@ -1393,6 +1396,25 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
     await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'guardar_tiers', detalles: { count: tiers.length }, ip })
     return NextResponse.json({ ok: true, mensaje: `${tiers.length} rangos guardados.`, tiers })
+  }
+
+  // ── Colores del club (solo superadmin) ─────────────────────────────────────
+  // parseTema es la validación de seguridad: lo guardado termina dentro de un
+  // <style> en el HTML de todo el club. Ver lib/tema.ts.
+  if (accion === 'guardar_tema') {
+    const tema = parseTema(body.tema)
+    if (!tema) return NextResponse.json({ error: 'Colores inválidos. Usa colores #rrggbb y un fondo de la lista.' }, { status: 400 })
+    const { error } = await admin.from('app_settings').upsert({
+      club_id: clubId,
+      key: TEMA_KEY,
+      value: tema,
+      updated_at: new Date().toISOString(),
+      updated_by: adminUser.id,
+    }, { onConflict: 'club_id,key' })
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+    olvidarTemaClub(clubId)
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'guardar_tema', detalles: { ...tema }, ip })
+    return NextResponse.json({ ok: true, mensaje: 'Colores guardados.', tema })
   }
 
   // ── Enviar email de prueba ─────────────────────────────────────────────────

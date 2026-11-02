@@ -13,6 +13,8 @@ import { NOTIF_EVENTS } from '@/lib/notifications'
 import { BadgesEditor, TiersEditor } from '@/components/admin/RatingConfigEditor'
 import { DEFAULT_BADGES, type Badge } from '@/lib/categorias'
 import { DEFAULT_TIERS, type TierConfig } from '@/lib/tier'
+import { ColoresClub } from '@/components/admin/ColoresClub'
+import { parseTema, type Tema } from '@/lib/tema'
 
 const CLUB_TOGGLES = [
   { key: 'usar_uniforme',                    label: 'Gestión de uniformes',        desc: 'Prioridad por uniforme en inscripciones y badge en panel de jugadores' },
@@ -72,6 +74,9 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
   const [sub, setSub] = useState<SubTab>('club')
   const [badges, setBadges] = useState<Badge[]>(DEFAULT_BADGES)
   const [tiers, setTiers] = useState<TierConfig[]>(DEFAULT_TIERS)
+  // null hasta que llega del servidor: el editor no se monta con un tema
+  // supuesto que después cambie debajo de quien lo está mirando.
+  const [tema, setTema] = useState<Tema | null>(null)
   const [settingsLoading, setSettingsLoading] = useState(false)
   const [savingText, setSavingText] = useState<string | null>(null)
   const [testEmailAddr, setTestEmailAddr] = useState('')
@@ -165,6 +170,7 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
       setSettings(prev => ({ ...prev, ...(json.settings ?? {}) }))
       if (Array.isArray(json.badges) && json.badges.length) setBadges(json.badges)
       if (Array.isArray(json.tiers) && json.tiers.length) setTiers(json.tiers)
+      setTema(parseTema(json.tema))
     }
     setSettingsLoading(false)
   }, [])
@@ -470,6 +476,10 @@ export function TabAjustes({ active, isSuperAdmin = false }: Props) {
               ))}
             </div>
           </Card>
+
+          {isSuperAdmin && tema && (
+            <ColoresClub inicial={tema} clubNombre={typeof settings['club_nombre'] === 'string' && settings['club_nombre'] ? settings['club_nombre'] : 'MBA FC'} />
+          )}
 
           {/* Ubicaciones — canchas del club */}
           <Card padding="20px 24px">

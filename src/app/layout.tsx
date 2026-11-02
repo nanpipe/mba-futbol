@@ -3,6 +3,8 @@ import { headers } from 'next/headers'
 import './globals.css'
 import { ServiceWorkerRegistration } from '@/components/ServiceWorkerRegistration'
 import { PullToRefresh } from '@/components/PullToRefresh'
+import { getTemaClub } from '@/lib/temaServidor'
+import { cssDelTema, derivarTokens } from '@/lib/tema'
 
 export async function generateMetadata(): Promise<Metadata> {
   const h = await headers()
@@ -16,12 +18,17 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const h = await headers()
   const clubNombre = h.get('x-club-nombre') ?? 'Fútbol Club'
+  // Colores del club. Viene en el HTML del servidor, así que el primer pintado
+  // ya sale con ellos: sin parpadeo, incluso sin JS. Ver lib/tema.ts.
+  const tema = await getTemaClub(h.get('x-club-id'))
+  const themeColor = tema ? derivarTokens(tema)['--bg'] : '#0a0a0a'
 
   return (
     <html lang="es">
       <head>
         <link rel="manifest" href="/manifest.webmanifest" />
-        <meta name="theme-color" content="#0a0a0a" />
+        <meta name="theme-color" content={themeColor} />
+        {tema && <style id="tema-club" dangerouslySetInnerHTML={{ __html: cssDelTema(tema) }} />}
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content={clubNombre} />

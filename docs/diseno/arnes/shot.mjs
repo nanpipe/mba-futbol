@@ -23,7 +23,7 @@ const p = await ctx.newPage()
 const errs = []
 p.on('pageerror', e => errs.push(String(e)))
 p.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text().slice(0, 200)) })
-await p.goto('http://localhost:3111' + ruta, { waitUntil: 'networkidle', timeout: 90000 })
+await p.goto('http://localhost:3000' + ruta, { waitUntil: 'networkidle', timeout: 90000 })
 await p.waitForTimeout(1500)
 if (acciones) { await eval(`(async () => { ${acciones} })()`); await p.waitForTimeout(1500) }
 await p.screenshot({ path: OUT + out, fullPage: true })

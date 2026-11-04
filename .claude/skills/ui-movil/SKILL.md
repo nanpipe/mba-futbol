@@ -127,12 +127,43 @@ instante UTC a hora de Colombia.
 un botón de borrar. `✏` sin selector de variación se pinta como texto gris.
 Si el emoji importa, usar la variante con `️` (VS16) y **mirarlo renderizado**.
 
+### 6. Un modal dentro de una tarjeta queda debajo de la tarjeta siguiente
+
+No es de Safari, pero se ve en el celular porque ahí es donde se usa. Pasó el
+2026-11-04: el recorte de la foto del partido (dentro de `CierrePartidoCard`, en
+el inicio) quedaba **debajo** de la tarjeta del contador del próximo partido, y
+sus botones no se podían tocar.
+
+**Por qué:** cualquier ancestro con `opacity` animada, `transform`, `filter` o
+`will-change` crea su propia capa (stacking context). El `z-index: 200` del
+modal solo compite **dentro** de esa capa; la tarjeta de al lado, que viene
+después en el HTML, se pinta encima. La culpable era `.fade-in` con
+`animation: … forwards`, que dejaba la animación aplicada para siempre.
+
+**Arreglo, y regla:**
+- `ModalOverlay` se pinta en `<body>` con `createPortal`. **Todo modal nuevo va
+  con `ModalOverlay`**, nunca con un `position: fixed` propio dentro de la
+  página.
+- `.fade-in` ya no lleva `forwards`. No volver a ponérselo.
+- `PullToRefresh` ignora los gestos que empiezan dentro de `.modal-overlay`:
+  arrastrar la foto hacia abajo en el recorte recargaba la página.
+
+**Cómo verificarlo:** abrir el modal y preguntar quién recibe el toque en sus
+botones: `document.elementFromPoint(x, y)` tiene que caer dentro de
+`.modal-overlay`. A ojo no siempre se nota: el modal se puede ver entero y aun
+así no recibir el toque.
+
 ---
 
 ## Receta para verificar una pantalla
 
 El `session-start` deja `.env.local` falso y `playwright` instalado. Falta
 levantar el servidor y, casi siempre, una página de prueba.
+
+**Para pantallas reales con datos** (inicio, admin, votación) es mejor el arnés
+de `docs/diseno/arnes/` (Supabase falso + capturas, ver su README) que una
+página de prueba. Va en el **puerto 3000**: en cualquier otro, el middleware
+contesta `Forbidden` a todo POST y ningún botón que guarde funciona.
 
 ### 1. Página de prueba temporal
 

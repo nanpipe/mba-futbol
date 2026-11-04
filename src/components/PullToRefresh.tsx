@@ -8,12 +8,19 @@ export function PullToRefresh({ children }: { children: React.ReactNode }) {
   const [pullY, setPullY] = useState(0)
   const [pulling, setPulling] = useState(false)
   const touchStartY = useRef(0)
+  // Un gesto que empieza dentro de un modal no es "bajar para actualizar":
+  // arrastrar la foto hacia abajo en el recorte recargaba la página y se
+  // perdía todo. Los modales van por portal, pero los eventos de React igual
+  // suben hasta acá, así que hay que mirar el destino.
+  const ignorar = useRef(false)
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY
+    ignorar.current = (e.target as Element | null)?.closest?.('.modal-overlay') != null
   }, [])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (ignorar.current) return
     if (window.scrollY > 0) return
     const delta = e.touches[0].clientY - touchStartY.current
     if (delta > 0) {
@@ -23,7 +30,8 @@ export function PullToRefresh({ children }: { children: React.ReactNode }) {
   }, [])
 
   const handleTouchEnd = useCallback(() => {
-    if (pullY >= PULL_THRESHOLD) window.location.reload()
+    if (!ignorar.current && pullY >= PULL_THRESHOLD) window.location.reload()
+    ignorar.current = false
     setPullY(0)
     setPulling(false)
   }, [pullY])

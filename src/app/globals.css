@@ -217,7 +217,11 @@ hr { border: none; border-top: 1px solid var(--border); }
   from { opacity: 0; }
   to { opacity: 1; }
 }
-.fade-in { animation: fadeIn 0.3s ease forwards; }
+/* Sin `forwards` a propósito: con él la animación queda aplicada para siempre
+   y cada .fade-in se vuelve su propia capa (stacking context). Un modal o un
+   aviso fijo declarado adentro queda atrapado debajo de la tarjeta siguiente.
+   Sin él la opacidad termina en 1 igual (es el valor normal). */
+.fade-in { animation: fadeIn 0.3s ease; }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }

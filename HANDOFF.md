@@ -2,7 +2,7 @@
 
 Varias sesiones de Claude trabajan este repo (local en Windows y cloud). **GitHub `main` es lo único que comparten.** Esta conversación, `.env.local`, las ramas locales y la memoria de cada sesión no viajan. Si algo importa, va aquí.
 
-Última actualización: 2026-09-23 (cloud — aviso al cerrar votación, reencuadre del avatar propio; sin migraciones pendientes).
+Última actualización: 2026-11-04 (cloud — rediseño y colores por club (§5.9), corrección de equipos y recálculo por partido desde el historial, modal del recorte que quedaba tapado; **sin migraciones pendientes**).
 
 ---
 
@@ -51,6 +51,7 @@ Ojo: `npm install` a secas **borra** el `playwright` que instaló el hook (va co
 | Borrar políticas RLS por nombre | Tres veces sobrevivieron políticas del dashboard que ninguna migración conocía. Borrar por barrido (`pg_policies` + `roles && ARRAY['public','anon']`), nunca por nombre. Herramienta: `supabase/auditoria_politicas.sql`. |
 | `storage.list()` corta en 100, y ese es su default | Misma familia que la de abajo, pero en el bucket: pedir la lista de una carpeta sin paginar devuelve como mucho 100 nombres, sin error. Mordió en la limpieza de fotos de partido, que borraba "todo lo que no es la vigente" sobre una lista incompleta y dejaba huérfanas vivas. Usar `listarCarpeta()` de `lib/fotosStorage.ts`. Y si una página falla, **lanzar en vez de seguir**: listar a medias y borrar "el resto" borra archivos vivos. |
 | El historial solo se alcanzaba desde la tarjeta del último partido | El enlace "Ver historial →" vivía **dentro** del bloque del último partido, y ese bloque devuelve `null` si no hay partido reciente, si las votaciones siguen abiertas, si el partido no tiene foto ni reconocimientos, o si ya es día de partido pasada la hora promo. En esos días **no había ninguna forma de entrar al historial**, y como el enlace nunca se movió nadie lo notó hasta que el historial pasó a ser una pantalla con filtros. Corregido 2026-09-23: hay un enlace fijo en el pie, junto a la versión, que se pinta siempre. Regla: una pantalla a la que solo se llega desde un bloque condicional es una pantalla que a veces no existe. |
+| Modal tapado por la tarjeta siguiente | Un modal declarado dentro de una tarjeta quedaba atrapado en la capa de esa tarjeta (`.fade-in` con `forwards` creaba una para siempre) y la tarjeta de al lado le quedaba encima: el recorte de la foto del partido no se podía tocar porque el contador del próximo partido se le montaba (2026-11-04). Todo modal va con `ModalOverlay`, que se pinta en `<body>` por portal. Detalle en la trampa 6 de `ui-movil`. |
 | CSS y layout en móvil | Las trampas de iOS/Safari (el zoom en campos de menos de 16 px, el ancho propio de los `input` de fecha, la hidratación rota por `toLocaleString`) y la receta para renderizar una pantalla y mirarla viven en **`.claude/skills/ui-movil/SKILL.md`**, que se carga solo cuando hace falta. Leerlo antes de tocar `globals.css`, un modal o un formulario. |
 | `rating_events` NO es "los partidos que jugó" | Tiene una fila por **cada miembro del club en cada partido**, juegue o no: las ausencias (`ausente`) y las faltas (`no jugó (1/3)`, `inactivo`) también dejan evento. "Jugó" es `motivos @> ["jugó"]`. Mordió en el historial (2026-10-11): filtrar por jugador traía los partidos en que estaba de viaje, y la lista contradecía a la ficha de arriba, que sí filtraba bien. Ojo: `"no jugó (1/3)"` contiene el texto "jugó" pero no se cuela, porque la contención de arreglos jsonb compara elemento por elemento. |
 | PostgREST corta en 1000 filas, sin avisar | Un `.select()` sin paginar devuelve máximo ~1000 filas: no hay error, simplemente faltan datos, y cualquier conteo hecho encima queda mal. Mordió en `progreso_votaciones` (2026-09-20): mostraba "2 de 14 votaron" en partidos con 8 votantes, porque `inscripciones` (~550 filas) cabía bajo el tope pero `votos_reconocimiento` (~4.700) y `player_thumbs` (~6.200) venían cortadas. Lo peor es que **se ve bien mientras la tabla sea chica** y se rompe sola al crecer. Regla: si una query abarca varios partidos, paginar con `leerTodo()` (`src/lib/paginar.ts`), y **ordenar cada página por una columna única** (`.order('id')`) — sin `ORDER BY`, dos páginas seguidas pueden repetir filas y saltarse otras. Las queries de un solo partido o un solo jugador están bien sin paginar. |
@@ -101,7 +102,9 @@ Estado según lo que el usuario confirmó en conversación. **Si no dice "corrid
 
 ## 5. Pendientes
 
-### 5.1 Rating congelado — URGENTE
+### 5.1 Rating congelado — resuelto
+Resuelto con `20260917_habilidad_precision.sql` (corrida, ver §4). Se deja el diagnóstico por si vuelve a aparecer un rating que "no se mueve".
+
 `profiles.habilidad` en producción redondeaba a **1 decimal** al guardar. `rating_events` guarda el valor exacto (2.98, 3.08), pero el perfil quedaba en 3.0 / 3.1 (34 de 38 jugadores).
 
 No solo escondía decimales, **congelaba el rating**: 3.00 − 0.02 = 2.98 se guardaba como 3.0, y el siguiente partido partía otra vez de 3.0. Cualquier delta menor a 0.05 se borraba.
@@ -109,6 +112,8 @@ No solo escondía decimales, **congelaba el rating**: 3.00 − 0.02 = 2.98 se gu
 `20260917_habilidad_precision.sql` amplía la columna a 3 decimales y reconstruye cada rating desde el ledger (3.0 + suma de deltas). No requiere cambios de código. Después de correrla, los ratings van a cambiar visiblemente.
 
 ### 5.2 Balanceador — decisión pendiente del usuario
+**Estado 2026-10:** el club reclamó que los equipos salen desbalanceados y que el borrador automático sale peor que el botón "Balancear". Se le pasó al usuario `supabase/auditoria_balanceador.sql` (solo lectura, 6 bloques: origen de cada armado, diferencia de goles, votos de alineación, comentarios, dispersión de rating, posiciones) y **estamos esperando que lo corra y comparta los resultados**. Recomendación ya dada: la opción B de abajo (optimizador determinista que prueba todas las combinaciones, con reglas estructuradas y balance por posición, avisos visibles y re-armado cuando cambia la lista).
+
 Diagnóstico (2026-09-12, datos de producción):
 - 23 de 38 jugadores en 3.00 exacto: el rating no distingue a nadie. Parte de la causa es §5.1.
 - `player_knowledge.skill_override`: 21 medium, 10 unknown, 2 high.
@@ -185,7 +190,7 @@ Medido en producción: **storage 56 MB de 1 GB (5,5%), creciendo 119 MB/año →
 - **Invitaciones / multi-club:** pausado hasta comprar dominio (subdominios por club, `NEXT_PUBLIC_ROOT_DOMAIN`, `ALLOWED_ORIGINS`).
 - **Prueba de aislamiento entre clubes:** propuesta, no hecha. Un club canario con datos dummy, más un script que inicie sesión en cada club e intente leer y escribir datos del otro por cada ruta y tabla. Requiere que el usuario cree el usuario canario.
 - **Verificar en Vercel** que `NEXT_PUBLIC_SITE_URL` no sea localhost.
-- **Primer recordatorio de votación, sin ver todavía:** sale a las 7 PM del día siguiente al próximo partido, y solo si la votación no llegó a `reco_min_votantes`. Vale la pena mirar el `activity_log` esa noche: `recordatorio_votar` (con cuántos push/email salieron) o `recordatorio_votar_omitido` si ya había quórum.
+- **Recordatorio de votación:** desde 2026-09-28 sale a las **10 PM del mismo día del partido** (ver §6), y solo si la votación no llegó a `reco_min_votantes`. Vale la pena mirar el `activity_log` esa noche: `recordatorio_votar` (con cuántos push/email salieron) o `recordatorio_votar_omitido` si ya había quórum.
 - **Prueba funcional con sesión de jugador, sin hacer:** las migraciones de RLS quitaron todas las políticas de escritura. La app no debería notarlo (el navegador no escribe en ninguna tabla: cero `insert`/`update`/`delete`/`upsert` y cero `.rpc()` en los doce archivos que usan el cliente de navegador), pero eso se verificó leyendo el código, no usando la app. Falta abrir home, lista del partido, historial y perfil con una sesión de jugador normal, e inscribirse y retirarse.
 - **`avatars`: sin verificar si alguien subió algo** mientras existieron las políticas concedidas a `{public}`. La consulta que lo responde: `SELECT name, owner, created_at FROM storage.objects WHERE bucket_id='avatars' AND (owner IS NULL OR (storage.foldername(name))[1] <> owner::text)`. 0 filas = nunca se abusó.
 - ~~`tsconfig.tsbuildinfo` versionado~~ — resuelto: destrackeado y `*.tsbuildinfo` en `.gitignore`.
@@ -199,6 +204,8 @@ Auditoría completa en `docs/diseno/INFORME.md` (+ `mockup.html` con editor de c
 3. ✅ Colores por club (2026-11-02): `lib/tema.ts` (puro: `parseTema`, `derivarTokens`, `chequeosTema`), `lib/temaServidor.ts` (lectura con caché de 60 s), `<style id="tema-club">` en `layout.tsx`, `theme-color` y manifest. Se guarda en `app_settings` clave `tema` con `guardar_tema` (solo superadmin). **Sin migración.** Editor en Ajustes → Club → "Colores del club". Con los colores de MBA no se inyecta nada (manda `globals.css`). `parseTema` es la barrera contra XSS: solo `#rrggbb` y un fondo de la lista.
 4. ✅ Rediseño "Cancha nocturna", primera tanda (2026-11-02): letra del sistema para todo (sale DM Serif; `.mono` ahora es letra del sistema con cifras tabulares, `.num` es DM Mono de verdad), nada bajo 12 px, radios `--r-sm/md/lg`, `.btn` con `min-height: var(--tap)` (44 px), sin el "MBA FC" de 64 px en el inicio (el nombre va en la barra con la última palabra en `--primary`), fecha y hora en una línea, marcador en `--text`, navegación del admin en cuadrícula 4×2 con icono y nombre, segmentados y contadores de /puntaje y /historial a 44 px.
    ⏳ Lo que queda del informe: votación de a una categoría (§2.3), rejilla de inscritos del panel (§2.9), barra inferior de secciones (P2 #19), áreas seguras de iOS (verificar en iPhone primero), correos con el tema (fase 4 opcional), fuentes con `next/font`.
+5. ✅ Inicio (2026-11-03): tocar la tarjeta de CUPOS baja a la lista; confirmados y espera en dos columnas; el formulario de invitado queda detrás de "+ Invitado".
+6. ✅ Modal del recorte tapado por el contador (2026-11-04): ver §2 y la trampa 6 de `ui-movil`.
 Pendiente suelto: `var(--surface)` no existe y se usa en `TabPartidos` (esas cajas quedan sin fondo).
 
 ## 6. Decisiones de producto vigentes

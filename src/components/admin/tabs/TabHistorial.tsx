@@ -176,13 +176,18 @@ export function TabHistorial({ active }: Props) {
   // en vez del estado suelto: saber con quién jugó cada quien es más útil que
   // repetir "confirmado" catorce veces.
   const [equipoDe, setEquipoDe] = useState<Record<string, string>>({})
+  // Equipos del partido abierto, para poder corregir en cuál jugó alguien.
+  const [equiposPartido, setEquiposPartido] = useState<{ id: string; color: string | null }[]>([])
+  const [equipoDestino, setEquipoDestino] = useState<string | null | undefined>(undefined)
+  const [savingEquipo, setSavingEquipo] = useState(false)
+  const [recalculando, setRecalculando] = useState(false)
   // El selector de abajo hace las dos cosas. Antes cada fila llevaba su propio
   // REMOVER, que llenaba la lista de botones rojos para una acción que casi
   // nunca se usa.
   // null = plegado. Los dos botones arrancan en gris y el selector no existe
   // hasta que se toca uno: es una acción ocasional, no tiene por qué ocupar
   // sitio ni pedir atención cada vez que se abre un partido.
-  const [modo, setModo] = useState<'agregar' | 'remover' | null>(null)
+  const [modo, setModo] = useState<'agregar' | 'remover' | 'equipo' | null>(null)
   // Partido cuyo marcador se está editando. Con resultado ya guardado el
   // formulario permanece escondido: se muestra el dato y un "editar" discreto.
   const [editandoResultado, setEditandoResultado] = useState<string | null>(null)
@@ -236,7 +241,7 @@ export function TabHistorial({ active }: Props) {
 
   const cargarInscripciones = useCallback(async (partidoId: string) => {
     setLoadingIns(true)
-    const [{ data }, { data: eqj }] = await Promise.all([
+    const [{ data }, { data: eqj }, { data: eqs }] = await Promise.all([
       supabase
         .from('inscripciones')
         .select('id, estado, player_id, profiles!player_id(username, id, avatar_url)')
@@ -247,7 +252,9 @@ export function TabHistorial({ active }: Props) {
         .from('equipo_jugadores')
         .select('player_id, equipos!inner(partido_id, color)')
         .eq('equipos.partido_id', partidoId),
+      supabase.from('equipos').select('id, color').eq('partido_id', partidoId).order('nombre'),
     ])
+    setEquiposPartido((eqs as { id: string; color: string | null }[]) ?? [])
     const porJugador: Record<string, string> = {}
     for (const f of (eqj ?? []) as unknown as { player_id: string; equipos: { color: string | null } | { color: string | null }[] | null }[]) {
       const e = Array.isArray(f.equipos) ? f.equipos[0] : f.equipos
@@ -455,6 +462,29 @@ export function TabHistorial({ active }: Props) {
     } finally {
       setUploadingFoto(false)
     }
+  }
+
+  const handleCambiarEquipo = async (partido_id: string) => {
+    if (!addPlayerId || equipoDestino === undefined) return
+    setSavingEquipo(true)
+    const r = await adminAction('cambiar_equipo_jugador', { player_id: addPlayerId, partido_id, equipo_id: equipoDestino })
+    if (r.ok) {
+      await cargarInscripciones(partido_id)
+      setAddPlayerId('')
+      setEquipoDestino(undefined)
+      showFlash(r.mensaje ?? 'Equipo cambiado ✓')
+    } else {
+      showFlash(`Error: ${r.error}`)
+    }
+    setSavingEquipo(false)
+  }
+
+  const handleRecalcular = async (partido_id: string) => {
+    if (!window.confirm('¿Recalcular el puntaje de este partido con los equipos, inscritos y votos de ahora?')) return
+    setRecalculando(true)
+    const r = await adminAction('recalcular_partido', { partido_id })
+    showFlash(r.ok ? (r.mensaje ?? 'Recalculado ✓') : `Error: ${r.error}`)
+    setRecalculando(false)
   }
 
   const handleAgregar = async (partido_id: string) => {
@@ -684,21 +714,21 @@ export function TabHistorial({ active }: Props) {
                           sin querer al desplazar en el celular. */}
                       <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
                         <ButtonGroup gap={4}>
-                          {(['agregar', 'remover'] as const).map(m => (
+                          {(['agregar', 'remover', 'equipo'] as const).filter(m => m !== 'equipo' || equiposPartido.length > 0).map(m => (
                             <button
                               key={m}
                               // Volver a tocar el modo activo lo pliega.
-                              onClick={() => { setModo(modo === m ? null : m); setAddPlayerId('') }}
+                              onClick={() => { setModo(modo === m ? null : m); setAddPlayerId(''); setEquipoDestino(undefined) }}
                               className="mono"
                               style={{
-                                padding: '6px 12px', fontSize: 12, border: '1px solid',
-                                borderColor: modo === m ? (m === 'agregar' ? 'var(--pos-line)' : 'var(--neg-line)') : 'var(--border)',
-                                background: modo === m ? (m === 'agregar' ? 'var(--pos-soft)' : '#2a0f0f') : 'none',
-                                color: modo === m ? (m === 'agregar' ? 'var(--pos)' : 'var(--red)') : 'var(--text-dim)',
+                                minHeight: 44, padding: '6px 12px', fontSize: 12, border: '1px solid',
+                                borderColor: modo === m ? (m === 'agregar' ? 'var(--pos-line)' : m === 'remover' ? 'var(--neg-line)' : 'var(--primary-line)') : 'var(--border-light)',
+                                background: modo === m ? (m === 'agregar' ? 'var(--pos-soft)' : m === 'remover' ? '#2a0f0f' : 'var(--primary-soft)') : 'none',
+                                color: modo === m ? (m === 'agregar' ? 'var(--pos)' : m === 'remover' ? 'var(--red)' : 'var(--primary)') : 'var(--text-muted)',
                                 borderRadius: 10, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase',
                               }}
                             >
-                              {m === 'agregar' ? '+ Agregar' : '− Remover'}
+                              {m === 'agregar' ? '+ Agregar' : m === 'remover' ? '− Remover' : '⇄ Equipo'}
                             </button>
                           ))}
                         </ButtonGroup>
@@ -710,12 +740,17 @@ export function TabHistorial({ active }: Props) {
                               value={addPlayerId}
                               onChange={e => setAddPlayerId(e.target.value)}
                               style={{ width: '100%', padding: '8px 10px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)', fontSize: 16 }}
-                              aria-label={modo === 'agregar' ? 'Jugador a agregar' : 'Jugador a remover'}
+                              aria-label={modo === 'agregar' ? 'Jugador a agregar' : modo === 'remover' ? 'Jugador a remover' : 'Jugador a cambiar de equipo'}
                             >
                               <option value="">— Seleccionar —</option>
                               {(modo === 'agregar'
                                 ? availablePlayers.map(pl => ({ id: pl.id, username: pl.username }))
-                                : inscripciones.map(i => ({ id: i.player_id, username: i.profiles.username }))
+                                : modo === 'equipo'
+                                  ? inscripciones.filter(i => i.estado === 'confirmado').map(i => ({
+                                      id: i.player_id,
+                                      username: `${i.profiles.username}${equipoDe[i.player_id] ? ` (${equipoDe[i.player_id]})` : ' (sin equipo)'}`,
+                                    }))
+                                  : inscripciones.map(i => ({ id: i.player_id, username: i.profiles.username }))
                               ).map(pl => (
                                 <option key={pl.id} value={pl.id}>{pl.username}</option>
                               ))}
@@ -743,23 +778,65 @@ export function TabHistorial({ active }: Props) {
                             </ButtonGroup>
                           )}
 
+                          {modo === 'equipo' && (
+                            <ButtonGroup gap={4}>
+                              {[...equiposPartido.map(e => ({ id: e.id as string | null, label: e.color ?? '?' })), { id: null, label: 'ninguno' }].map(e => (
+                                <button
+                                  key={e.id ?? 'ninguno'}
+                                  onClick={() => setEquipoDestino(e.id)}
+                                  className="mono"
+                                  aria-pressed={equipoDestino === e.id}
+                                  style={{
+                                    minHeight: 44, padding: '7px 10px', fontSize: 12, border: '1px solid',
+                                    borderColor: equipoDestino === e.id ? 'var(--primary-line)' : 'var(--border-light)',
+                                    background: equipoDestino === e.id ? 'var(--primary-soft)' : 'none',
+                                    color: equipoDestino === e.id ? 'var(--primary)' : 'var(--text-muted)',
+                                    borderRadius: 10, cursor: 'pointer', letterSpacing: '0.05em', textTransform: 'uppercase',
+                                  }}
+                                >
+                                  {e.label}
+                                </button>
+                              ))}
+                            </ButtonGroup>
+                          )}
+
                           <button
                             onClick={() => {
+                              if (modo === 'equipo') { handleCambiarEquipo(p.id); return }
                               if (modo === 'agregar') { handleAgregar(p.id); return }
                               const ins = inscripciones.find(i => i.player_id === addPlayerId)
                               if (ins) handleRemover(ins, p.id)
                             }}
-                            disabled={!addPlayerId || savingAdd || removingId !== null}
+                            disabled={!addPlayerId || savingAdd || savingEquipo || removingId !== null || (modo === 'equipo' && equipoDestino === undefined)}
                             className="btn btn-ghost"
                             style={{
                               fontSize: 12, padding: '8px 14px',
-                              color: modo === 'agregar' ? 'var(--pos)' : 'var(--red)',
-                              borderColor: modo === 'agregar' ? 'var(--pos-line)' : 'var(--neg-line)',
+                              color: modo === 'agregar' ? 'var(--pos)' : modo === 'remover' ? 'var(--red)' : 'var(--primary)',
+                              borderColor: modo === 'agregar' ? 'var(--pos-line)' : modo === 'remover' ? 'var(--neg-line)' : 'var(--primary-line)',
                             }}
                           >
-                            {savingAdd || removingId ? '...' : modo === 'agregar' ? '+ Agregar' : '− Remover'}
+                            {savingAdd || savingEquipo || removingId ? '...' : modo === 'agregar' ? '+ Agregar' : modo === 'remover' ? '− Remover' : 'Cambiar'}
                           </button>
                         </div>
+                        )}
+
+                        {/* Agregar o quitar a alguien cambia quién jugó; el
+                            puntaje del partido no se mueve solo. Cambiar de
+                            equipo sí recalcula. */}
+                        {p.jugado === true && (
+                          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                            <button
+                              onClick={() => handleRecalcular(p.id)}
+                              disabled={recalculando}
+                              className="btn btn-ghost"
+                              style={{ fontSize: 12, padding: '8px 14px' }}
+                            >
+                              {recalculando ? 'Recalculando...' : '↻ Recalcular puntaje'}
+                            </button>
+                            <span className="mono" style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5, flex: '1 1 180px' }}>
+                              Úsalo después de agregar o quitar jugadores.
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>

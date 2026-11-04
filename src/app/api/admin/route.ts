@@ -738,6 +738,81 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, mensaje: `${targetUsername} agregado como ${estado}.` })
   }
 
+  // ── Corregir el equipo de un jugador en un partido ya jugado ───────────────
+  // Pasa (dos que se cambiaron de equipo en la cancha) y antes solo se podía
+  // con SQL. Recalcula el puntaje del partido al final: el resultado de cada
+  // uno depende del equipo en que quedó.
+  if (accion === 'cambiar_equipo_jugador') {
+    const { player_id, partido_id, equipo_id } = body
+    if (!isUUID(player_id) || !isUUID(partido_id) || (equipo_id !== null && !isUUID(equipo_id))) {
+      return NextResponse.json({ error: 'IDs inválidos' }, { status: 400 })
+    }
+    const { data: pOwn } = await admin.from('partidos').select('id').eq('id', partido_id as string).eq('club_id', clubId).maybeSingle()
+    if (!pOwn) return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
+
+    const { data: eqs } = await admin.from('equipos').select('id, color').eq('partido_id', partido_id as string)
+    const equipos = (eqs ?? []) as { id: string; color: string | null }[]
+    if (equipo_id !== null && !equipos.some(e => e.id === equipo_id)) {
+      return NextResponse.json({ error: 'Ese equipo no es de este partido' }, { status: 400 })
+    }
+    const { data: ins } = await admin.from('inscripciones').select('id, estado, profiles!player_id(username)')
+      .eq('partido_id', partido_id as string).eq('player_id', player_id as string).maybeSingle()
+    if (!ins) return NextResponse.json({ error: 'El jugador no está inscrito en este partido' }, { status: 400 })
+    const username = (ins as unknown as { profiles: { username: string } | null }).profiles?.username ?? ''
+
+    if (equipos.length) {
+      const { error: delErr } = await admin.from('equipo_jugadores').delete()
+        .eq('player_id', player_id as string).in('equipo_id', equipos.map(e => e.id))
+      if (delErr) return NextResponse.json({ error: safeError(delErr) }, { status: 500 })
+    }
+    if (equipo_id !== null) {
+      const { error: insErr } = await admin.from('equipo_jugadores')
+        .insert({ club_id: clubId, equipo_id, player_id })
+      if (insErr) return NextResponse.json({ error: safeError(insErr) }, { status: 500 })
+    }
+
+    let recalculo = ''
+    try {
+      await revertMatchRatings(admin, partido_id as string)
+      const r = await applyMatchRatings(admin, partido_id as string)
+      recalculo = r.applied ? ' Puntaje del partido recalculado.' : ''
+    } catch (e) { console.error('[rating] cambiar_equipo_jugador:', e) }
+
+    const color = equipos.find(e => e.id === equipo_id)?.color ?? null
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'cambiar_equipo_jugador', detalles: { partido_id, player_id, username, equipo: color }, ip })
+    return NextResponse.json({ ok: true, mensaje: `${username} → ${color ?? 'sin equipo'}.${recalculo}` })
+  }
+
+  // ── Recalcular el puntaje de un partido ────────────────────────────────────
+  // Deshace lo que movió el partido y lo vuelve a calcular con los datos de
+  // hoy (inscritos, equipos, resultado, votos). Lo mismo que hace guardar el
+  // marcador, sin tener que volver a escribirlo.
+  if (accion === 'recalcular_partido') {
+    const { partido_id } = body
+    if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
+    const { data: pOwn } = await admin.from('partidos').select('id').eq('id', partido_id as string).eq('club_id', clubId).maybeSingle()
+    if (!pOwn) return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
+
+    const RAZON: Record<string, string> = {
+      evaluaciones_abiertas: 'las votaciones siguen abiertas; se calcula al cerrarlas',
+      no_jugado: 'el partido está marcado como no jugado',
+      sin_resultado: 'el partido no tiene marcador',
+      sin_jugadores: 'no hay jugadores para calificar',
+      ya_aplicado: 'no se pudo borrar el cálculo anterior, intenta de nuevo',
+    }
+    try {
+      const { reverted } = await revertMatchRatings(admin, partido_id as string)
+      const r = await applyMatchRatings(admin, partido_id as string)
+      await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'recalcular_partido', detalles: { partido_id, revertidos: reverted, aplicados: r.applied, saltado: r.skipped ?? null }, ip })
+      if (!r.applied) {
+        return NextResponse.json({ ok: true, mensaje: `No se calculó: ${RAZON[r.skipped ?? ''] ?? r.skipped ?? 'sin datos'}.` })
+      }
+      return NextResponse.json({ ok: true, mensaje: `Puntaje recalculado para ${r.applied} jugadores.` })
+    } catch (e) {
+      return NextResponse.json({ error: safeError(e as Error) }, { status: 500 })
+    }
+  }
+
   // ── Crear partido ──────────────────────────────────────────────────────────
   if (accion === 'crear_partido') {
     const { fecha, hora, cupos_total, hora_apertura, dias_antes_apertura, tipo, notif_apertura_at, notif_recordatorio_at, lugar, repetir_semanal } = body

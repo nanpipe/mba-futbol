@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
 
   const { data: partido } = await admin
     .from('partidos')
-    .select('id, cupos_total, fecha, hora, hora_apertura, dias_antes_apertura')
+    .select('id, cupos_total, fecha, hora, hora_apertura, dias_antes_apertura, equipos_confirmados')
     .eq('club_id', clubId)
     .eq('id', partido_id)
     .single()
@@ -128,6 +128,14 @@ export async function POST(req: NextRequest) {
   // ── Uniform priority logic ─────────────────────────────────────────────────
   // Rule: players WITHOUT uniform always go to espera, no exceptions.
   // Uniformed players: confirmed if spots available, can bump non-uniform if full.
+  //
+  // Con los equipos ya confirmados NO se saca a nadie (2026-11-10). Pasó: a
+  // las 6 PM, con la alineación enviada, entró juli9 con uniforme y la
+  // prioridad sacó a urresti11, que ya tenía equipo y estaba avisado. Desde la
+  // confirmación la lista solo cambia si alguien se sale (y ahí entra el
+  // primero de la espera a su lugar, ver lib/alineacion); el que llega tarde
+  // va a la espera, con uniforme o sin él.
+  const equiposConfirmados = (partido as { equipos_confirmados?: boolean | null }).equipos_confirmados === true
 
   if (!tieneUniforme) {
     // No uniform → always espera
@@ -170,7 +178,7 @@ export async function POST(req: NextRequest) {
     await logActivity({ user_id: user.id, username: profile.username, accion: 'inscripcion', detalles: { partido_id, fecha: partido.fecha, estado: 'confirmado' } })
     await pushAdmins('✅ Nueva inscripción', `${profile.username} se inscribió (confirmado) — ${dia}`)
     return NextResponse.json({ estado: 'confirmado' })
-  } else if (tieneUniforme && !spotsLibres) {
+  } else if (tieneUniforme && !spotsLibres && !equiposConfirmados) {
     // Uniform + full → try to bump the most-recent non-uniform confirmed player
     const { data: confirmed } = await admin
       .from('inscripciones')

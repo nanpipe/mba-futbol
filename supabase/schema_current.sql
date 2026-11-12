@@ -984,6 +984,47 @@ $$;
 
 
 -- ══════════════════════════════════════════════════════════════════════════════
+-- SECTION 22: fondo_movimientos
+-- El libro de la plata del club. Ver 20261112_fondo_movimientos.sql.
+-- RLS activo y CERO políticas a propósito: el navegador no lee ni escribe esta
+-- tabla; todo pasa por api/admin con la service key.
+-- ══════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS public.fondo_movimientos (
+  id           uuid        PRIMARY KEY DEFAULT uuid_generate_v4(),
+  club_id      uuid        NOT NULL REFERENCES public.clubs(id),
+  fecha        date        NOT NULL,
+  tipo         text        NOT NULL
+                           CHECK (tipo IN ('aporte','gasto','ajuste','sin_recoger','pendiente')),
+  monto        integer     NOT NULL,
+  partido_id   uuid        REFERENCES public.partidos(id) ON DELETE SET NULL,
+  encargado_id uuid        REFERENCES public.profiles(id) ON DELETE SET NULL,
+  concepto     text,
+  created_by   uuid        REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT fondo_signo CHECK (
+       (tipo = 'aporte' AND monto >  0)
+    OR (tipo = 'gasto'  AND monto <  0)
+    OR (tipo = 'ajuste' AND monto <> 0)
+    OR (tipo IN ('sin_recoger','pendiente') AND monto = 0)
+  ),
+  CONSTRAINT fondo_partido_requerido CHECK (
+    tipo NOT IN ('sin_recoger','pendiente') OR partido_id IS NOT NULL
+  )
+);
+
+ALTER TABLE public.fondo_movimientos ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX IF NOT EXISTS idx_fondo_club_fecha
+  ON public.fondo_movimientos(club_id, fecha);
+
+-- Un solo renglón de fondo por partido.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_fondo_un_renglon_por_partido
+  ON public.fondo_movimientos(partido_id)
+  WHERE partido_id IS NOT NULL AND tipo IN ('aporte','sin_recoger','pendiente');
+
+
+-- ══════════════════════════════════════════════════════════════════════════════
 -- SECTION 21: Additional Indexes
 -- ══════════════════════════════════════════════════════════════════════════════
 

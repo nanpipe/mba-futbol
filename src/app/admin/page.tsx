@@ -272,7 +272,7 @@ export default function AdminPage() {
         {tab === 'historial' && <TabHistorial active />}
         {tab === 'notifs'    && <TabNotifs partidos={partidos} players={players} onFlash={flash} />}
         {tab === 'ajustes'   && <TabAjustes active isSuperAdmin={isSuperAdmin} />}
-        {tab === 'fondo'     && <TabFondo />}
+        {tab === 'fondo'     && <TabFondo players={players} onFlash={flash} />}
 
         {/* Version footer */}
         <div style={{ textAlign: 'center', padding: '48px 0 16px' }}>

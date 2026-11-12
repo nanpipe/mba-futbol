@@ -2,7 +2,7 @@
 
 Varias sesiones de Claude trabajan este repo (local en Windows y cloud). **GitHub `main` es lo único que comparten.** Esta conversación, `.env.local`, las ramas locales y la memoria de cada sesión no viajan. Si algo importa, va aquí.
 
-Última actualización: 2026-11-10 (cloud — la prioridad por uniforme ya no saca a nadie con equipos confirmados; antes, 2026-11-04: rediseño y colores por club (§5.9), corrección de equipos y recálculo por partido desde el historial, modal del recorte que quedaba tapado; **sin migraciones pendientes**).
+Última actualización: 2026-11-12 (local — Fondo MBA real: libro de movimientos, aportes por partido y gastos. `20261112_fondo_movimientos.sql` **ya corrida**; falta la carga de la historia, `supabase/correcciones/20261112_fondo_historia.sql`. Antes, 2026-11-10 (cloud): la prioridad por uniforme ya no saca a nadie con equipos confirmados; 2026-11-04: rediseño y colores por club (§5.9), corrección de equipos y recálculo por partido desde el historial, modal del recorte que quedaba tapado).
 
 ---
 
@@ -97,6 +97,7 @@ Estado según lo que el usuario confirmó en conversación. **Si no dice "corrid
 | `20260917_votos_sin_politicas.sql` | corrida o innecesaria | las 3 políticas que buscaba eran `{public}`, así que `quitar_politicas_public` las barrió igual. Estado final verificado: `votos_reconocimiento` sin políticas |
 | `20260917_habilidad_precision.sql` | corrida | el usuario vio su rating corregido (3.3 → 3.05) |
 | `20260917_ausencia.sql` | corrida | `profiles.ausente_desde` / `ausente_hasta`. Se deduce del recálculo total del 2026-09-17: `applyMatchRatings` pide esas columnas y devolvió ratings con dispersión real (2.78–4.00), cosa imposible si el `select` estuviera fallando. |
+| `20261112_fondo_movimientos.sql` | corrida | `fondo_movimientos`. Verificada contra producción antes del push: la tabla responde con 0 filas. Falta correr `supabase/correcciones/20261112_fondo_historia.sql`, que carga los 10 meses de la lista de WhatsApp (627.000) |
 
 ---
 
@@ -244,10 +245,16 @@ Pendiente suelto: `var(--surface)` no existe y se usa en `TabPartidos` (esas caj
   - Si se va el **portero fijo**, el equipo pasa a rotar el arco y el que entra se suma al final de la banca. A los admins se les escribe aparte **solo** en ese caso o cuando un equipo queda corto: el aviso de cada baja ya les llega por `notifyAdmins('baja')`.
   - Ojo: `portero_fijo_id`, `rotacion_banca` y `rotacion_portero` guardan **nombres de usuario**, no ids, pese al nombre de la columna.
   - Pendiente, ya conversado: **capitanes**. Se eligen al armar equipos, como el portero, **solo si no juega ningún admin**. Preferidos: juli9, jbravo30, marin5, magic80; si no hay ninguno en el equipo, el de mayor puntaje. Necesita migración (`equipos.capitan_id`).
-- **Fondo MBA** (pestaña 💰 del admin, `lib/fondo.ts`, 2026-10-27). Ranking de cuánto ha aportado cada jugador desde el primer partido. La cuenta es **teórica y la pantalla lo dice**: la cancha cuesta 140.000, el ganador paga 9.000 y el perdedor 13.000 por cabeza, sobran 14.000 por partido y se cuentan como **1.000 parejo por persona y por partido** (`APORTE_POR_PERSONA`). En la realidad el ganador aporta un poco más; el club eligió contarlo parejo.
-  - Cuenta desde **inscripciones confirmadas**, no desde `rating_events`: un partido que nadie cerró no tiene eventos de puntaje, pero la cancha se pagó igual. Excluye los partidos marcados como no jugados; el de hoy solo cuenta cuando ya se marcó jugado.
-  - Los invitados van en una sola línea aparte (no tienen cuenta). Paginado con `leerTodo`: son las inscripciones de toda la historia.
-  - Si algún día cambian los precios, `APORTE_POR_PERSONA` es una constante y recalcularía **toda** la historia con el valor nuevo. Para eso haría falta guardar el aporte por fecha.
+- **Fondo MBA: el libro de la plata** (pestaña 💰 del admin, `lib/fondo.ts`, `lib/fondoConfig.ts`, tabla `fondo_movimientos`, rehecho 2026-11-12). El número grande es el **saldo**: `recaudado + gastado + ajustes`, con `gastado` guardado en negativo para que el desglose cuadre con su total sin restar a mano.
+  - **Lo que había antes era otra cosa, y por eso se reemplazó.** Era una cuenta teórica (1.000 parejo por persona y por partido, derivada de las inscripciones) sin forma de escribir nada: lo recaudado bruto desde el primer partido, que no bajaba nunca. La plata de verdad se lleva a mano en un mensaje de WhatsApp, y los gastos salían de la cuenta sin aparecer en ninguna parte. `APORTE_POR_PERSONA` se fue: 14.000 es un precio, y una constante recalculaba toda la historia con el valor nuevo. Ahora es el ajuste `fondo_aporte_partido`, que **solo** prellena el formulario.
+  - **Cinco tipos, con el signo dentro del monto** y un CHECK que los ata: `aporte` (>0), `gasto` (<0), `ajuste` (≠0, para cuadrar contra el saldo real de la cuenta Nu), `sin_recoger` (0) y `pendiente` (0). Los dos últimos valen cero a propósito: dejan constancia de que el partido ya se revisó sin inventarle un monto, y no ensucian el `SUM`.
+  - **Un solo renglón por partido**, por un índice único **parcial**. Por eso `fondo_partido` busca y decide en vez de usar `upsert`: PostgREST no puede nombrar un índice parcial como árbitro de `ON CONFLICT`. El índice igual hace falta — es lo que frena a dos admins registrando el mismo partido a la vez.
+  - **Lo que no está registrado se muestra, no se esconde.** La vista "por partido" pinta en ámbar cada partido jugado sin renglón de fondo. Al cargar la historia quedaron **7** (16 jun, 3 y 13 jul, 4, 7, 11 y 14 ago): la lista de WhatsApp no podía señalarlos, y es la mitad de para qué existe la pantalla.
+  - **El ranking reparte el monto REAL** de cada partido entre los que estuvieron (confirmados + invitados), no 1.000 parejo. Un partido sin plata recogida no le suma a nadie. El redondeo se deja para `formatoPesos`: la suma de las cuotas redondeadas puede no dar el total al peso, y da igual porque el número grande sale de `calcularSaldo`, no del ranking. Los aportes sin inscritos registrados (los dos de mayo, anteriores al primer partido que hay en la base) salen en su propia línea en vez de diluirse entre todos.
+  - **Sigue contando desde `inscripciones` confirmadas**, no desde `rating_events`: un partido que nadie cerró no tiene eventos de puntaje, pero la cancha se pagó igual.
+  - **`GET ?accion=fondo` devuelve 500 si la consulta falla**, en vez de un payload vacío como el resto de los GET del panel. Un fondo en $ 0 con cara de dato correcto es peor que una pantalla que dice que algo se rompió.
+  - La tabla queda con **RLS y cero políticas**: una de lectura para `{authenticated}` publicaría la plata del club a cualquier jugador con sesión. Decisión del usuario: el fondo lo ven solo admins y superadmin, y **registrar gastos también lo pueden hacer los admins**, no solo el superadmin.
+  - Carga de la historia: `supabase/correcciones/20261112_fondo_historia.sql`, idempotente, con dos fechas corregidas (la lista decía 20 may y 19 ago; los partidos fueron el 19 y el 18) y un guard final que **aborta si lo recaudado no da 627.000**.
 - **Hora promo del club** (default 2 PM): se promueven invitados, se arma borrador de equipos automático (sin confirmar), se avisa a admins y jugadores, y el home deja de mostrar el partido anterior.
 - **Cierre de partido:**
   - El partido se ve hasta hora + 1 h. Desde el inicio se ocultan inscribirse / cancelar / invitados.

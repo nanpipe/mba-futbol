@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { safeError, isUUID, isString, isEmail, isDate, isIntInRange } from '@/lib/validation'
+import { safeError, isUUID, isString, isSingleLine, isEmail, isDate, isIntInRange } from '@/lib/validation'
 import { internalFetch } from '@/lib/internalFetch'
 import { logActivity } from '@/lib/activityLog'
 import { sendTestEmail, sendAperturaEmail } from '@/lib/email'
@@ -24,7 +24,11 @@ import { avisarBadgeRemovido } from '@/lib/notifyBadge'
 import { sanitizeBadges, parseBadges, BADGES_SETTING_KEY } from '@/lib/categorias'
 import { sanitizeTiers, parseTiers, TIERS_SETTING_KEY } from '@/lib/tier'
 import { leerTodo } from '@/lib/paginar'
-import { calcularFondo, APORTE_POR_PERSONA, type AporteFila } from '@/lib/fondo'
+import {
+  calcularSaldo, calcularRanking,
+  type Movimiento, type TipoMovimiento, type AporteMatch, type Participacion,
+} from '@/lib/fondo'
+import { aporteDeSettings, FONDO_CONFIG_KEYS } from '@/lib/fondoConfig'
 import { sincronizarAlineacion } from '@/lib/alineacion'
 import { cancelarInvitadosDe } from '@/lib/invitados'
 import { TEMA_KEY, TEMA_DEFAULT, parseTema } from '@/lib/tema'
@@ -60,6 +64,34 @@ const ERR_PRIVILEGED = NextResponse.json({ error: 'No se puede aplicar esta acci
 function getIP(req: NextRequest) {
   const ip = getClientIp(req)
   return ip === 'unknown' ? null : ip
+}
+
+// ── Fondo: validación compartida por las cuatro acciones ─────────────────
+const FONDO_MONTO_MAX = 50_000_000
+const FONDO_CONCEPTO_MAX = 120
+const ERR_CONCEPTO = NextResponse.json({ error: 'Concepto inválido (1 a 120 caracteres, en una línea)' }, { status: 400 })
+const ERR_ENCARGADO = NextResponse.json({ error: 'Encargado inválido' }, { status: 400 })
+
+/** Concepto opcional: vacío → null. `false` si no es válido. */
+function limpiarConcepto(v: unknown): string | null | false {
+  if (v == null || v === '') return null
+  if (!isSingleLine(v, 1, FONDO_CONCEPTO_MAX)) return false
+  return (v as string).trim()
+}
+
+/**
+ * Encargado opcional, comprobado contra el club. Sin esto un uuid de otro club
+ * quedaría guardado en nuestras filas: el cliente service-role se salta RLS, así
+ * que cada id que llega del navegador se comprueba acá o no se comprueba nunca.
+ */
+async function resolverEncargado(
+  admin: ReturnType<typeof createAdminClient>, clubId: string, v: unknown
+): Promise<string | null | false> {
+  if (v == null || v === '') return null
+  if (!isUUID(v)) return false
+  const { data } = await admin.from('profiles')
+    .select('id').eq('id', v as string).eq('club_id', clubId).maybeSingle()
+  return data ? (v as string) : false
 }
 
 // ── GET /api/admin?accion=logs|pendientes ─────────────────────────────────────
@@ -275,21 +307,41 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Fondo MBA ────────────────────────────────────────────────────────────
-  // Cuánto ha aportado cada uno al fondo desde el primer partido. La cuenta es
-  // de lib/fondo; acá solo se juntan las filas.
+  // El saldo real, el estado de cada partido jugado, los movimientos y el
+  // reparto por jugador.
   //
-  // Paginado: son las inscripciones confirmadas de TODOS los partidos de la
-  // historia, que pasan de 1000 filas en cuanto el club lleva unos meses.
+  // El saldo sale de `fondo_movimientos` y es una suma firmada. Lo caro es el
+  // reparto, que necesita saber quién estuvo en cada partido de la historia.
+  //
+  // Paginado: son las inscripciones confirmadas de TODOS los partidos, que
+  // pasan de 1000 filas en cuanto el club lleva unos meses, y PostgREST corta
+  // ahí sin avisar.
   if (accion === 'fondo') {
     const hoy = fechaColombia()
+    type Perfil = { username: string; avatar_url: string | null }
     type FilaIns = {
       partido_id: string; player_id: string
       partidos: { fecha: string; jugado: boolean | null } | { fecha: string; jugado: boolean | null }[] | null
-      profiles: { username: string; avatar_url: string | null } | { username: string; avatar_url: string | null }[] | null
+      profiles: Perfil | Perfil[] | null
     }
     type FilaInv = { partido_id: string; partidos: FilaIns['partidos'] }
+    type FilaMov = {
+      id: string; fecha: string; tipo: TipoMovimiento; monto: number
+      partido_id: string | null; encargado_id: string | null; concepto: string | null
+      profiles: Perfil | Perfil[] | null
+    }
+    type FilaPartido = { id: string; fecha: string; dia_semana: string; jugado: boolean | null }
 
-    const [ins, invs] = await Promise.all([
+    const [movsRes, partidosRes, settingsRes, ins, invs] = await Promise.all([
+      admin.from('fondo_movimientos')
+        .select('id, fecha, tipo, monto, partido_id, encargado_id, concepto, profiles!encargado_id(username, avatar_url)')
+        .eq('club_id', clubId)
+        .order('fecha', { ascending: false }).order('id'),
+      admin.from('partidos')
+        .select('id, fecha, dia_semana, jugado')
+        .eq('club_id', clubId).lte('fecha', hoy)
+        .order('fecha', { ascending: false }),
+      admin.from('app_settings').select('key, value').eq('club_id', clubId),
       leerTodo<FilaIns>((d, h) => admin.from('inscripciones')
         .select('partido_id, player_id, partidos!inner(fecha, jugado), profiles!player_id(username, avatar_url)')
         .eq('club_id', clubId).eq('estado', 'confirmado')
@@ -302,6 +354,11 @@ export async function GET(req: NextRequest) {
         .order('id').range(d, h)),
     ])
 
+    // Acá sí se devuelve el error en vez de un payload vacío. Sin la migración
+    // corrida esta consulta falla, y un fondo en $0 con cara de dato correcto es
+    // peor que una pantalla que dice que algo se rompió.
+    if (movsRes.error) return NextResponse.json({ error: safeError(movsRes.error) }, { status: 500 })
+
     const uno = <T,>(x: T | T[] | null): T | null => (Array.isArray(x) ? x[0] ?? null : x)
     // Cuenta un partido que se jugó: los que un admin marcó como no jugado se
     // cancelaron y nadie pagó cancha. `jugado` NULL es de antes de que existiera
@@ -310,19 +367,61 @@ export async function GET(req: NextRequest) {
     const seJugo = (p: { fecha: string; jugado: boolean | null } | null) =>
       !!p && p.jugado !== false && (p.fecha < hoy || p.jugado === true)
 
-    const filas: AporteFila[] = []
+    const settings: Record<string, unknown> = {}
+    for (const row of (settingsRes.data ?? [])) {
+      settings[(row as { key: string; value: unknown }).key] = (row as { key: string; value: unknown }).value
+    }
+
+    const movimientos: Movimiento[] = ((movsRes.data ?? []) as unknown as FilaMov[]).map(m => ({
+      id: m.id, fecha: m.fecha, tipo: m.tipo, monto: m.monto,
+      partido_id: m.partido_id, encargado_id: m.encargado_id,
+      encargado: uno(m.profiles), concepto: m.concepto,
+    }))
+
+    const movPorPartido = new Map<string, Movimiento>()
+    for (const m of movimientos) if (m.partido_id) movPorPartido.set(m.partido_id, m)
+
+    // Un renglón por partido jugado, con su movimiento si ya lo registraron. Los
+    // que quedan sin movimiento son los que hay que ir a preguntar: la lista de
+    // WhatsApp no podía señalarlos, y es la mitad de para qué existe la pantalla.
+    const por_partido = ((partidosRes.data ?? []) as FilaPartido[])
+      .filter(p => seJugo(p))
+      .map(p => ({
+        partido_id: p.id, fecha: p.fecha, dia_semana: p.dia_semana,
+        mov: movPorPartido.get(p.id) ?? null,
+      }))
+    const sin_registrar = por_partido.filter(p => !p.mov).length
+
+    // Un aporte sin partido (los de mayo de 2026, anteriores al primer partido
+    // de la base) entra al saldo igual, pero no hay a quién repartírselo. Se le
+    // da su propio id como clave para que caiga en `sinRepartir` y se vea.
+    const aportes: AporteMatch[] = movimientos
+      .filter(m => m.tipo === 'aporte')
+      .map(m => ({ partido_id: m.partido_id ?? m.id, fecha: m.fecha, monto: m.monto }))
+
+    const participaciones: Participacion[] = []
     for (const r of ins) {
       const p = uno(r.partidos), pr = uno(r.profiles)
       if (!seJugo(p) || !pr) continue
-      filas.push({ partido_id: r.partido_id, fecha: p!.fecha, player_id: r.player_id, username: pr.username, avatar_url: pr.avatar_url })
+      participaciones.push({
+        partido_id: r.partido_id, player_id: r.player_id,
+        username: pr.username, avatar_url: pr.avatar_url,
+      })
     }
-    const invitados: { partido_id: string; fecha: string }[] = []
+    const invitados: { partido_id: string }[] = []
     for (const r of invs) {
-      const p = uno(r.partidos)
-      if (seJugo(p)) invitados.push({ partido_id: r.partido_id, fecha: p!.fecha })
+      if (seJugo(uno(r.partidos))) invitados.push({ partido_id: r.partido_id })
     }
 
-    return NextResponse.json({ ok: true, aporte: APORTE_POR_PERSONA, ...calcularFondo(filas, invitados) })
+    return NextResponse.json({
+      ok: true,
+      aporte_default: aporteDeSettings(settings),
+      ...calcularSaldo(movimientos),
+      movimientos,
+      por_partido,
+      sin_registrar,
+      reparto: calcularRanking(aportes, participaciones, invitados),
+    })
   }
 
   if (accion === 'settings') {
@@ -1386,6 +1485,122 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Guardar foto del partido ───────────────────────────────────────────────
+  // ── Fondo: el renglón de un partido ──────────────────────────────────────
+  // Aporte (se recogió), sin_recoger (ese partido no aportó) o pendiente
+  // (alguien la tiene y no la ha entregado). Uno solo por partido: lo garantiza
+  // el índice único parcial de la tabla.
+  if (accion === 'fondo_partido') {
+    const { partido_id, tipo, monto, encargado_id, concepto } = body
+    if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
+    if (tipo !== 'aporte' && tipo !== 'sin_recoger' && tipo !== 'pendiente') {
+      return NextResponse.json({ error: 'tipo inválido' }, { status: 400 })
+    }
+    if (tipo === 'aporte' && !isIntInRange(monto, 1, FONDO_MONTO_MAX)) {
+      return NextResponse.json({ error: 'Monto inválido' }, { status: 400 })
+    }
+    const conceptoTxt = limpiarConcepto(concepto)
+    if (conceptoTxt === false) return ERR_CONCEPTO
+    const encargado = await resolverEncargado(admin, clubId, encargado_id)
+    if (encargado === false) return ERR_ENCARGADO
+
+    // La fecha sale del partido, no del cliente: por definición es la misma, y
+    // dos fechas que pueden discrepar acaban discrepando.
+    const { data: p } = await admin.from('partidos')
+      .select('id, fecha').eq('id', partido_id as string).eq('club_id', clubId).maybeSingle()
+    if (!p) return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
+
+    const fila = {
+      club_id: clubId,
+      fecha: (p as { fecha: string }).fecha,
+      tipo: tipo as string,
+      monto: tipo === 'aporte' ? Math.round(Number(monto)) : 0,
+      partido_id: partido_id as string,
+      encargado_id: encargado,
+      concepto: conceptoTxt,
+      created_by: adminUser.id,
+    }
+
+    // Sin `upsert`: el índice único es PARCIAL (solo sobre los tres tipos de
+    // partido) y PostgREST no puede nombrar un índice parcial como árbitro de
+    // ON CONFLICT. Se busca y se decide. El índice igual sigue haciendo falta:
+    // si dos admins registran el mismo partido a la vez, rechaza al segundo.
+    const { data: ya } = await admin.from('fondo_movimientos')
+      .select('id').eq('club_id', clubId).eq('partido_id', partido_id as string)
+      .in('tipo', ['aporte', 'sin_recoger', 'pendiente']).maybeSingle()
+
+    const { error } = ya
+      ? await admin.from('fondo_movimientos').update(fila).eq('id', (ya as { id: string }).id).eq('club_id', clubId)
+      : await admin.from('fondo_movimientos').insert(fila)
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'fondo_partido', detalles: { partido_id, tipo, monto: fila.monto }, ip })
+    return NextResponse.json({ ok: true, mensaje: 'Fondo del partido guardado.' })
+  }
+
+  // ── Fondo: gasto ─────────────────────────────────────────────────────────
+  if (accion === 'fondo_gasto') {
+    const { fecha, monto, concepto, encargado_id } = body
+    if (!isDate(fecha)) return NextResponse.json({ error: 'Fecha inválida' }, { status: 400 })
+    if (!isIntInRange(monto, 1, FONDO_MONTO_MAX)) {
+      return NextResponse.json({ error: 'Monto inválido' }, { status: 400 })
+    }
+    // Obligatorio: un gasto sin concepto es plata que se fue y nadie sabe en qué.
+    if (!isSingleLine(concepto, 1, FONDO_CONCEPTO_MAX)) return ERR_CONCEPTO
+    const encargado = await resolverEncargado(admin, clubId, encargado_id)
+    if (encargado === false) return ERR_ENCARGADO
+
+    // Llega positivo y se guarda negado, acá y en ningún otro lado. Que la UI
+    // tenga que acordarse del signo es exactamente cómo se registra un gasto
+    // que termina sumando al fondo.
+    const { error } = await admin.from('fondo_movimientos').insert({
+      club_id: clubId, fecha: fecha as string, tipo: 'gasto',
+      monto: -Math.round(Number(monto)),
+      partido_id: null, encargado_id: encargado,
+      concepto: (concepto as string).trim(), created_by: adminUser.id,
+    })
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'fondo_gasto', detalles: { fecha, monto, concepto }, ip })
+    return NextResponse.json({ ok: true, mensaje: 'Gasto registrado.' })
+  }
+
+  // ── Fondo: ajuste ────────────────────────────────────────────────────────
+  // Para cuadrar contra el saldo real de la cuenta. El monto va FIRMADO: en
+  // palabras del usuario, "aveces algo pasa y pues, no sabemos con exactitud",
+  // y eso puede ser de más o de menos.
+  if (accion === 'fondo_ajuste') {
+    const { fecha, monto, concepto } = body
+    if (!isDate(fecha)) return NextResponse.json({ error: 'Fecha inválida' }, { status: 400 })
+    const n = Math.round(Number(monto))
+    if (!Number.isFinite(n) || n === 0 || Math.abs(n) > FONDO_MONTO_MAX) {
+      return NextResponse.json({ error: 'Monto inválido (no puede ser 0)' }, { status: 400 })
+    }
+    if (!isSingleLine(concepto, 1, FONDO_CONCEPTO_MAX)) return ERR_CONCEPTO
+
+    const { error } = await admin.from('fondo_movimientos').insert({
+      club_id: clubId, fecha: fecha as string, tipo: 'ajuste', monto: n,
+      partido_id: null, encargado_id: null,
+      concepto: (concepto as string).trim(), created_by: adminUser.id,
+    })
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'fondo_ajuste', detalles: { fecha, monto: n, concepto }, ip })
+    return NextResponse.json({ ok: true, mensaje: 'Ajuste registrado.' })
+  }
+
+  // ── Fondo: borrar un movimiento ──────────────────────────────────────────
+  if (accion === 'fondo_borrar') {
+    const { id } = body
+    if (!isUUID(id)) return NextResponse.json({ error: 'id inválido' }, { status: 400 })
+
+    const { error } = await admin.from('fondo_movimientos')
+      .delete().eq('id', id as string).eq('club_id', clubId)
+    if (error) return NextResponse.json({ error: safeError(error) }, { status: 500 })
+
+    await logActivity({ user_id: adminUser.id, username: adminUser.username, accion: 'fondo_borrar', detalles: { id }, ip })
+    return NextResponse.json({ ok: true, mensaje: 'Movimiento borrado.' })
+  }
+
   if (accion === 'guardar_foto_partido') {
     const { partido_id, foto_url } = body
     if (!isUUID(partido_id)) return NextResponse.json({ error: 'partido_id inválido' }, { status: 400 })
@@ -1410,6 +1625,7 @@ export async function POST(req: NextRequest) {
       ...NOTIF_CHANNEL_KEYS,
       ...RECO_CONFIG_KEYS,
       ...FALTAS_CONFIG_KEYS,
+      ...FONDO_CONFIG_KEYS,
     ]
     if (typeof key !== 'string' || !ALLOWED_KEYS.includes(key)) {
       return NextResponse.json({ error: 'Clave inválida' }, { status: 400 })
